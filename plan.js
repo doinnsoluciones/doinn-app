@@ -108,8 +108,9 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
   const fronts = S.operarios.filter(o => o.grupo === "Fronts" && o.activo !== false).sort((a, b) => a.nombre.localeCompare(b.nombre));
   const neon = neonOn();
   // Permisos de marcado en Personal
-  const misCodigos = superA ? Object.keys(COD) : admin ? COD_TRABAJO : taller ? COD_AUSENCIA : [];
-  const puedeFila = o => superA || admin || (taller && (o.grupo === "Taller" || o.grupo === "Externos"));
+  const yo = S.perfil && S.perfil.operario_id, gestor = !!(S.perfil && S.perfil.gestiona_taller);
+  const misCodigos = superA || admin || gestor ? Object.keys(COD) : taller && yo ? COD_AUSENCIA : [];
+  const puedeFila = o => superA || ((admin || gestor) && (o.grupo === "Taller" || o.grupo === "Externos" || o.id === yo)) || (taller && o.id === yo);
   const marca = !tv && modo === "personal" && misCodigos.length > 0;
   const largo = ANCHO >= 40 ? 18 : ANCHO >= 30 ? 12 : 6;
 
@@ -157,7 +158,8 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
       <div class="ests"><button class="chip sm ${!S.perGrupo ? "on" : ""}" data-pg="">Todos</button>${GRUPOS_PER.map(([g]) => `<button class="chip sm ${S.perGrupo === g ? "on" : ""}" data-pg="${g}">${g}</button>`).join("")}</div>
     </div>`;
     leyenda = Object.entries(COD).map(([k, [l, c]]) => `<span><i style="${k === "PV" ? `border:2px dashed ${c};background:transparent` : `background:${c}`}"></i>${l}</span>`).join("") + `<span><b class="fz-i">F</b> montaje en festivo</span>`;
-    if (marca) ayuda = `<div class="ayuda">✎ Pulsa un día (o arrastra sobre varios días y personas) y elige qué marcar. ${superA ? "Puedes marcar cualquier cosa." : admin ? "Puedes marcar trabajos: montaje, desmontaje, previsión, fábrica, reunión, formación y libre." : "Puedes marcar vacaciones, licencias y bajas del personal de taller."}</div>`;
+    if (marca) ayuda = `<div class="ayuda">✎ Pulsa un día (o arrastra sobre varios días y personas) y elige qué marcar. ${superA ? "Puedes marcar a cualquier persona." : admin || gestor ? "Puedes marcar al personal de taller y externos, y tus propios días." : "Puedes marcar tus vacaciones, licencias y bajas en tu fila."}</div>`;
+    else if (!tv && taller && !yo) ayuda = `<div class="ayuda">Tu usuario aún no está vinculado a tu ficha de operario. Pide al administrador que lo vincule para poder marcar tus vacaciones y permisos.</div>`;
     filas = GRUPOS_PER.filter(([g]) => !S.perGrupo || S.perGrupo === g).map(([g, fn]) => {
       const ops = activos.filter(fn).sort(orden);
       if (!ops.length) return "";

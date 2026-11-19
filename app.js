@@ -227,6 +227,9 @@ async function vUsuarios() {
   const optRol = r => ROLES.map(([k, l]) => `<option value="${k}" ${k === r ? "selected" : ""}>${l}</option>`).join("");
   const checks = (rol, pags, pref) => rol === "superadmin" ? `<div class="code">Ve todas las páginas.</div>` :
     `<div class="pgs">${PAGINAS.map(([k, l]) => `<label class="pg"><input type="checkbox" data-${pref}="${k}" ${pagsDe(rol, pags).includes(k) ? "checked" : ""}> ${l}</label>`).join("")}</div>`;
+  const ops = S.operarios.filter(o => o.activo !== false).sort((a, b) => a.nombre.localeCompare(b.nombre));
+  const selOp = (id, val) => `<select ${id}><option value="">— Sin vincular —</option>${ops.map(o => `<option value="${o.id}" ${o.id === val ? "selected" : ""}>${esc(o.nombre)} · ${esc(o.grupo || "")}</option>`).join("")}</select>`;
+  const opNomU = id => (S.operarios.find(o => o.id === id) || {}).nombre;
   const leeChecks = (el, pref) => [...el.querySelectorAll(`[data-${pref}]`)].filter(c => c.checked).map(c => c.dataset[pref]);
   const yo = S.user.id;
   $app.innerHTML = `<h1>Usuarios</h1>
@@ -234,21 +237,24 @@ async function vUsuarios() {
   <form id="finv" class="card frm"><h2>+ Invitar</h2>
     <div class="two"><label>Email<input id="iem" type="email" required placeholder="nombre@doinn.es"></label>
     <label>Nombre<input id="inom" placeholder="Nombre y primer apellido"></label></div>
-    <label>Rol<select id="irol">${optRol("taller")}</select></label>
+    <div class="two"><label>Rol<select id="irol">${optRol("taller")}</select></label>
+    <label>Su ficha en planificación${selOp('id="iop"', null)}</label></div>
+    <label class="pg" style="margin:4px 0 8px"><input type="checkbox" id="igt"> Gestiona al personal de taller (puede marcar días de todo el taller, como el encargado o el team leader)</label>
     <div class="code" style="margin:6px 0 4px">Páginas que verá</div><div id="ipg">${checks("taller", null, "ip")}</div>
     <button class="btn lime wide">Guardar invitación</button></form>
-  ${inv.data.length ? `<div class="card"><h2>Invitaciones pendientes <small class="code">${inv.data.length}</small></h2>${inv.data.map(x => `<div class="crow"><div><b>${esc(x.email)}</b> <span class="pill">${esc(x.rol)}</span><div class="code">${esc(x.nombre || "")} · aún no ha creado su cuenta</div></div><button class="link" data-idel="${esc(x.email)}">Anular</button></div>`).join("")}</div>` : ""}
+  ${inv.data.length ? `<div class="card"><h2>Invitaciones pendientes <small class="code">${inv.data.length}</small></h2>${inv.data.map(x => `<div class="crow"><div><b>${esc(x.email)}</b> <span class="pill">${esc(x.rol)}</span><div class="code">${esc(x.nombre || "")}${x.operario_id ? " · ficha: " + esc(opNomU(x.operario_id) || "") : ""}${x.gestiona_taller ? " · gestiona taller" : ""} · aún no ha creado su cuenta</div></div><button class="link" data-idel="${esc(x.email)}">Anular</button></div>`).join("")}</div>` : ""}
   <h2 style="margin-top:18px">Con acceso</h2>
-  ${u.data.map(x => `<div class="card u" data-id="${x.user_id}"><div class="crow" style="border:0;padding:0"><div><b>${esc(x.nombre || x.email)}</b><div class="code">${esc(x.email)} · ${x.aprobado ? "Activo" : "Sin acceso"}</div></div>
+  ${u.data.map(x => `<div class="card u" data-id="${x.user_id}"><div class="crow" style="border:0;padding:0"><div><b>${esc(x.nombre || x.email)}</b><div class="code">${esc(x.email)} · ${x.aprobado ? "Activo" : "Sin acceso"}${x.operario_id ? " · ficha: " + esc(opNomU(x.operario_id) || "") : " · sin ficha vinculada"}${x.gestiona_taller ? " · gestiona taller" : ""}</div></div>
     ${x.user_id === yo ? `<span class="pill">Tú</span>` : `<button class="btn sm ${x.aprobado ? "ghost" : "lime"}" data-acc>${x.aprobado ? "Quitar acceso" : "Dar acceso"}</button>`}</div>
-    ${x.user_id === yo ? "" : `<label class="frm" style="margin-top:8px">Rol<select data-rol>${optRol(x.rol)}</select></label>
+    ${x.user_id === yo ? "" : `<div class="two frm" style="margin-top:8px"><label>Rol<select data-rol>${optRol(x.rol)}</select></label><label>Su ficha en planificación${selOp("data-op", x.operario_id)}</label></div>
+    <label class="pg" style="margin:6px 0"><input type="checkbox" data-gt ${x.gestiona_taller ? "checked" : ""}> Gestiona al personal de taller</label>
     <details><summary class="link">Páginas que ve</summary><div data-pgs>${checks(x.rol, x.paginas, "up")}</div><button class="btn sm" data-gpg>Guardar páginas</button></details>`}</div>`).join("")}`;
   const $ = id => document.getElementById(id);
   $("irol").onchange = () => $("ipg").innerHTML = checks($("irol").value, null, "ip");
   $("finv").onsubmit = async ev => {
     ev.preventDefault();
     const rol = $("irol").value, pags = rol === "superadmin" ? null : leeChecks($("ipg"), "ip");
-    const row = { email: $("iem").value.trim().toLowerCase(), nombre: $("inom").value.trim() || null, rol, paginas: pags, invitado_por: S.user.email, usada: null };
+    const row = { email: $("iem").value.trim().toLowerCase(), nombre: $("inom").value.trim() || null, rol, paginas: pags, invitado_por: S.user.email, usada: null, operario_id: $("iop").value ? +$("iop").value : null, gestiona_taller: $("igt").checked };
     if (u.data.some(x => x.email === row.email)) return toast("Ese email ya tiene cuenta: cambia su rol abajo.");
     const { error } = await sb.from("invitaciones").upsert(row);
     if (error) return toast(error.message);
@@ -260,6 +266,8 @@ async function vUsuarios() {
     const upd = async (c, msg) => { const { error } = await sb.from("perfiles").update(c).eq("user_id", id); toast(error ? error.message : msg); if (!error) vUsuarios(); };
     const a = el.querySelector("[data-acc]"); if (a) a.onclick = () => upd({ aprobado: !x.aprobado }, x.aprobado ? "Acceso retirado" : "Acceso activado");
     const r = el.querySelector("[data-rol]"); if (r) r.onchange = () => upd({ rol: r.value, paginas: null }, "Rol guardado (páginas por defecto del rol)");
+    const so = el.querySelector("[data-op]"); if (so) so.onchange = () => upd({ operario_id: so.value ? +so.value : null }, "Ficha vinculada");
+    const gt = el.querySelector("[data-gt]"); if (gt) gt.onchange = () => upd({ gestiona_taller: gt.checked }, gt.checked ? "Ahora gestiona al personal de taller" : "Ya no gestiona al personal de taller");
     const g = el.querySelector("[data-gpg]"); if (g) g.onclick = () => upd({ paginas: leeChecks(el.querySelector("[data-pgs]"), "up") }, "Páginas guardadas");
   });
 }
