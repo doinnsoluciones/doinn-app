@@ -186,7 +186,7 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
   }
 
   const ajustes = tv ? "" : `<label class="neon-t"><input type="checkbox" id="bneon" ${neon ? "checked" : ""}> Avisos parpadeantes</label>`;
-  const cols = tv ? "190px repeat(28,1fr)" : `150px repeat(${NDIAS},minmax(${ANCHO}px,1fr))`;
+  const cols = tv ? "190px repeat(28,1fr)" : `150px repeat(${NDIAS},${Math.max(ANCHO, Math.floor((($app.clientWidth || 1000) - 152) / NDIAS))}px)`;
   $app.innerHTML = `${tv ? `<div class="tvhead"><b>Planificación · ${modo === "proyectos" ? "Proyectos" : "Personal"}</b><span>${new Date().toLocaleString("es-ES", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}</span><a href="#/plan" class="btn sm ghost">Salir</a></div>` : `<h1>Planificación</h1>`}
   ${nav}${filtros}${ayuda}<div class="ley">${leyenda}${ajustes}</div>
   <div class="gwrap"><div class="gantt z${tv ? 1 : S.zoom} ${marca ? "marcable" : ""}" style="--cols:${cols}">${cabecera(dias, D.fest)}${filas}</div></div>`;
