@@ -183,3 +183,24 @@ h2,.pj-name,.btn{font-family:"Core Sans C","Nunito Sans","Myriad Pro",system-ui,
 .ck input,.frm .ck input{width:auto;height:auto;margin:0;display:inline-block}
 .subf{border:1px solid var(--line);border-radius:12px;padding:12px;margin:10px 0;background:#FAFBFB}
 @media (max-width:640px){.acts2{grid-template-columns:1fr}}
+/* carga, retorno, muelle */
+.fam{padding:6px 0;border-top:1px solid var(--line)}
+.crow{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0}
+.ck2{display:flex;align-items:flex-start;gap:10px;cursor:pointer}
+.ck2 input{width:20px;height:20px;margin-top:1px;accent-color:var(--lime)}
+.addc{display:grid;grid-template-columns:150px 1fr 70px 60px 1fr auto;gap:6px;margin-top:10px}
+.addc input,.addc select{margin:0;height:36px}
+.lrow2{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line);flex-wrap:wrap}
+.lr-main{flex:1;min-width:180px}
+.lr-ctl{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.lr-ctl select,.lr-ctl input{height:36px;border:1px solid var(--line);border-radius:10px;padding:0 8px;font:inherit;font-size:14px;background:#fff}
+.lr-ctl input[data-f=orden_carga]{width:72px}
+.lr-ctl input[data-f=ubicacion_nave]{width:130px}
+.lr-ctl .fzb{height:36px}
+.card.today{outline:2px solid var(--lime);outline-offset:-2px}
+.mv{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line)}
+.mv>b{min-width:48px}
+.mv .mvb{flex:1}
+.clash{color:var(--red)}
+@media (max-width:640px){.addc{grid-template-columns:1fr 1fr}.addc #c_desc{grid-column:1/-1}}
+a.btn{display:inline-flex;align-items:center;justify-content:center}

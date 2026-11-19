@@ -7,6 +7,7 @@ const { vElementos, vElemento } = await import("./elementos.js" + V);
 const { vEscanear } = await import("./escanear.js" + V);
 const { vPanel } = await import("./panel.js" + V);
 const { vDespiece, vElementoForm } = await import("./despiece.js" + V);
+const { vCarga, vRetorno, vMuelle } = await import("./carga.js" + V);
 
 const sb = createClient(CONFIG.url, CONFIG.anonKey, { auth: { persistSession: true, detectSessionInUrl: true } });
 const $app = document.getElementById("app");
@@ -132,12 +133,14 @@ function vProyecto(id, tab = "ficha") {
   const tabs = [["ficha", "Ficha"], ["elementos", "Elementos"], ["despiece", "Despiece"], ["carga", "Carga"], ["retorno", "Retorno"], ["equipo", "Equipo"]];
   let body = "";
   if (tab === "ficha") body = fichaLectura(p);
-  else if (tab === "elementos" || tab === "despiece") body = `<div id="tabc"></div>`;
+  else if (["elementos", "despiece", "carga", "retorno"].includes(tab)) body = `<div id="tabc"></div>`;
   else body = `<div class="card empty">Esta pestaña llega en los próximos días. Mientras tanto, usa la app de Power Apps.</div>`;
   $app.innerHTML = `<a class="back" href="#/">‹ Proyectos</a><div class="code">${esc(p.codigo)}</div><h1>${esc(p.nombre || "")}</h1>
   <div class="seg">${tabs.map(([k, l]) => `<a href="#/p/${p.id}/${k}" class="${k === tab ? "on" : ""}">${l}</a>`).join("")}</div>${body}`;
   if (tab === "elementos") { S.dirty = true; vElementos(ctx(), p, document.getElementById("tabc")); }
   if (tab === "despiece") vDespiece(ctx(), p, document.getElementById("tabc"));
+  if (tab === "carga") vCarga(ctx(), p, document.getElementById("tabc"));
+  if (tab === "retorno") vRetorno(ctx(), p, document.getElementById("tabc"));
 }
 function fichaLectura(p) {
   const fila = (on, l, a, b, h, ev) => on === false ? "" : `<tr class="${ev ? "ev" : ""}"><td>${l}</td><td>${fd(a)}${b && b !== a ? "–" + fd(b) : ""}</td><td>${esc(h || "—")}</td></tr>`;
@@ -192,7 +195,7 @@ async function route() {
   if (h[0] === "usuarios") return vUsuarios();
   if (h[0] === "plan") return vProximamente("Planificación");
   if (h[0] === "escanear") return vEscanear(ctx());
-  if (h[0] === "muelle") return vProximamente("Muelle");
+  if (h[0] === "muelle") return vMuelle(ctx(), h[1] || "");
   if (h[0] === "panel") { if (S.dirty) { S.dirty = false; try { await cargar(); } catch { } } return vPanel(ctx(), h[1] || ""); }
   if (S.dirty) { S.dirty = false; try { await cargar(); } catch { } }
   return vProyectos();
