@@ -1,6 +1,7 @@
 // Alta y edición de la ficha de proyecto (cuadrícula de fechas)
 const HORAS = ["—", ...Array.from({ length: 48 }, (_, i) => `${String(Math.floor(i / 2)).padStart(2, "0")}:${i % 2 ? "30" : "00"}`)];
 const ESTADOS = ["En preparación", "En taller", "Cargado", "Cerrado"];
+const ESTADOS_COM = ["Presupuestado", "Pre-confirmado", "Confirmado", "Pospuesto", "Cancelado"];
 const MAY = s => (s ?? "").trim().toUpperCase();
 const sumaDias = (s, n) => { if (!s) return null; const d = new Date(s + "T00:00:00"); d.setDate(d.getDate() + n); return d.toLocaleDateString("sv-SE"); };
 
@@ -29,8 +30,11 @@ const FASES = [
 export function vFicha(ctx, p) {
   const { $app, S, sb, esc, toast, puede, recargar } = ctx;
   const nuevo = !p;
-  p = p || { estado: "En preparación", hay_carga: true, hay_montaje: true, hay_evento: true, hay_desmontaje: true, hay_retorno: true };
+  p = p || { estado: "En preparación", estado_com: "Confirmado", hay_carga: true, hay_montaje: true, hay_evento: true, hay_desmontaje: true, hay_retorno: true };
   const fronts = S.operarios.filter(o => o.grupo === "Fronts" && o.activo !== false);
+  const ots = S.operarios.filter(o => o.grupo === "OT" && o.activo !== false).sort((a, b) => a.nombre.localeCompare(b.nombre));
+  const jefes = S.operarios.filter(o => o.activo !== false && (o.grupo === "Taller" || o.grupo === "Externos" || o.grupo === "Fronts")).sort((a, b) => ((b.subgrupo === "Montaje") - (a.subgrupo === "Montaje")) || a.nombre.localeCompare(b.nombre));
+  const selOp = (id, lista, val) => `<select id="${id}"><option value="">Sin asignar</option>${lista.map(o => `<option value="${o.id}" ${o.id === val ? "selected" : ""}>${esc(o.nombre)}${o.subgrupo === "Montaje" ? " (montaje)" : ""}</option>`).join("")}</select>`;
   const v = k => esc(p[k] ?? "");
   const sel = (id, ops, val) => `<select id="${id}">${ops.map(o => `<option ${o === (val || "—") ? "selected" : ""}>${esc(o)}</option>`).join("")}</select>`;
   const filas = FASES.map(([k, l, hay, d1, d2, h, t]) => `
@@ -55,8 +59,13 @@ export function vFicha(ctx, p) {
     <label>Cliente / agencia<input id="cliente" value="${v("cliente")}"></label>
     <div class="two">
       <label>Front *<select id="front_id" required><option value="">Elige…</option>${fronts.map(o => `<option value="${o.id}" ${o.id === p.front_id ? "selected" : ""}>${esc(o.nombre)}</option>`).join("")}</select></label>
-      <label>Estado${sel("estado", ESTADOS, p.estado)}</label>
+      <label>Estado comercial${sel("estado_com", ESTADOS_COM, p.estado_com || "Confirmado")}</label>
     </div>
+    <div class="two">
+      <label>Técnico de OT${selOp("ot_id", ots, p.ot_id)}</label>
+      <label>Jefe de montaje${selOp("jefe_montaje_id", jefes, p.jefe_montaje_id)}</label>
+    </div>
+    <label>Estado de producción${sel("estado", ESTADOS, p.estado)}</label>
     <label>Carpeta del proyecto <small>pega el enlace de SharePoint</small><input id="carpeta" value="${v("carpeta")}" placeholder="https://somosfirm.sharepoint.com/…"></label>
   </div>
   <div class="card frm">
@@ -106,7 +115,8 @@ export function vFicha(ctx, p) {
     const front = fronts.find(o => o.id === +$("front_id").value);
     const row = {
       codigo, nombre: MAY($("nombre").value), cliente: MAY($("cliente").value) || null,
-      front_id: front.id, front_nombre: front.nombre, estado: $("estado").value,
+      front_id: front.id, front_nombre: front.nombre, estado: $("estado").value, estado_com: $("estado_com").value,
+      ot_id: $("ot_id").value ? +$("ot_id").value : null, jefe_montaje_id: $("jefe_montaje_id").value ? +$("jefe_montaje_id").value : null,
       carpeta: limpiaCarpeta($("carpeta").value),
       ubicacion: MAY($("ubicacion").value) || null, tipo_vehiculo: MAY($("tipo_vehiculo").value) || null,
       necesidades: MAY($("necesidades").value) || null, updated_at: new Date().toISOString(),

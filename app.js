@@ -8,7 +8,8 @@ const { vEscanear } = await import("./escanear.js" + V);
 const { vPanel } = await import("./panel.js" + V);
 const { vDespiece, vElementoForm } = await import("./despiece.js" + V);
 const { vCarga, vRetorno, vMuelle } = await import("./carga.js" + V);
-const { vPlan, vEquipo } = await import("./plan.js" + V);
+const { vPlan, vEquipo, vTv } = await import("./plan.js" + V);
+const { COL_COM, estadoCom, confirmado, riesgos, neonOn } = await import("./estados.js" + V);
 
 const sb = createClient(CONFIG.url, CONFIG.anonKey, { auth: { persistSession: true, detectSessionInUrl: true } });
 const $app = document.getElementById("app");
@@ -170,11 +171,12 @@ function card(p) {
   const st = stats(p.id), [sl, sc] = salud(p, st), d = dias(p.fecha_carga);
   const cuando = d === null ? "" : d === 0 ? "carga hoy" : d > 0 ? `faltan ${d} días` : `hace ${-d} días`;
   return `<a class="card" href="#/p/${p.id}">
-    <div class="pj-top"><div class="pj-name">${esc(p.nombre || p.codigo)}</div><span class="pill ${sc}">${sl}</span></div>
+    <div class="pj-top"><div class="pj-name">${esc(p.nombre || p.codigo)}</div><span class="row" style="gap:6px">${!confirmado(p) ? `<span class="pill" style="background:${COL_COM[estadoCom(p)]}33;color:var(--ink)">${estadoCom(p)}</span>` : ""}<span class="pill ${sc}">${sl}</span></span></div>
     <div class="pj-meta"><b>${esc(p.codigo)}</b><span>carga ${fd(p.fecha_carga)}</span><span>${esc(p.front_nombre || "—")}</span><span>${st.n} elem.</span><span>${cuando}</span>
     <span style="color:${p.coordinacion_ok ? "var(--lime-d)" : "var(--amber)"}">${p.coordinacion_ok ? "✓ Coordinado" : "Sin coordinar"}</span></div>
     <div class="prog"><div class="bar"><i style="width:${st.av}%"></i></div><span class="pc">${st.av}% avance</span>
-    <span class="mini"><span>Doc ${st.doc}%</span><span>Fab ${st.fab}%</span><span>Carga ${st.car}%</span></span></div></a>`;
+    <span class="mini"><span>Doc ${st.doc}%</span><span>Fab ${st.fab}%</span><span>Carga ${st.car}%</span></span></div>
+    ${(rs => rs.length ? `<div class="pj-warn" title="${esc(rs.join("\n"))}">⚠ ${esc(rs[0])}${rs.length > 1 ? ` <b>+${rs.length - 1}</b>` : ""}</div>` : "")(riesgos(p, st.n))}</a>`;
 }
 function vProyecto(id, tab = "ficha") {
   const p = S.proyectos.find(x => x.id === +id);
@@ -194,10 +196,15 @@ function vProyecto(id, tab = "ficha") {
   if (tab === "retorno") vRetorno(ctx(), p, document.getElementById("tabc"));
   if (tab === "equipo") vEquipo(ctx(), p, document.getElementById("tabc"));
 }
+const opNom = id => (id && (S.operarios.find(o => o.id === id) || {}).nombre) || "—";
 function fichaLectura(p) {
+  const rs = riesgos(p, S.elementos.filter(e => e.proyecto_id === p.id).length);
   const fila = (on, l, a, b, h, ev) => on === false ? "" : `<tr class="${ev ? "ev" : ""}"><td>${l}</td><td>${fd(a)}${b && b !== a ? "–" + fd(b) : ""}</td><td>${esc(h || "—")}</td></tr>`;
-  return `<div class="card"><dl class="kv">
+  return `${rs.length ? `<div class="card avisos ${neonOn() ? "neon" : ""}">${rs.map(r => `<div>⚠ ${esc(r)}</div>`).join("")}</div>` : ""}<div class="card"><dl class="kv">
+    <dt>Estado</dt><dd><span class="pill" style="background:${COL_COM[estadoCom(p)]}26;color:var(--ink)">${estadoCom(p)}</span></dd>
     <dt>Front</dt><dd>${esc(p.front_nombre || "—")}</dd>
+    <dt>OT</dt><dd>${esc(opNom(p.ot_id))}</dd>
+    <dt>Jefe de montaje</dt><dd>${esc(opNom(p.jefe_montaje_id))}</dd>
     <dt>Cliente</dt><dd>${esc(p.cliente || "—")}</dd>
     <dt>Ubicación</dt><dd>${esc(p.ubicacion || "—")}</dd>
     <dt>Ida</dt><dd>${esc(p.transporte_ida || "—")}</dd>
@@ -268,7 +275,7 @@ async function route() {
   const h = location.hash.replace(/^#\/?/, "").split("/");
   document.querySelectorAll("#tabs a").forEach(a => a.classList.toggle("on", (a.dataset.t === (h[0] || "proyectos")) || (h[0] === "p" && a.dataset.t === "proyectos")));
   document.querySelectorAll("#tabs a").forEach(a => a.hidden = !ver(a.dataset.t));
-  const pag = h[0] === "p" ? (h[2] && ["editar", "desp", "el"].includes(h[2]) ? (h[2] === "editar" ? "ficha" : h[2] === "desp" ? "despiece" : "elementos") : null) : (h[0] || "proyectos");
+  const pag = h[0] === "p" ? (h[2] && ["editar", "desp", "el"].includes(h[2]) ? (h[2] === "editar" ? "ficha" : h[2] === "desp" ? "despiece" : "elementos") : null) : (h[0] === "tv" ? "plan" : h[0] || "proyectos");
   if (pag && pag !== "usuarios" && pag !== "nuevo" && !ver(pag)) { const pri = TODAS.find(x => ver(x) && ["proyectos", "plan", "escanear", "muelle", "panel"].includes(x)); if (pri && pri !== pag) { location.hash = pri === "proyectos" ? "#/" : "#/" + pri; return; } $app.innerHTML = `<div class="empty">No tienes acceso a esta página.</div>`; return; }
   if (h[0] === "nuevo") return puede("admin") ? vFicha(ctx(), null) : vProyectos();
   if (h[0] === "p" && h[2] === "editar") { const p = S.proyectos.find(x => x.id === +h[1]); return p && puede("admin") ? vFicha(ctx(), p) : vProyecto(h[1]); }
@@ -277,6 +284,7 @@ async function route() {
   if (h[0] === "p") return vProyecto(h[1], h[2] || "ficha");
   if (h[0] === "usuarios") return vUsuarios();
   if (h[0] === "plan") return vPlan(ctx(), h[1] || "proyectos", h[2] || "");
+  if (h[0] === "tv") return vTv(ctx());
   if (h[0] === "escanear") return vEscanear(ctx());
   if (h[0] === "muelle") return vMuelle(ctx(), h[1] || "");
   if (h[0] === "panel") { if (S.dirty) { S.dirty = false; try { await cargar(); } catch { } } return vPanel(ctx(), h[1] || ""); }
