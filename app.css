@@ -1,14 +1,15 @@
 :root{
-  --ink:#131E29; --muted:#8E9C9C; --muted2:#5B6873; --line:#E4E9E9; --bg:#F2F4F4; --card:#fff;
-  --lime:#86BC25; --lime-d:#3F6A00; --lime-bg:#EEF6DF; --amber:#B7791F; --amber-bg:#FDF3E1;
-  --red:#C0392B; --red-bg:#FBE9E7; --blue-bg:#E8F0F8; --r:14px;
+  --ink:#151E28; --muted:#8E9AA3; --muted2:#5A6771; --line:#E4E9E9; --bg:#F2F4F4; --card:#fff;
+  --lime:#1CC9D3; --lime-d:#0A8790; --lime-bg:#E2F7F8; --amber:#B97F0E; --amber-bg:#FDF4E1;
+  --red:#D0103C; --red-bg:#FDE8ED; --blue-bg:#E8F0F8; --r:14px;
 }
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.4 Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;-webkit-font-smoothing:antialiased}
 a{color:inherit;text-decoration:none}
 button{font:inherit;cursor:pointer}
 .top{position:sticky;top:0;z-index:10;height:52px;background:var(--ink);color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 16px}
-.logo{font-weight:300;letter-spacing:.32em;font-size:18px}
+.logo{display:flex;align-items:center}
+.logo img{height:18px;display:block}
 .me{display:flex;align-items:center;gap:8px;font-size:13px}
 .me .av{width:28px;height:28px;border-radius:50%;background:var(--lime);color:var(--ink);display:grid;place-items:center;font-weight:700;font-size:12px}
 .me button{background:none;border:0;color:#cfd6d6;font-size:12px}
@@ -24,7 +25,7 @@ body.noauth .tabs{display:none}
 .search{display:flex;gap:10px;margin-bottom:10px}
 .search input{flex:1;height:44px;border:1px solid var(--line);border-radius:999px;padding:0 18px;font:inherit;background:#fff;outline:none}
 .search input:focus{border-color:var(--ink)}
-.btn{height:44px;border-radius:999px;border:0;padding:0 18px;font-weight:600;background:var(--ink);color:#fff}
+.btn{white-space:nowrap;height:44px;border-radius:999px;border:0;padding:0 18px;font-weight:600;background:var(--ink);color:#fff}
 .btn.lime{background:var(--lime);color:var(--ink)}
 .btn.ghost{background:#fff;border:1px solid var(--line);color:var(--ink)}
 .btn.red{background:#fff;border:1px solid var(--red);color:var(--red)}
@@ -50,7 +51,8 @@ a.card:active{transform:scale(.995)}
 .mini span{font-size:11px;border-radius:999px;padding:2px 8px;background:var(--bg);color:var(--muted2)}
 .back{display:inline-block;color:var(--muted2);font-size:13px;margin-bottom:4px}
 .code{font-size:12px;color:var(--muted2)}
-h1{font-size:24px;margin:0 0 12px;text-transform:uppercase}
+h1{font-size:24px;margin:0 0 12px;text-transform:uppercase;letter-spacing:.01em}
+h1::after{content:"_";color:var(--lime)}
 h2{font-size:15px;margin:0 0 10px}
 .seg{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
 .seg a{height:38px;border-radius:10px;background:#e6eaea;display:grid;place-items:center;font-size:13px;font-weight:500}
@@ -67,7 +69,7 @@ table.f tr.ev td{background:var(--lime-bg);font-weight:700}
 .toast.on{opacity:1}
 /* login */
 .auth{max-width:380px;margin:40px auto;text-align:center}
-.auth .logo-b{font-weight:300;letter-spacing:.32em;font-size:28px;margin-bottom:6px}
+.auth .logo-b{height:34px;display:block;margin:0 auto 18px}
 .auth input{width:100%;height:46px;border:1px solid var(--line);border-radius:12px;padding:0 14px;font:inherit;margin:14px 0 10px}
 .auth .btn{width:100%}
 .auth p{color:var(--muted2);font-size:14px}
@@ -163,3 +165,10 @@ a.card.kt{display:flex;flex-direction:column;gap:2px;margin:0}
 .kt2 td:nth-child(n+2),.kt2 th:nth-child(n+2){text-align:right;font-weight:700}
 .lrow{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:10px 0;border-top:1px solid var(--line)}
 .lrow .r{text-align:right}
+
+/* identidad Doinn: navy Pantone 7547 C, cian #1CC9D3, gris #5A6771 */
+.top{border-bottom:3px solid var(--lime)}
+.btn.lime{color:var(--ink);background:var(--lime)}
+.btn.lime:hover{filter:brightness(.95)}
+.tabs a.on{color:var(--lime-d)}
+.tabs a.on .ic{stroke:var(--lime)}

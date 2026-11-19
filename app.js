@@ -69,7 +69,7 @@ function vLogin(msg = "") {
   document.body.classList.add("noauth");
   $me.innerHTML = "";
   $app.innerHTML = `<div class="auth">
-    <div class="logo-b">DOINN</div>
+    <img class="logo-b" src="logo-navy.svg" alt="DOINN">
     <p>Entra con tu email y tu contraseña. Si es la primera vez, pulsa «Crear cuenta».</p>
     <form id="f"><input id="em" type="email" required placeholder="tu@email.com" autocomplete="email">
     <input id="pw" type="password" required minlength="8" placeholder="Contraseña (mínimo 8 caracteres)" autocomplete="current-password" style="margin-top:0">
@@ -94,7 +94,7 @@ function vLogin(msg = "") {
   };
 }
 function vPendiente() {
-  $app.innerHTML = `<div class="auth"><div class="logo-b">DOINN</div>
+  $app.innerHTML = `<div class="auth"><img class="logo-b" src="logo-navy.svg" alt="DOINN">
   <p>Tu acceso está <b>pendiente de aprobación</b>. Cuando un administrador te dé de alta podrás entrar.</p>
   <button class="btn ghost" id="rl">Volver a comprobar</button></div>`;
   document.getElementById("rl").onclick = () => location.reload();
