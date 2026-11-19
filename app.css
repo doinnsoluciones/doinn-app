@@ -1,6 +1,6 @@
 :root{
   --ink:#151E28; --muted:#8E9AA3; --muted2:#5A6771; --line:#E4E9E9; --bg:#F2F4F4; --card:#fff;
-  --lime:#1CC9D3; --lime-d:#0A8790; --lime-bg:#E2F7F8; --amber:#B97F0E; --amber-bg:#FDF4E1;
+  --lime:#93D400; --lime-d:#4E7300; --lime-bg:#F1F9E0; --amber:#B97F0E; --amber-bg:#FDF4E1;
   --red:#D0103C; --red-bg:#FDE8ED; --blue-bg:#E8F0F8; --r:14px;
 }
 *{box-sizing:border-box}
@@ -166,7 +166,7 @@ a.card.kt{display:flex;flex-direction:column;gap:2px;margin:0}
 .lrow{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:10px 0;border-top:1px solid var(--line)}
 .lrow .r{text-align:right}
 
-/* identidad Doinn: navy Pantone 7547 C, cian #1CC9D3, gris #5A6771 */
+/* identidad Doinn: navy Pantone 7547 C, verde #93D400, gris #5A6771 */
 .top{border-bottom:3px solid var(--lime)}
 .btn.lime{color:var(--ink);background:var(--lime)}
 .btn.lime:hover{filter:brightness(.95)}
