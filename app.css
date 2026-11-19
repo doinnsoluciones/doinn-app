@@ -75,3 +75,35 @@ table.f tr.ev td{background:var(--lime-bg);font-weight:700}
 .u{display:flex;justify-content:space-between;align-items:center;gap:10px}
 .u select{height:34px;border-radius:8px;border:1px solid var(--line);font:inherit;padding:0 8px}
 @media (min-width:760px){ .seg{grid-template-columns:repeat(6,1fr)} }
+/* formulario ficha */
+.wide{display:flex;align-items:center;justify-content:center;width:100%;margin-top:4px}
+.frm label{display:block;font-size:13px;color:var(--muted2);margin-bottom:10px}
+.frm label small{color:var(--muted)}
+.frm input,.frm select,.frm textarea{display:block;width:100%;margin-top:4px;height:42px;border:1px solid var(--line);border-radius:10px;padding:0 12px;font:inherit;color:var(--ink);background:#fff}
+.frm textarea{height:auto;padding:10px 12px;resize:vertical}
+.frm input:disabled,.frm select:disabled{background:var(--bg);color:var(--muted)}
+.frm .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.ok-hint{background:var(--lime-bg);color:var(--lime-d);border-radius:10px;padding:8px 12px;font-size:13px;margin:0 0 10px}
+.grid-f{display:flex;flex-direction:column;gap:8px}
+.g-row{display:grid;grid-template-columns:96px 78px 1fr 1fr 92px 1fr;gap:8px;align-items:center}
+.g-row input,.g-row select{margin:0;height:40px;padding:0 8px;font-size:14px;border:1px solid var(--line);border-radius:10px;width:100%;background:#fff}
+.g-h div{font-size:11px;color:var(--muted2);text-transform:uppercase;letter-spacing:.03em}
+.g-l{font-weight:600;font-size:14px}
+.g-na{text-align:center;color:var(--muted)}
+.req{color:var(--red)}
+.tg,.frm .tg{display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;margin:0;color:var(--ink)}
+.tg input{display:none}
+.tg span{width:36px;height:20px;border-radius:20px;background:#cfd6d6;position:relative;transition:.15s;flex:none}
+.tg span:after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:.15s}
+.tg input:checked+span{background:var(--lime)}
+.tg input:checked+span:after{left:18px}
+.acts{display:grid;grid-template-columns:2fr 1fr;gap:10px;margin-top:6px}
+.acts .btn:only-child{grid-column:1/-1}
+@media (max-width:640px){
+  .g-row{grid-template-columns:1fr 1fr;grid-template-areas:"l t" "d1 d2" "h tr";padding:10px;border:1px solid var(--line);border-radius:12px}
+  .g-h{display:none}
+  .g-row>:nth-child(1){grid-area:l}.g-row>:nth-child(2){grid-area:t;justify-self:end}
+  .g-row>:nth-child(3){grid-area:d1}.g-row>:nth-child(4){grid-area:d2}
+  .g-row>:nth-child(5){grid-area:h}.g-row>:nth-child(6){grid-area:tr}
+  .frm .two{grid-template-columns:1fr}
+}

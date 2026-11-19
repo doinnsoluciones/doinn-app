@@ -1,5 +1,6 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
 import { CONFIG } from "./config.js";
+import { vFicha } from "./ficha.js";
 
 const sb = createClient(CONFIG.url, CONFIG.anonKey, { auth: { persistSession: true, detectSessionInUrl: true } });
 const $app = document.getElementById("app");
@@ -25,7 +26,21 @@ async function cargar() {
   ]);
   for (const r of [p, e, o]) if (r.error) throw r.error;
   S.proyectos = p.data; S.elementos = e.data; S.operarios = o.data;
+  await autoArchivar();
 }
+// Proyectos con todas sus fechas pasadas → Cerrado (como en Power Apps)
+async function autoArchivar() {
+  if (!puede("admin", "front")) return;
+  const t = hoy();
+  const viejos = S.proyectos.filter(p => p.estado !== "Cerrado").filter(p => {
+    const u = p.fecha_descarga || p.fecha_desmontaje_fin || p.fecha_desmontaje || p.evento_fin || p.evento_inicio || p.fecha_carga;
+    return u && pd(u) < t;
+  });
+  if (!viejos.length) return;
+  const { error } = await sb.from("proyectos").update({ estado: "Cerrado" }).in("id", viejos.map(p => p.id));
+  if (!error) viejos.forEach(p => p.estado = "Cerrado");
+}
+const ctx = () => ({ $app, S, sb, esc, toast, puede, recargar: cargar });
 function stats(pid) {
   const els = S.elementos.filter(x => x.proyecto_id === pid);
   const n = els.length;
@@ -93,7 +108,7 @@ function vProyectos() {
   const qi = document.getElementById("q");
   qi.oninput = () => { S.q = qi.value; const pos = qi.selectionStart; vProyectos(); const n = document.getElementById("q"); n.focus(); n.setSelectionRange(pos, pos); };
   document.getElementById("vc").onclick = () => { S.verCerrados = !S.verCerrados; vProyectos(); };
-  const nb = document.getElementById("nuevo"); if (nb) nb.onclick = () => toast("Alta de proyectos: llega mañana (día 2).");
+  const nb = document.getElementById("nuevo"); if (nb) nb.onclick = () => location.hash = "#/nuevo";
 }
 function card(p) {
   const st = stats(p.id), [sl, sc] = salud(p, st), d = dias(p.fecha_carga);
@@ -133,7 +148,8 @@ function fichaLectura(p) {
     ${fila(p.hay_evento, "Evento", p.evento_inicio, p.evento_fin, p.hora_evento, true)}
     ${fila(p.hay_desmontaje, "Desmontaje", p.fecha_desmontaje, p.fecha_desmontaje_fin, p.hora_desmontaje)}
     ${fila(p.hay_retorno, "Descarga en fábrica", p.fecha_descarga, p.fecha_descarga_fin, p.hora_descarga)}
-  </table></div>`;
+  </table></div>
+  ${puede("admin", "front") ? `<a class="btn ghost wide" href="#/p/${p.id}/editar">Editar ficha del proyecto</a>` : ""}`;
 }
 async function vUsuarios() {
   if (!puede("admin")) { $app.innerHTML = `<div class="empty">Solo administradores.</div>`; return; }
@@ -159,6 +175,8 @@ async function route() {
   if (!S.user) return;
   const h = location.hash.replace(/^#\/?/, "").split("/");
   document.querySelectorAll("#tabs a").forEach(a => a.classList.toggle("on", (a.dataset.t === (h[0] || "proyectos")) || (h[0] === "p" && a.dataset.t === "proyectos")));
+  if (h[0] === "nuevo") return puede("admin", "front") ? vFicha(ctx(), null) : vProyectos();
+  if (h[0] === "p" && h[2] === "editar") { const p = S.proyectos.find(x => x.id === +h[1]); return p && puede("admin", "front") ? vFicha(ctx(), p) : vProyecto(h[1]); }
   if (h[0] === "p") return vProyecto(h[1], h[2] || "ficha");
   if (h[0] === "usuarios") return vUsuarios();
   if (h[0] === "plan") return vProximamente("Planificación");
