@@ -8,6 +8,7 @@ const { vEscanear } = await import("./escanear.js" + V);
 const { vPanel } = await import("./panel.js" + V);
 const { vDespiece, vElementoForm } = await import("./despiece.js" + V);
 const { vCarga, vRetorno, vMuelle } = await import("./carga.js" + V);
+const { vPlan, vEquipo } = await import("./plan.js" + V);
 
 const sb = createClient(CONFIG.url, CONFIG.anonKey, { auth: { persistSession: true, detectSessionInUrl: true } });
 const $app = document.getElementById("app");
@@ -133,7 +134,7 @@ function vProyecto(id, tab = "ficha") {
   const tabs = [["ficha", "Ficha"], ["elementos", "Elementos"], ["despiece", "Despiece"], ["carga", "Carga"], ["retorno", "Retorno"], ["equipo", "Equipo"]];
   let body = "";
   if (tab === "ficha") body = fichaLectura(p);
-  else if (["elementos", "despiece", "carga", "retorno"].includes(tab)) body = `<div id="tabc"></div>`;
+  else if (["elementos", "despiece", "carga", "retorno", "equipo"].includes(tab)) body = `<div id="tabc"></div>`;
   else body = `<div class="card empty">Esta pestaña llega en los próximos días. Mientras tanto, usa la app de Power Apps.</div>`;
   $app.innerHTML = `<a class="back" href="#/">‹ Proyectos</a><div class="code">${esc(p.codigo)}</div><h1>${esc(p.nombre || "")}</h1>
   <div class="seg">${tabs.map(([k, l]) => `<a href="#/p/${p.id}/${k}" class="${k === tab ? "on" : ""}">${l}</a>`).join("")}</div>${body}`;
@@ -141,6 +142,7 @@ function vProyecto(id, tab = "ficha") {
   if (tab === "despiece") vDespiece(ctx(), p, document.getElementById("tabc"));
   if (tab === "carga") vCarga(ctx(), p, document.getElementById("tabc"));
   if (tab === "retorno") vRetorno(ctx(), p, document.getElementById("tabc"));
+  if (tab === "equipo") vEquipo(ctx(), p, document.getElementById("tabc"));
 }
 function fichaLectura(p) {
   const fila = (on, l, a, b, h, ev) => on === false ? "" : `<tr class="${ev ? "ev" : ""}"><td>${l}</td><td>${fd(a)}${b && b !== a ? "–" + fd(b) : ""}</td><td>${esc(h || "—")}</td></tr>`;
@@ -193,7 +195,7 @@ async function route() {
   if (h[0] === "p" && h[2] === "el") { const p = S.proyectos.find(x => x.id === +h[1]); S.dirty = true; return p ? vElemento(ctx(), p, h[3]) : vProyectos(); }
   if (h[0] === "p") return vProyecto(h[1], h[2] || "ficha");
   if (h[0] === "usuarios") return vUsuarios();
-  if (h[0] === "plan") return vProximamente("Planificación");
+  if (h[0] === "plan") return vPlan(ctx(), h[1] || "proyectos", h[2] || "");
   if (h[0] === "escanear") return vEscanear(ctx());
   if (h[0] === "muelle") return vMuelle(ctx(), h[1] || "");
   if (h[0] === "panel") { if (S.dirty) { S.dirty = false; try { await cargar(); } catch { } } return vPanel(ctx(), h[1] || ""); }
