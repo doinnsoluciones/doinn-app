@@ -4,6 +4,8 @@ const V = new URL(import.meta.url).search;
 const { CONFIG } = await import("./config.js" + V);
 const { vFicha } = await import("./ficha.js" + V);
 const { vElementos, vElemento } = await import("./elementos.js" + V);
+const { vEscanear } = await import("./escanear.js" + V);
+const { vPanel } = await import("./panel.js" + V);
 
 const sb = createClient(CONFIG.url, CONFIG.anonKey, { auth: { persistSession: true, detectSessionInUrl: true } });
 const $app = document.getElementById("app");
@@ -25,7 +27,7 @@ async function cargar() {
   const [p, e, o] = await Promise.all([
     sb.from("proyectos").select("*").order("fecha_carga", { ascending: true, nullsFirst: false }),
     sb.from("elementos").select("id,proyecto_id,cantidad,estado_doc,estado_fab,estado_carga,incidencia"),
-    sb.from("operarios").select("id,nombre,grupo,subgrupo,activo,codigo").order("nombre"),
+    sb.from("operarios").select("id,nombre,grupo,subgrupo,activo,codigo,puesto").order("nombre"),
   ]);
   for (const r of [p, e, o]) if (r.error) throw r.error;
   S.proyectos = p.data; S.elementos = e.data; S.operarios = o.data;
@@ -43,7 +45,7 @@ async function autoArchivar() {
   const { error } = await sb.from("proyectos").update({ estado: "Cerrado" }).in("id", viejos.map(p => p.id));
   if (!error) viejos.forEach(p => p.estado = "Cerrado");
 }
-const ctx = () => ({ $app, S, sb, esc, toast, puede, recargar: cargar });
+const ctx = () => ({ $app, S, sb, esc, toast, puede, recargar: cargar, stats, salud, fd, dias });
 function stats(pid) {
   const els = S.elementos.filter(x => x.proyecto_id === pid);
   const n = els.length;
@@ -186,9 +188,9 @@ async function route() {
   if (h[0] === "p") return vProyecto(h[1], h[2] || "ficha");
   if (h[0] === "usuarios") return vUsuarios();
   if (h[0] === "plan") return vProximamente("Planificación");
-  if (h[0] === "escanear") return vProximamente("Escanear");
+  if (h[0] === "escanear") return vEscanear(ctx());
   if (h[0] === "muelle") return vProximamente("Muelle");
-  if (h[0] === "panel") return vProximamente("Panel");
+  if (h[0] === "panel") { if (S.dirty) { S.dirty = false; try { await cargar(); } catch { } } return vPanel(ctx(), h[1] || ""); }
   if (S.dirty) { S.dirty = false; try { await cargar(); } catch { } }
   return vProyectos();
 }
