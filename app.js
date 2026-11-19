@@ -1,6 +1,8 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { CONFIG } from "./config.js";
-import { vFicha } from "./ficha.js";
+// Carga los módulos con la misma versión que app.js (evita versiones viejas en caché)
+const V = new URL(import.meta.url).search;
+const { CONFIG } = await import("./config.js" + V);
+const { vFicha } = await import("./ficha.js" + V);
 
 const sb = createClient(CONFIG.url, CONFIG.anonKey, { auth: { persistSession: true, detectSessionInUrl: true } });
 const $app = document.getElementById("app");

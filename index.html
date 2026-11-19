@@ -24,6 +24,6 @@
   <a href="#/panel" data-t="panel"><svg class="ic" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Panel</a>
 </nav>
 <div id="toast" class="toast"></div>
-<script type="module" src="app.js"></script>
+<script type="module">const v = Date.now(); document.querySelector('link[rel=stylesheet]').href = "app.css?v=" + v; import("./app.js?v=" + v);</script>
 </body>
 </html>
