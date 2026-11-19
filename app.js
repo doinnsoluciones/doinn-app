@@ -50,15 +50,27 @@ function vLogin(msg = "") {
   $me.innerHTML = "";
   $app.innerHTML = `<div class="auth">
     <div class="logo-b">DOINN</div>
-    <p>Entra con tu email. Te enviaremos un enlace de acceso, sin contraseña.</p>
+    <p>Entra con tu email y tu contraseña. Si es la primera vez, pulsa «Crear cuenta».</p>
     <form id="f"><input id="em" type="email" required placeholder="tu@email.com" autocomplete="email">
-    <button class="btn">Enviar enlace</button></form>
+    <input id="pw" type="password" required minlength="8" placeholder="Contraseña (mínimo 8 caracteres)" autocomplete="current-password" style="margin-top:0">
+    <button class="btn" id="bin">Entrar</button>
+    <button class="btn ghost" id="bup" type="button" style="margin-top:8px">Crear cuenta</button></form>
     <p id="msg">${esc(msg)}</p></div>`;
+  const m = t => document.getElementById("msg").textContent = t;
+  const datos = () => ({ email: document.getElementById("em").value.trim().toLowerCase(), password: document.getElementById("pw").value });
+  const traduce = e => /Invalid login/i.test(e.message) ? "Email o contraseña incorrectos." : /already registered/i.test(e.message) ? "Ese email ya tiene cuenta: pulsa «Entrar»." : /least 8|Password should/i.test(e.message) ? "La contraseña debe tener al menos 8 caracteres." : e.message;
   document.getElementById("f").onsubmit = async ev => {
-    ev.preventDefault();
-    const email = document.getElementById("em").value.trim();
-    const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin + location.pathname } });
-    document.getElementById("msg").textContent = error ? "No se pudo enviar: " + error.message : "Revisa tu correo y pulsa el enlace para entrar.";
+    ev.preventDefault(); m("Entrando…");
+    const { error } = await sb.auth.signInWithPassword(datos());
+    if (error) m(traduce(error));
+  };
+  document.getElementById("bup").onclick = async () => {
+    const d = datos();
+    if (!d.email || d.password.length < 8) return m("Escribe tu email y una contraseña de al menos 8 caracteres.");
+    m("Creando cuenta…");
+    const { data, error } = await sb.auth.signUp(d);
+    if (error) return m(traduce(error));
+    if (!data.session) m("Cuenta creada. Revisa tu correo para confirmarla y luego pulsa «Entrar».");
   };
 }
 function vPendiente() {
