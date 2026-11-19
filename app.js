@@ -203,8 +203,6 @@ function fichaLectura(p) {
   return `${rs.length ? `<div class="card avisos ${neonOn() ? "neon" : ""}">${rs.map(r => `<div>⚠ ${esc(r)}</div>`).join("")}</div>` : ""}<div class="card"><dl class="kv">
     <dt>Estado</dt><dd><span class="pill" style="background:${COL_COM[estadoCom(p)]}26;color:var(--ink)">${estadoCom(p)}</span></dd>
     <dt>Front</dt><dd>${esc(p.front_nombre || "—")}</dd>
-    <dt>OT</dt><dd>${esc(opNom(p.ot_id))}</dd>
-    <dt>Jefe de montaje</dt><dd>${esc(opNom(p.jefe_montaje_id))}</dd>
     <dt>Cliente</dt><dd>${esc(p.cliente || "—")}</dd>
     <dt>Ubicación</dt><dd>${esc(p.ubicacion || "—")}</dd>
     <dt>Ida</dt><dd>${esc(p.transporte_ida || "—")}</dd>

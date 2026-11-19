@@ -23,7 +23,6 @@ export function riesgos(p, nElem) {
   if (d <= 14 && !confirmado(p)) r.push(`${estadoCom(p)} y la carga es ${cuando}`);
   if (d <= 10 && !p.coordinacion_ok) r.push(`Sin coordinación OK y la carga es ${cuando}`);
   if (d <= 7 && !nElem) r.push(`Sin despiece y la carga es ${cuando}`);
-  if (d <= 14 && !p.ot_id) r.push("Sin técnico de OT asignado");
   return r;
 }
 

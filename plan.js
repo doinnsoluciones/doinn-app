@@ -77,48 +77,60 @@ function motorDias(S, D) {
 }
 
 // ---------- Planificación ----------
+// Zoom: nº de días visibles y ancho de columna
+const ZOOM = [[14, 64], [28, 44], [42, 30], [84, 17]];
+// Qué códigos puede marcar cada rol (el resto, solo SuperAdmin)
+const COD_TRABAJO = ["MO", "DM", "PV", "FA", "RE", "FO", "LB"];
+const COD_AUSENCIA = ["VA", "LIC", "BA"];
+const GRUPOS_PER = [["Fronts", o => o.grupo === "Fronts"], ["Oficina técnica", o => o.grupo === "OT"], ["Taller y montaje", o => o.grupo === "Taller"], ["Externos", o => o.grupo === "Externos"]];
+
 export async function vPlan(ctx, modo, ini, opt = {}) {
   const { $app, S, sb, esc, puede, toast } = ctx;
   modo = ["personal", "stats"].includes(modo) ? modo : "proyectos";
   if (modo === "stats") return vStats(ctx, ini);
   const tv = !!opt.tv;
-  const NDIAS = tv ? 28 : 42;
-  const base = ini ? pd(ini) : lunes(new Date());
+  if (S.zoom == null) S.zoom = lsGet("doinn_plan_zoom", 2);
+  const [NDIAS, ANCHO] = tv ? [28, 0] : ZOOM[S.zoom];
+  const paso = Math.max(7, Math.round(NDIAS / 2 / 7) * 7);
+  const base = ini ? pd(ini) : (() => { const l = lunes(new Date()); if (NDIAS > 14) l.setDate(l.getDate() - 7); return l; })();
   const dias = Array.from({ length: NDIAS }, (_, i) => { const d = new Date(base); d.setDate(d.getDate() + i); return iso(d); });
   const d0 = dias[0], d1 = dias[NDIAS - 1];
   const scroll0 = opt.scroll;
   if (!opt.silencioso) $app.innerHTML = `<div class="loading">Cargando planificación…</div>`;
   let D; try { D = await cargaPlan(sb); } catch (e) { $app.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
   S.planFront = S.planFront || "";
-  S.planOT = S.planOT || "";
   S.planEst = S.planEst || lsGet("doinn_plan_estados", ["Presupuestado", "Pre-confirmado", "Confirmado"]);
   S.planCerr = S.planCerr || {};
   S.ocultos = S.ocultos || lsGet("doinn_plan_ocultos", []);
-  const admin = puede("admin");
+  S.perGrupo = S.perGrupo || ""; S.perQ = S.perQ || "";
+  const admin = puede("admin"), superA = puede("superadmin"), taller = puede("taller");
   const nElem = id => S.elementos.filter(e => e.proyecto_id === id).length;
-  const opN = id => (S.operarios.find(o => o.id === id) || {}).nombre || "";
   const fronts = S.operarios.filter(o => o.grupo === "Fronts" && o.activo !== false).sort((a, b) => a.nombre.localeCompare(b.nombre));
-  const ots = S.operarios.filter(o => o.grupo === "OT" && o.activo !== false).sort((a, b) => a.nombre.localeCompare(b.nombre));
   const neon = neonOn();
+  // Permisos de marcado en Personal
+  const misCodigos = superA ? Object.keys(COD) : admin ? COD_TRABAJO : taller ? COD_AUSENCIA : [];
+  const puedeFila = o => superA || admin || (taller && (o.grupo === "Taller" || o.grupo === "Externos"));
+  const marca = !tv && modo === "personal" && misCodigos.length > 0;
+  const largo = ANCHO >= 40 ? 18 : ANCHO >= 30 ? 12 : 6;
 
   const nav = tv ? "" : `<div class="pnav">
     <div class="seg2"><a href="#/plan/proyectos/${d0}" class="${modo === "proyectos" ? "on" : ""}">Proyectos</a><a href="#/plan/personal/${d0}" class="${modo === "personal" ? "on" : ""}">Personal</a>${admin ? `<a href="#/plan/stats">Estadísticas</a>` : ""}</div>
-    <div class="row"><a class="btn sm ghost" href="#/plan/${modo}/${suma(d0, -14)}">‹</a><a class="btn sm ghost" href="#/plan/${modo}">Hoy</a><a class="btn sm ghost" href="#/plan/${modo}/${suma(d0, 14)}">›</a>
-    <a class="btn sm ghost" href="#/tv" title="Pantalla de taller: a pantalla completa y se actualiza sola">📺 Pantalla</a></div>
+    <div class="row">
+      <div class="zoom" title="Zoom: más o menos días a la vista"><button class="btn sm ghost" id="zmenos" ${S.zoom === 0 ? "disabled" : ""}>−</button><span>${NDIAS === 14 ? "2 sem" : NDIAS === 28 ? "4 sem" : NDIAS === 42 ? "6 sem" : "12 sem"}</span><button class="btn sm ghost" id="zmas" ${S.zoom === ZOOM.length - 1 ? "disabled" : ""}>+</button></div>
+      <a class="btn sm ghost" href="#/plan/${modo}/${suma(d0, -paso)}">‹</a><a class="btn sm ghost" href="#/plan/${modo}">Hoy</a><a class="btn sm ghost" href="#/plan/${modo}/${suma(d0, paso)}">›</a>
+      <a class="btn sm ghost" href="#/tv" title="Pantalla de taller: a pantalla completa y se actualiza sola">📺</a></div>
   </div>`;
 
-  let filtros = "", leyenda = "", filas = "", pincel = "";
+  let filtros = "", leyenda = "", filas = "", ayuda = "";
   if (modo === "proyectos") {
     const visibles = S.proyectos.filter(p => p.estado !== "Cerrado" || (p.fecha_descarga && p.fecha_descarga >= d0))
       .filter(p => !S.planFront || p.front_nombre === S.planFront)
-      .filter(p => !S.planOT || (S.planOT === "sin" ? !p.ot_id : p.ot_id === +S.planOT))
       .filter(p => S.planEst.includes(estadoCom(p)))
       .map(p => ({ p, f: fasesProyecto(p) })).filter(x => x.f.some(([, a, b]) => b >= d0 && a <= d1));
     const ocultosAqui = visibles.filter(x => S.ocultos.includes(x.p.id));
     const ps = visibles.filter(x => !S.ocultos.includes(x.p.id)).sort((a, b) => (a.f[0] ? a.f[0][1] : "").localeCompare(b.f[0] ? b.f[0][1] : ""));
     if (!tv) filtros = `<div class="pfil">
       <select id="pfront"><option value="">Todos los Fronts</option>${fronts.map(o => `<option ${o.nombre === S.planFront ? "selected" : ""}>${esc(o.nombre)}</option>`).join("")}</select>
-      <select id="pot"><option value="">Toda la OT</option><option value="sin" ${S.planOT === "sin" ? "selected" : ""}>Sin OT asignado</option>${ots.map(o => `<option value="${o.id}" ${String(o.id) === S.planOT ? "selected" : ""}>${esc(o.nombre)}</option>`).join("")}</select>
       <div class="ests">${ESTADOS_COM.map(e => `<button class="chip sm ${S.planEst.includes(e) ? "on" : ""}" data-est="${e}"><i style="background:${COL_COM[e]}"></i>${e}</button>`).join("")}</div>
       <div class="row" style="gap:6px">${GRUPOS_COM.map(([g]) => `<button class="link" data-grp="${g}">${g}</button>`).join(" · ")}
       ${ocultosAqui.length ? ` · <button class="link" id="bocu">Ocultos (${ocultosAqui.length})</button>` : ""} · <button class="link" id="btodo">Ver todo</button></div>
@@ -129,34 +141,27 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
       const cls = caido(p) ? "caido" : !confirmado(p) ? "prev" : "";
       const barras = f.filter(([, a, b]) => b >= d0 && a <= d1).map(([fa, a, b]) => {
         const i = Math.max(0, dias.indexOf(a < d0 ? d0 : a)), j = dias.indexOf(b > d1 ? d1 : b);
-        return `<div class="bar2 ${cls}" data-pid="${p.id}" style="grid-column:${i + 2}/${j + 3};--c:${COL[fa]}" title="${fa}: ${a}${a !== b ? " → " + b : ""} · ${est}">${j - i >= 1 ? fa : fa[0]}</div>`;
+        const n = j - i + 1, cab = n * (ANCHO || 40) >= 60;
+        return `<div class="bar2 ${cls}" data-pid="${p.id}" style="grid-column:${i + 2}/${j + 3};--c:${COL[fa]}" title="${fa}: ${a}${a !== b ? " → " + b : ""} · ${est}">${cab ? fa : fa[0]}</div>`;
       }).join("");
       return `<div class="gr"><div class="gn pj ${rs.length && neon ? "neon" : ""}" data-pid="${p.id}" title="${esc(p.nombre)}${rs.length ? "\n⚠ " + esc(rs.join("\n⚠ ")) : ""}">
-        <b>${rs.length ? `<span class="warn-i">⚠</span>` : ""}${esc(corto(p.nombre, tv ? 22 : 14))}</b><span><i class="dot" style="background:${COL_COM[est]}"></i>${esc(p.codigo)} · ${esc((p.front_nombre || "").split(" ")[0])}</span></div>${fondo(dias, D.fest)}${barras}</div>`;
+        <b>${rs.length ? `<span class="warn-i">⚠</span>` : ""}${esc(corto(p.nombre, tv ? 22 : 16))}</b><span><i class="dot" style="background:${COL_COM[est]}"></i>${esc(p.codigo)} · ${esc((p.front_nombre || "").split(" ")[0])}</span></div>${fondo(dias, D.fest)}${barras}</div>`;
     }).join("") || `<div class="empty">No hay proyectos con estos filtros en estas fechas.</div>`;
   } else {
     const dia = motorDias(S, D);
-    const grupos = [["Oficina", o => o.grupo === "Fronts" || o.grupo === "OT"], ["Taller y montaje", o => o.grupo === "Taller"], ["Externos", o => o.grupo === "Externos"]];
     const orden = (a, b) => (a.grupo === "Taller" && b.grupo === "Taller" ? ((a.subgrupo === "Montaje") - (b.subgrupo === "Montaje")) : 0) || a.nombre.localeCompare(b.nombre);
-    const activos = S.operarios.filter(o => o.activo !== false);
-    const pin = admin && !tv ? (S.pincel || null) : null;
-    leyenda = Object.entries(COD).map(([k, [l, c]]) => `<span><i style="${k === "PV" ? `border:2px dashed ${c};background:transparent` : `background:${c}`}"></i>${k} ${l}</span>`).join("") + `<span><b class="fz-i">F</b> en festivo</span>`;
-    if (admin && !tv) {
-      const proys = S.proyectos.filter(p => p.estado !== "Cerrado" && !caido(p)).sort((a, b) => (a.fecha_carga || "9").localeCompare(b.fecha_carga || "9"));
-      pincel = `<div class="pincel card">
-        <div class="row" style="flex-wrap:wrap;gap:6px"><b style="font-size:13px">Pincel</b>
-          <button class="chip sm ${!pin ? "on" : ""}" data-pin="">Ninguno</button>
-          ${Object.entries(COD).map(([k, [l, c]]) => `<button class="chip sm ${pin === k ? "on" : ""}" data-pin="${k}" title="${l}"><i style="background:${c}"></i>${k}</button>`).join("")}
-          <button class="chip sm ${pin === "X" ? "on" : ""}" data-pin="X" title="Quita lo pintado a mano">Borrar</button>
-          ${pin && CON_PROY.includes(pin) ? `<select id="pinp"><option value="">Sin proyecto</option>${proys.map(p => `<option value="${p.id}" ${String(p.id) === String(S.pincelP || "") ? "selected" : ""}>${esc(p.codigo)} · ${esc(corto(p.nombre, 26))}</option>`).join("")}</select>` : ""}
-          <button class="btn sm ghost" id="baus">+ Ausencia</button></div>
-        ${pin ? `<div class="code">Pulsa o arrastra sobre los días para pintar ${pin === "X" ? "(borrar)" : `«${COD[pin][0]}»`}. Lo pintado manda sobre asignaciones y ausencias; «Borrar» solo quita lo pintado a mano.</div>` : `<div class="code">Elige un código para pintar días. Al pasar el ratón por una celda verás quién y cuándo la marcó.</div>`}
-      </div>`;
-    }
-    filas = grupos.map(([g, fn]) => {
+    const q = S.perQ.trim().toLowerCase();
+    const activos = S.operarios.filter(o => o.activo !== false).filter(o => !q || o.nombre.toLowerCase().includes(q));
+    if (!tv) filtros = `<div class="pfil">
+      <input id="perq" class="perq" placeholder="Buscar persona…" value="${esc(S.perQ)}">
+      <div class="ests"><button class="chip sm ${!S.perGrupo ? "on" : ""}" data-pg="">Todos</button>${GRUPOS_PER.map(([g]) => `<button class="chip sm ${S.perGrupo === g ? "on" : ""}" data-pg="${g}">${g}</button>`).join("")}</div>
+    </div>`;
+    leyenda = Object.entries(COD).map(([k, [l, c]]) => `<span><i style="${k === "PV" ? `border:2px dashed ${c};background:transparent` : `background:${c}`}"></i>${l}</span>`).join("") + `<span><b class="fz-i">F</b> montaje en festivo</span>`;
+    if (marca) ayuda = `<div class="ayuda">✎ Pulsa un día (o arrastra sobre varios días y personas) y elige qué marcar. ${superA ? "Puedes marcar cualquier cosa." : admin ? "Puedes marcar trabajos: montaje, desmontaje, previsión, fábrica, reunión, formación y libre." : "Puedes marcar vacaciones, licencias y bajas del personal de taller."}</div>`;
+    filas = GRUPOS_PER.filter(([g]) => !S.perGrupo || S.perGrupo === g).map(([g, fn]) => {
       const ops = activos.filter(fn).sort(orden);
       if (!ops.length) return "";
-      const cerr = S.planCerr[g];
+      const cerr = S.planCerr[g] && !q;
       return `<div class="gg" data-g="${g}"><span>${cerr ? "▸" : "▾"} ${g} <small class="code">${ops.length}</small></span></div>` + (cerr ? "" : ops.map(o => {
         const info = dias.map(d => dia(o, d));
         let n = 0;
@@ -166,85 +171,123 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
           const [lab, col] = COD[x.cod] || ["?", "#ccc"];
           const prevX = info[i - 1];
           const ini = i === 0 || !prevX || prevX.cod !== x.cod || (prevX.p && prevX.p.id) !== (x.p && x.p.id);
+          let span = 1; while (i + span < info.length && info[i + span] && info[i + span].cod === x.cod && (info[i + span].p && info[i + span].p.id) === (x.p && x.p.id)) span++;
           const fz = ["MO", "DM"].includes(x.cod) && esFestivo(dias[i], D.fest);
           const tit = [lab + (x.p ? " · " + x.p.nombre : ""), x.src, x.nota, x.quien || x.cuando ? `${x.quien || "—"} · ${cuando(x.cuando)}` : ""].filter(Boolean).join("\n");
-          const txt = ini ? (x.p ? corto(x.p.nombre, 12) : x.cod) : "";
+          const txt = ini ? (x.p ? corto(x.p.nombre, Math.max(3, Math.floor(span * (ANCHO || 40) / 7))) : (span * (ANCHO || 40) >= 60 ? lab : x.cod)) : "";
           const st = x.cod === "PV" ? `border:2px dashed ${col};color:var(--ink);background:#fff` : `background:${col};${["LB", "LIC", "FA"].includes(x.cod) ? "color:var(--ink)" : ""}`;
-          return `<div class="cx ${fz ? "fz" : ""}" style="grid-column:${i + 2};${st}" title="${esc(tit)}">${esc(txt)}</div>`;
+          const nx = info[i + 1], ult = !nx || nx.cod !== x.cod || (nx.p && nx.p.id) !== (x.p && x.p.id);
+          return `<div class="cx ${fz ? "fz" : ""} ${ini ? "ini" : ""} ${ult ? "ult" : ""}" style="grid-column:${i + 2};${st}" title="${esc(tit)}">${esc(txt)}</div>`;
         }).join("");
-        const hits = pin ? dias.map((d, i) => `<div class="hit" data-o="${o.id}" data-d="${d}" style="grid-column:${i + 2}"></div>`).join("") : "";
-        return `<div class="gr"><div class="gn"><b>${esc(o.nombre)}</b><span>${esc(o.subgrupo === "Montaje" ? "Montaje" : o.puesto || o.grupo || "")}${n ? ` · ${n} d` : ""}</span></div>${fondo(dias, D.fest)}${cel}${hits}</div>`;
+        const hits = marca && puedeFila(o) ? dias.map((d, i) => `<div class="hit" data-o="${o.id}" data-d="${d}" style="grid-column:${i + 2}"></div>`).join("") : "";
+        return `<div class="gr" data-row="${o.id}"><div class="gn"><b>${esc(o.nombre)}</b><span>${esc(o.subgrupo === "Montaje" ? "Montaje" : o.puesto || "")}${n ? ` · ${n} d montaje` : ""}</span></div>${fondo(dias, D.fest)}${cel}${hits}</div>`;
       }).join(""));
-    }).join("");
+    }).join("") || `<div class="empty">Nadie coincide con el filtro.</div>`;
   }
 
   const ajustes = tv ? "" : `<label class="neon-t"><input type="checkbox" id="bneon" ${neon ? "checked" : ""}> Avisos parpadeantes</label>`;
+  const cols = tv ? "190px repeat(28,1fr)" : `150px repeat(${NDIAS},minmax(${ANCHO}px,1fr))`;
   $app.innerHTML = `${tv ? `<div class="tvhead"><b>Planificación · ${modo === "proyectos" ? "Proyectos" : "Personal"}</b><span>${new Date().toLocaleString("es-ES", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}</span><a href="#/plan" class="btn sm ghost">Salir</a></div>` : `<h1>Planificación</h1>`}
-  ${nav}${filtros}${pincel}<div class="ley">${leyenda}${ajustes}</div>
-  <div class="gwrap"><div class="gantt ${modo === "personal" && S.pincel && admin && !tv ? "pintando" : ""}" style="--cols:${tv ? "190px" : "150px"} repeat(${NDIAS},${tv ? "1fr" : "30px"})">${cabecera(dias, D.fest)}${filas}</div></div>`;
+  ${nav}${filtros}${ayuda}<div class="ley">${leyenda}${ajustes}</div>
+  <div class="gwrap"><div class="gantt z${tv ? 1 : S.zoom} ${marca ? "marcable" : ""}" style="--cols:${cols}">${cabecera(dias, D.fest)}${filas}</div></div>`;
 
   const $ = id => document.getElementById(id);
   const re = (o = {}) => vPlan(ctx, modo, d0, { ...opt, ...o });
   const w = $app.querySelector(".gwrap");
   if (scroll0 != null) w.scrollLeft = scroll0;
-  else { const h = $app.querySelector(".gd.hoy"); if (w && h && !tv) w.scrollLeft = Math.max(0, h.offsetLeft - 150 - 60); }
+  else { const h = $app.querySelector(".gd.hoy"); if (w && h && !tv) w.scrollLeft = Math.max(0, h.offsetLeft - 150 - (ANCHO * 3)); }
   if (tv) return D;
 
+  const zoomA = dz => { S.zoom = Math.min(ZOOM.length - 1, Math.max(0, S.zoom + dz)); lsSet("doinn_plan_zoom", S.zoom); vPlan(ctx, modo, ini, opt); };
+  $("zmenos").onclick = () => zoomA(-1);
+  $("zmas").onclick = () => zoomA(1);
   const bn = $("bneon"); if (bn) bn.onchange = () => { setNeon(bn.checked); re({ scroll: w.scrollLeft }); };
   if (modo === "proyectos") {
     $("pfront").onchange = e => { S.planFront = e.target.value; re(); };
-    $("pot").onchange = e => { S.planOT = e.target.value; re(); };
     $app.querySelectorAll("[data-est]").forEach(b => b.onclick = () => { const e = b.dataset.est; S.planEst = S.planEst.includes(e) ? S.planEst.filter(x => x !== e) : [...S.planEst, e]; lsSet("doinn_plan_estados", S.planEst); re(); });
     $app.querySelectorAll("[data-grp]").forEach(b => b.onclick = () => { S.planEst = GRUPOS_COM.find(g => g[0] === b.dataset.grp)[1].slice(); lsSet("doinn_plan_estados", S.planEst); re(); });
-    $("btodo").onclick = () => { S.planFront = ""; S.planOT = ""; S.planEst = ESTADOS_COM.slice(); S.ocultos = []; lsSet("doinn_plan_estados", S.planEst); lsSet("doinn_plan_ocultos", []); re(); };
+    $("btodo").onclick = () => { S.planFront = ""; S.planEst = ESTADOS_COM.slice(); S.ocultos = []; lsSet("doinn_plan_estados", S.planEst); lsSet("doinn_plan_ocultos", []); re(); };
     const bo = $("bocu"); if (bo) bo.onclick = () => { S.ocultos = []; lsSet("doinn_plan_ocultos", []); re(); };
     $app.querySelectorAll("[data-pid]").forEach(el => el.onclick = () => panelProyecto(ctx, S.proyectos.find(p => p.id === +el.dataset.pid), D, () => re({ scroll: w.scrollLeft })));
   } else {
-    $app.querySelectorAll(".gg").forEach(g => g.onclick = () => { S.planCerr[g.dataset.g] = !S.planCerr[g.dataset.g]; re({ scroll: w.scrollLeft }); });
-    const ba = $("baus"); if (ba) ba.onclick = () => formAusencia(ctx, () => re({ scroll: w.scrollLeft }), D);
-    $app.querySelectorAll("[data-pin]").forEach(b => b.onclick = () => { S.pincel = b.dataset.pin || null; re({ scroll: w.scrollLeft, silencioso: true }); });
-    const pp = $("pinp"); if (pp) pp.onchange = () => { S.pincelP = pp.value; };
-    if (S.pincel && admin) activaPincel(ctx, () => re({ scroll: w.scrollLeft, silencioso: true }));
+    $app.querySelectorAll(".gg").forEach(g => g.onclick = () => { S.planCerr[g.dataset.g] = !S.planCerr[g.dataset.g]; re({ scroll: w.scrollLeft, silencioso: true }); });
+    $app.querySelectorAll("[data-pg]").forEach(b => b.onclick = () => { S.perGrupo = b.dataset.pg; re({ scroll: w.scrollLeft, silencioso: true }); });
+    let tq; $("perq").oninput = e => { clearTimeout(tq); tq = setTimeout(() => { S.perQ = e.target.value; re({ scroll: w.scrollLeft, silencioso: true }).then(() => { const i = $("perq"); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }); }, 250); };
+    if (marca) activaMarcado(ctx, D, misCodigos, () => re({ scroll: w.scrollLeft, silencioso: true }));
   }
   return D;
 }
 
-// Pincel: pulsar o arrastrar sobre los días
-function activaPincel(ctx, fin) {
-  const { S, sb, toast } = ctx;
-  const pend = new Map();
-  let pintando = false;
-  const cod = S.pincel;
-  const pinta = h => {
-    const k = h.dataset.o + "|" + h.dataset.d;
-    if (pend.has(k)) return;
-    pend.set(k, { o: +h.dataset.o, d: h.dataset.d });
-    if (cod === "X") { h.style.background = "repeating-linear-gradient(45deg,#fff,#fff 3px,#f3c4cc 3px,#f3c4cc 6px)"; }
-    else { const c = COD[cod][1]; h.style.cssText += cod === "PV" ? `;border:2px dashed ${c};background:#fff` : `;background:${c}`; h.textContent = cod; }
+// Marcar días: seleccionar (pulsar o arrastrar) y elegir qué poner en un menú
+function activaMarcado(ctx, D, codigos, fin) {
+  const { S, sb, toast, esc } = ctx;
+  const filas = [...document.querySelectorAll(".gr[data-row]")].map(r => +r.dataset.row);
+  let ini = null, fin2 = null, activo = false;
+  const celdas = () => {
+    if (!ini) return [];
+    const r1 = filas.indexOf(ini.o), r2 = filas.indexOf(fin2.o);
+    const [a, b] = [Math.min(r1, r2), Math.max(r1, r2)];
+    const [da, db] = ini.d <= fin2.d ? [ini.d, fin2.d] : [fin2.d, ini.d];
+    return [...document.querySelectorAll(".hit")].filter(h => { const ri = filas.indexOf(+h.dataset.o); return ri >= a && ri <= b && h.dataset.d >= da && h.dataset.d <= db; });
   };
-  const guarda = async () => {
-    if (!pintando) return; pintando = false;
-    if (!pend.size) return;
-    const filas = [...pend.values()];
-    const autor = (S.perfil && (S.perfil.nombre || S.perfil.email)) || S.user.email;
-    let error;
-    if (cod === "X") {
-      const porOp = {}; filas.forEach(f => (porOp[f.o] = porOp[f.o] || []).push(f.d));
-      for (const [o, ds] of Object.entries(porOp)) { const r = await sb.from("jornadas").delete().eq("operario_id", +o).in("fecha", ds); if (r.error) error = r.error; }
-    } else {
-      const pid = CON_PROY.includes(cod) && S.pincelP ? +S.pincelP : null;
-      const r = await sb.from("jornadas").upsert(filas.map(f => ({ operario_id: f.o, fecha: f.d, codigo: cod, proyecto_id: pid, autor, actualizado: new Date().toISOString() })));
-      error = r.error;
-    }
-    if (error) toast("No se pudo guardar: " + error.message); else toast(`${filas.length} día${filas.length > 1 ? "s" : ""} ${cod === "X" ? "borrado" + (filas.length > 1 ? "s" : "") : "pintado" + (filas.length > 1 ? "s" : "")}`);
-    pend.clear(); fin();
-  };
+  const pinta = () => { document.querySelectorAll(".hit.sel").forEach(h => h.classList.remove("sel")); celdas().forEach(h => h.classList.add("sel")); };
+  const hitEn = (x, y) => { const el = document.elementFromPoint(x, y); return el && el.closest && el.closest(".hit"); };
   document.querySelectorAll(".hit").forEach(h => {
-    h.onpointerdown = e => { e.preventDefault(); pintando = true; pinta(h); };
-    h.onpointerenter = () => { if (pintando) pinta(h); };
+    h.onpointerdown = e => { if (e.button > 0) return; activo = true; ini = fin2 = { o: +h.dataset.o, d: h.dataset.d }; pinta(); if (e.pointerType === "mouse") e.preventDefault(); };
   });
-  const up = () => { document.removeEventListener("pointerup", up); guarda(); };
-  document.addEventListener("pointerup", up);
+  const mueve = e => { if (!activo || e.pointerType !== "mouse") return; const h = hitEn(e.clientX, e.clientY); if (h) { fin2 = { o: +h.dataset.o, d: h.dataset.d }; pinta(); } };
+  const suelta = e => { if (!activo) return; activo = false; const sel = celdas(); if (sel.length) menu(e.clientX, e.clientY, sel); };
+  const cancela = () => { activo = false; ini = null; pinta(); };
+  document.addEventListener("pointermove", mueve);
+  document.addEventListener("pointerup", suelta);
+  document.addEventListener("pointercancel", cancela);
+  const limpia = () => { document.removeEventListener("pointermove", mueve); document.removeEventListener("pointerup", suelta); document.removeEventListener("pointercancel", cancela); };
+  if (S._limpiaMarca) S._limpiaMarca();
+  S._limpiaMarca = limpia;
+
+  function menu(x, y, sel) {
+    document.querySelectorAll(".mmenu").forEach(m => m.remove());
+    const ops = [...new Set(sel.map(h => +h.dataset.o))];
+    const ds = sel.map(h => h.dataset.d).sort();
+    const nom = ops.length === 1 ? ((S.operarios.find(o => o.id === ops[0]) || {}).nombre || "") : `${ops.length} personas`;
+    const fdc = s => s.split("-").reverse().slice(0, 2).join("/");
+    const proys = S.proyectos.filter(p => p.estado !== "Cerrado" && !caido(p)).sort((a, b) => (a.fecha_carga || "9").localeCompare(b.fecha_carga || "9"));
+    const m = document.createElement("div"); m.className = "mmenu";
+    m.innerHTML = `<div class="mm-h"><b>${esc(nom)}</b><span>${ds.length === 1 || ds[0] === ds[ds.length - 1] ? fdc(ds[0]) : `${fdc(ds[0])} → ${fdc(ds[ds.length - 1])}`}</span></div>
+      ${ops.length === 1 ? `<div class="mm-r"><label>Hasta <input type="date" id="mmh" value="${ds[ds.length - 1]}" min="${ds[0]}"></label></div>` : ""}
+      ${codigos.some(c => CON_PROY.includes(c)) ? `<div class="mm-r"><select id="mmp"><option value="">Proyecto (opcional)</option>${proys.map(p => `<option value="${p.id}" ${String(p.id) === String(S.ultProy || "") ? "selected" : ""}>${esc(p.codigo)} · ${esc(corto(p.nombre, 28))}</option>`).join("")}</select></div>` : ""}
+      <div class="mm-g">${codigos.map(c => `<button data-c="${c}" style="--c:${COD[c][1]}" class="${c === "PV" ? "pv" : ""}">${COD[c][0]}</button>`).join("")}</div>
+      <div class="mm-f"><button class="link" id="mmq">Quitar marca</button><button class="link" id="mmx">Cancelar</button></div>`;
+    document.body.appendChild(m);
+    const r = m.getBoundingClientRect();
+    m.style.left = Math.max(8, Math.min(x + 6, innerWidth - r.width - 8)) + "px";
+    m.style.top = Math.max(8, Math.min(y + 6, innerHeight - r.height - 8)) + "px";
+    const cierra = () => { m.remove(); ini = null; pinta(); document.removeEventListener("keydown", tecla); };
+    const tecla = e => { if (e.key === "Escape") cierra(); };
+    document.addEventListener("keydown", tecla);
+    setTimeout(() => document.addEventListener("pointerdown", function fuera(e) { if (!m.contains(e.target)) { cierra(); document.removeEventListener("pointerdown", fuera); } }), 0);
+    const objetivo = () => {
+      const h = m.querySelector("#mmh");
+      if (ops.length === 1 && h && h.value && h.value !== ds[ds.length - 1]) { const out = []; for (let d = ds[0]; d <= h.value; d = suma(d, 1)) out.push({ o: ops[0], d }); return out; }
+      return sel.map(x => ({ o: +x.dataset.o, d: x.dataset.d }));
+    };
+    const autor = (S.perfil && (S.perfil.nombre || S.perfil.email)) || S.user.email;
+    m.querySelector("#mmx").onclick = cierra;
+    m.querySelector("#mmq").onclick = async () => {
+      const t = objetivo(); const porOp = {}; t.forEach(f => (porOp[f.o] = porOp[f.o] || []).push(f.d));
+      let error; for (const [o, d] of Object.entries(porOp)) { const r = await sb.from("jornadas").delete().eq("operario_id", +o).in("fecha", d); if (r.error) error = r.error; }
+      cierra(); toast(error ? "No se pudo quitar: " + error.message : "Marca quitada (las asignaciones y ausencias se gestionan en Equipo)"); fin();
+    };
+    m.querySelectorAll("[data-c]").forEach(b => b.onclick = async () => {
+      const c = b.dataset.c, sp = m.querySelector("#mmp"), pid = sp && sp.value && CON_PROY.includes(c) ? +sp.value : null;
+      if (sp) S.ultProy = sp.value;
+      const t = objetivo();
+      const { error } = await sb.from("jornadas").upsert(t.map(f => ({ operario_id: f.o, fecha: f.d, codigo: c, proyecto_id: pid, autor, actualizado: new Date().toISOString() })));
+      cierra();
+      toast(error ? (/row-level|policy/i.test(error.message) ? "No tienes permiso para cambiar alguno de esos días." : "No se pudo guardar: " + error.message) : `${COD[c][0]}: ${t.length} día${t.length > 1 ? "s" : ""}`);
+      fin();
+    });
+  }
 }
 
 // Panel lateral del proyecto (desde el Gantt)
@@ -269,8 +312,6 @@ function panelProyecto(ctx, p, D, fin) {
       <dt>Cliente</dt><dd>${esc(p.cliente || "—")}</dd>
       <dt>Ubicación</dt><dd>${esc(p.ubicacion || "—")}</dd>
       <dt>Front</dt><dd>${esc(p.front_nombre || "—")}</dd>
-      <dt>OT</dt><dd>${p.ot_id ? esc(opN(p.ot_id)) : `<span style="color:var(--red)">Sin asignar</span>`}</dd>
-      <dt>Jefe de montaje</dt><dd>${p.jefe_montaje_id ? esc(opN(p.jefe_montaje_id)) : "—"}</dd>
       <dt>Despiece</dt><dd>${els.length} elementos · ${fab}% fabricado</dd>
     </dl>
     <table class="f">${fasesProyecto(p).map(([f, a, b]) => `<tr><td><i class="dot" style="background:${COL[f]}"></i>${f}</td><td>${fd(a)}${b !== a ? " → " + fd(b) : ""}</td><td>${dur(a, b)} d</td></tr>`).join("")}</table>

@@ -307,3 +307,29 @@ body.tv .gd.we,body.tv .gd.fe,body.tv .gr>.bg{background:#1b2733}
 body.tv .gr{border-color:#24323f;min-height:52px}
 body.tv .gg{background:#0E161E;color:#93D500;border-color:#24323f}
 body.tv .bar2,body.tv .cx{height:30px;font-size:13px}
+/* planificación v3: zoom, marcado, separadores menú */
+.tabs a+a{border-left:1px solid var(--line)}
+.zoom{display:flex;align-items:center;gap:4px;background:#fff;border:1px solid var(--line);border-radius:999px;padding:2px}
+.zoom .btn{border:0;min-width:30px;padding:0 8px}.zoom span{font-size:12px;font-weight:700;min-width:46px;text-align:center}
+.zoom .btn[disabled]{opacity:.35}
+.perq{height:34px;border:1px solid var(--line);border-radius:999px;padding:0 14px;font:inherit;background:#fff;min-width:200px}
+.ayuda{font-size:13px;color:var(--lime-d);background:var(--lime-bg);border-radius:10px;padding:8px 12px;margin-bottom:8px}
+.gantt.marcable .hit{cursor:pointer;user-select:none;-webkit-user-select:none}
+.gantt.marcable .hit:hover{outline:2px solid rgba(19,30,41,.35);outline-offset:-2px}
+.hit.sel{background:rgba(147,213,0,.35)!important;outline:2px solid var(--lime-d)!important;outline-offset:-2px}
+.cx{margin:0;border-radius:0}.cx.ini{border-top-left-radius:6px;border-bottom-left-radius:6px;margin-left:1px}
+.gantt.z0 .gd b{font-size:14px}.gantt.z0 .gd span{font-size:11px}
+.gantt.z0 .bar2,.gantt.z0 .cx{font-size:12px;height:28px}
+.gantt.z3 .gd span{display:none}.gantt.z3 .gd b{font-size:9px}
+.gantt.z3 .bar2,.gantt.z3 .cx{font-size:9px;padding:0 2px}
+.mmenu{position:fixed;z-index:70;background:#fff;border-radius:14px;box-shadow:0 10px 30px rgba(19,30,41,.25);padding:12px;width:290px;max-width:calc(100vw - 16px)}
+.mm-h{display:flex;justify-content:space-between;gap:8px;font-size:14px;margin-bottom:8px}.mm-h span{color:var(--muted2)}
+.mm-r{margin-bottom:8px}.mm-r label{display:flex;align-items:center;gap:8px;font-size:13px}
+.mm-r input,.mm-r select{flex:1;width:100%;height:34px;border:1px solid var(--line);border-radius:10px;padding:0 8px;font:inherit;font-size:13px;background:#fff}
+.mm-g{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.mm-g button{height:38px;border-radius:10px;border:0;border-left:6px solid var(--c);background:color-mix(in srgb,var(--c) 14%,#fff);font-weight:700;font-size:13px;text-align:left;padding:0 10px;color:var(--ink)}
+.mm-g button.pv{border:2px dashed var(--c);border-left-width:6px;background:#fff}
+.mm-g button:active{transform:scale(.97)}
+.mm-f{display:flex;justify-content:space-between;margin-top:8px}
+.cx.ult{border-top-right-radius:6px;border-bottom-right-radius:6px;margin-right:1px}
+.gr>.gn,.gh>.gn{z-index:5}
