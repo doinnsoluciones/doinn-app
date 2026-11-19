@@ -70,7 +70,7 @@ export async function vElemento(ctx, p, eid) {
   if (!x) { $app.innerHTML = `<div class="empty">Elemento no encontrado.</div>`; return; }
   const pzs = d.pz.filter(z => z.elemento_id === x.id), subs = d.sub.filter(s => s.elemento_id === x.id);
   const yo = (S.perfil && S.perfil.nombre) || (S.user.email || "").split("@")[0];
-  const edita = puede("admin", "front", "ot", "taller");
+  const edita = puede("admin", "taller");
   const recarga = () => vElemento(ctx, p, eid);
   const upd = async (tabla, id, cambios, msg) => {
     const { error } = await sb.from(tabla).update(cambios).eq("id", id);

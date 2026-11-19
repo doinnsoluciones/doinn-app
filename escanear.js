@@ -28,7 +28,7 @@ export function vEscanear(ctx) {
   <div class="cam card" id="camc">
     <video id="vid" playsinline muted></video><canvas id="cv" hidden></canvas>
     <div class="aim"></div>
-    <button class="btn lime" id="bcam">📷 Abrir cámara</button>
+    <button class="camtap" id="bcam" type="button"><span class="cmark"><i></i></span><span class="ctxt">Toca aquí para abrir la cámara</span></button>
   </div>
   <form id="fman" class="search"><input id="man" placeholder="Pistola o código a mano (ej. 261123.01-001-P1)" autocomplete="off"><button class="btn">OK</button></form>
   <div id="res"></div>

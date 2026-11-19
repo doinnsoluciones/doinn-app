@@ -21,8 +21,8 @@ async function datos(sb, pid) {
 // ---------- pestaña Carga ----------
 export async function vCarga(ctx, p, cont) {
   const { sb, esc, toast, puede, S, fd } = ctx;
-  const editaPM = puede("admin", "front");
-  const editaLog = puede("admin", "front", "taller", "ot");
+  const editaPM = puede("admin");
+  const editaLog = puede("admin", "taller");
   cont.innerHTML = `<div class="loading">Cargando…</div>`;
   let d; try { d = await datos(sb, p.id); } catch (e) { cont.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
   const yo = (S.perfil && S.perfil.nombre) || S.user.email.split("@")[0];
@@ -112,7 +112,7 @@ export async function vCarga(ctx, p, cont) {
 // ---------- pestaña Retorno ----------
 export async function vRetorno(ctx, p, cont) {
   const { sb, esc, toast, puede, fd } = ctx;
-  const edita = puede("admin", "front", "taller", "ot");
+  const edita = puede("admin", "taller");
   cont.innerHTML = `<div class="loading">Cargando…</div>`;
   let d; try { d = await datos(sb, p.id); } catch (e) { cont.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
   const cuenta = k => d.els.filter(x => x.destino_retorno === k).length;

@@ -26,7 +26,7 @@ async function leer(sb, pid) {
 // ---------- lista ----------
 export async function vDespiece(ctx, p, cont) {
   const { sb, esc, toast, puede } = ctx;
-  const edita = puede("admin", "front", "ot");
+  const edita = puede("admin");
   cont.innerHTML = `<div class="loading">Cargando despiece…</div>`;
   let d; try { d = await leer(sb, p.id); } catch (e) { cont.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
   const totalQR = d.els.reduce((a, x) => a + (x.cantidad || 1), 0);
@@ -50,7 +50,7 @@ export async function vDespiece(ctx, p, cont) {
 // ---------- formulario de elemento ----------
 export async function vElementoForm(ctx, p, eid) {
   const { $app, sb, esc, toast, puede } = ctx;
-  if (!puede("admin", "front", "ot")) { $app.innerHTML = `<div class="empty">Solo Fronts y oficina técnica editan el despiece.</div>`; return; }
+  if (!puede("admin")) { $app.innerHTML = `<div class="empty">Solo Fronts y oficina técnica editan el despiece.</div>`; return; }
   $app.innerHTML = `<div class="loading">Cargando…</div>`;
   const d = await leer(sb, p.id);
   const nuevo = eid === "nuevo";

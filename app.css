@@ -74,8 +74,8 @@ table.f tr.ev td{background:var(--lime-bg);font-weight:700}
 .auth .btn{width:100%}
 .auth p{color:var(--muted2);font-size:14px}
 /* users */
-.u{display:flex;justify-content:space-between;align-items:center;gap:10px}
-.u select{height:34px;border-radius:8px;border:1px solid var(--line);font:inherit;padding:0 8px}
+.u{display:block}
+.u select{width:100%;height:40px;border-radius:10px;border:1px solid var(--line);font:inherit;padding:0 10px;margin-top:4px}
 @media (min-width:760px){ .seg{grid-template-columns:repeat(6,1fr)} }
 /* formulario ficha */
 .wide{display:flex;align-items:center;justify-content:center;width:100%;margin-top:4px}
@@ -238,3 +238,17 @@ main:has(.gwrap){max-width:1400px}
 .mbox{width:100%;max-width:440px;max-height:90vh;overflow:auto}
 .gg span{position:sticky;left:10px;display:inline-block}
 .gmes{white-space:nowrap;overflow:hidden}
+
+/* botón cámara estilo Power Apps */
+.cam:not(.on){background:var(--muted2);padding:0}
+.camtap{display:flex;flex-direction:column;align-items:center;gap:14px;width:100%;padding:26px 16px 18px;background:var(--muted2);border:0;border-radius:inherit;cursor:pointer;color:#e3e8e8;font:inherit;font-size:14px}
+.camtap .cmark{position:relative;width:140px;height:140px;border:4px solid var(--lime);border-radius:20px}
+.camtap .cmark i{position:absolute;left:22px;right:22px;top:50%;height:2px;background:var(--lime);box-shadow:0 0 6px var(--lime);animation:cscan 2.4s ease-in-out infinite}
+@keyframes cscan{0%,100%{top:30%}50%{top:70%}}
+.camtap:active .cmark{transform:scale(.97)}
+/* usuarios */
+.pgs{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:4px 10px;margin:6px 0 10px}
+.frm .pg,.pg{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--ink);margin:0}
+.pg input{width:18px;height:18px;accent-color:var(--lime-d);margin:0}
+.u details{margin-top:6px}.u summary{cursor:pointer;list-style:none}
+#tabs a[hidden]{display:none}

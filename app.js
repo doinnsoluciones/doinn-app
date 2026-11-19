@@ -23,7 +23,21 @@ const fd = s => s ? pd(s).toLocaleDateString("es-ES", { day: "2-digit", month: "
 const dias = s => s ? Math.round((pd(s) - hoy()) / 864e5) : null;
 const pct = (a, b) => b ? Math.round(100 * a / b) : 0;
 function toast(m) { const t = document.getElementById("toast"); t.textContent = m; t.classList.add("on"); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove("on"), 2600); }
-const puede = (...roles) => S.perfil && S.perfil.aprobado && roles.includes(S.perfil.rol);
+// Roles: superadmin (todo) · admin (Fronts y OT: proyectos) · taller (estado de producción) · lectura
+// puede("admin") incluye al superadmin.
+const puede = (...roles) => !!(S.perfil && S.perfil.aprobado && (roles.includes(S.perfil.rol) || (S.perfil.rol === "superadmin" && roles.includes("admin"))));
+// Páginas que se pueden ocultar por persona
+const PAGINAS = [["proyectos", "Proyectos"], ["plan", "Planificación"], ["escanear", "Escanear"], ["muelle", "Muelle"], ["panel", "Panel"],
+  ["ficha", "Ficha"], ["elementos", "Elementos"], ["despiece", "Despiece"], ["carga", "Carga"], ["retorno", "Retorno"], ["equipo", "Equipo"]];
+const TODAS = PAGINAS.map(x => x[0]);
+const DEF_PAG = {
+  superadmin: TODAS, admin: TODAS,
+  taller: ["proyectos", "plan", "escanear", "ficha", "elementos"],
+  lectura: TODAS.filter(x => x !== "escanear"),
+};
+const ROLES = [["superadmin", "SuperAdmin · control total"], ["admin", "Admin · proyectos (Fronts y OT)"], ["taller", "Taller · estado de producción"], ["lectura", "Lectura · solo consulta"]];
+const pagsDe = (rol, pags) => rol === "superadmin" ? TODAS : (pags && pags.length ? pags : DEF_PAG[rol] || []);
+const ver = pg => !!S.perfil && pagsDe(S.perfil.rol, S.perfil.paginas).includes(pg);
 
 // ---------- datos ----------
 async function cargar() {
@@ -38,7 +52,7 @@ async function cargar() {
 }
 // Proyectos con todas sus fechas pasadas → Cerrado (como en Power Apps)
 async function autoArchivar() {
-  if (!puede("admin", "front")) return;
+  if (!puede("admin")) return;
   const t = hoy();
   const viejos = S.proyectos.filter(p => p.estado !== "Cerrado").filter(p => {
     const u = p.fecha_descarga || p.fecha_desmontaje_fin || p.fecha_desmontaje || p.evento_fin || p.evento_inicio || p.fecha_carga;
@@ -73,7 +87,7 @@ function vLogin(msg = "") {
   $me.innerHTML = "";
   $app.innerHTML = `<div class="auth">
     <img class="logo-b" src="logo-navy.svg" alt="DOINN">
-    <p>Entra con tu email y tu contraseña. Si es la primera vez, pulsa «Crear cuenta».</p>
+    <p>Entra con tu email y tu contraseña. Si te han invitado y es la primera vez, pulsa «Crear cuenta» con el email de la invitación.</p>
     <form id="f"><input id="em" type="email" required placeholder="tu@email.com" autocomplete="email">
     <input id="pw" type="password" required minlength="8" placeholder="Contraseña (mínimo 8 caracteres)" autocomplete="current-password" style="margin-top:0">
     <button class="btn" id="bin">Entrar</button>
@@ -81,7 +95,7 @@ function vLogin(msg = "") {
     <p id="msg">${esc(msg)}</p><button class="link" id="bolv" type="button">¿Has olvidado la contraseña?</button></div>`;
   const m = t => document.getElementById("msg").textContent = t;
   const datos = () => ({ email: document.getElementById("em").value.trim().toLowerCase(), password: document.getElementById("pw").value });
-  const traduce = e => /Invalid login/i.test(e.message) ? "Email o contraseña incorrectos." : /already registered/i.test(e.message) ? "Ese email ya tiene cuenta: pulsa «Entrar»." : /least 8|Password should/i.test(e.message) ? "La contraseña debe tener al menos 8 caracteres." : e.message;
+  const traduce = e => /Invalid login/i.test(e.message) ? "Email o contraseña incorrectos." : /already registered/i.test(e.message) ? "Ese email ya tiene cuenta: pulsa «Entrar»." : /least 8|Password should/i.test(e.message) ? "La contraseña debe tener al menos 8 caracteres." : /Database error|SIN_INVITACION/i.test(e.message) ? "Ese email no tiene invitación. Pide acceso a un administrador de Doinn." : e.message;
   document.getElementById("f").onsubmit = async ev => {
     ev.preventDefault(); m("Entrando…");
     const { error } = await sb.auth.signInWithPassword(datos());
@@ -132,7 +146,7 @@ function vRecuperar(email = "") {
 }
 function vPendiente() {
   $app.innerHTML = `<div class="auth"><img class="logo-b" src="logo-navy.svg" alt="DOINN">
-  <p>Tu acceso está <b>pendiente de aprobación</b>. Cuando un administrador te dé de alta podrás entrar.</p>
+  <p>Tu acceso a la app está <b>desactivado</b>. Si crees que es un error, habla con el administrador.</p>
   <button class="btn ghost" id="rl">Volver a comprobar</button></div>`;
   document.getElementById("rl").onclick = () => location.reload();
 }
@@ -144,7 +158,7 @@ function vProyectos() {
   $app.innerHTML = `
   <p class="hint">Ordenados por fecha de carga. Pulsa uno para ver su ficha, sus elementos y la carga.</p>
   <div class="search"><input id="q" placeholder="Buscar por código, proyecto, cliente o Front…" value="${esc(S.q)}">
-  ${puede("admin", "front") ? `<button class="btn lime" id="nuevo">+ Nuevo</button>` : ""}</div>
+  ${puede("admin") ? `<button class="btn lime" id="nuevo">+ Nuevo</button>` : ""}</div>
   <button class="link" id="vc">${S.verCerrados ? "Ocultar" : "Ver"} proyectos terminados (${nCerr}) ▾</button>
   ${ps.map(card).join("") || `<div class="empty">No hay proyectos que coincidan.</div>`}`;
   const qi = document.getElementById("q");
@@ -165,11 +179,13 @@ function card(p) {
 function vProyecto(id, tab = "ficha") {
   const p = S.proyectos.find(x => x.id === +id);
   if (!p) { $app.innerHTML = `<div class="empty">Proyecto no encontrado.</div>`; return; }
-  const tabs = [["ficha", "Ficha"], ["elementos", "Elementos"], ["despiece", "Despiece"], ["carga", "Carga"], ["retorno", "Retorno"], ["equipo", "Equipo"]];
+  const tabs = [["ficha", "Ficha"], ["elementos", "Elementos"], ["despiece", "Despiece"], ["carga", "Carga"], ["retorno", "Retorno"], ["equipo", "Equipo"]].filter(([k]) => ver(k));
+  if (!tabs.length) { $app.innerHTML = `<div class="empty">No tienes acceso a las fichas de proyecto.</div>`; return; }
+  if (!tabs.some(([k]) => k === tab)) tab = tabs[0][0];
   let body = "";
   if (tab === "ficha") body = fichaLectura(p);
   else if (["elementos", "despiece", "carga", "retorno", "equipo"].includes(tab)) body = `<div id="tabc"></div>`;
-  else body = `<div class="card empty">Esta pestaña llega en los próximos días. Mientras tanto, usa la app de Power Apps.</div>`;
+  else body = `<div class="card empty">Esta pestaña llega en los próximos días.</div>`;
   $app.innerHTML = `<a class="back" href="#/">‹ Proyectos</a><div class="code">${esc(p.codigo)}</div><h1>${esc(p.nombre || "")}</h1>
   <div class="seg">${tabs.map(([k, l]) => `<a href="#/p/${p.id}/${k}" class="${k === tab ? "on" : ""}">${l}</a>`).join("")}</div>${body}`;
   if (tab === "elementos") { S.dirty = true; vElementos(ctx(), p, document.getElementById("tabc")); }
@@ -197,25 +213,53 @@ function fichaLectura(p) {
     ${fila(p.hay_desmontaje, "Desmontaje", p.fecha_desmontaje, p.fecha_desmontaje_fin, p.hora_desmontaje)}
     ${fila(p.hay_retorno, "Descarga en fábrica", p.fecha_descarga, p.fecha_descarga_fin, p.hora_descarga)}
   </table></div>
-  ${puede("admin", "front") ? `<a class="btn ghost wide" href="#/p/${p.id}/editar">Editar ficha del proyecto</a>` : ""}`;
+  ${puede("admin") ? `<a class="btn ghost wide" href="#/p/${p.id}/editar">Editar ficha del proyecto</a>` : ""}`;
 }
 async function vUsuarios() {
-  if (!puede("admin")) { $app.innerHTML = `<div class="empty">Solo administradores.</div>`; return; }
-  const { data, error } = await sb.from("perfiles").select("*").order("created_at");
-  if (error) { $app.innerHTML = `<div class="empty">${esc(error.message)}</div>`; return; }
-  const roles = ["lectura", "taller", "ot", "front", "admin"];
-  $app.innerHTML = `<h1>Usuarios</h1><p class="hint">Aprueba a quien se registre y asígnale un rol.</p>
-  ${data.map(u => `<div class="card u" data-id="${u.user_id}"><div><b>${esc(u.email)}</b><div class="code">${u.aprobado ? "Aprobado" : "Pendiente"}</div></div>
-  <div class="row"><select>${roles.map(r => `<option ${r === u.rol ? "selected" : ""}>${r}</option>`).join("")}</select>
-  <button class="btn sm ${u.aprobado ? "ghost" : "lime"}">${u.aprobado ? "Quitar" : "Aprobar"}</button></div></div>`).join("")}`;
+  if (!puede("superadmin")) { $app.innerHTML = `<div class="empty">Solo el SuperAdmin gestiona usuarios.</div>`; return; }
+  const [u, inv] = await Promise.all([sb.from("perfiles").select("*").order("email"), sb.from("invitaciones").select("*").is("usada", null).order("creada")]);
+  if (u.error || inv.error) { $app.innerHTML = `<div class="empty">${esc((u.error || inv.error).message)}</div>`; return; }
+  const optRol = r => ROLES.map(([k, l]) => `<option value="${k}" ${k === r ? "selected" : ""}>${l}</option>`).join("");
+  const checks = (rol, pags, pref) => rol === "superadmin" ? `<div class="code">Ve todas las páginas.</div>` :
+    `<div class="pgs">${PAGINAS.map(([k, l]) => `<label class="pg"><input type="checkbox" data-${pref}="${k}" ${pagsDe(rol, pags).includes(k) ? "checked" : ""}> ${l}</label>`).join("")}</div>`;
+  const leeChecks = (el, pref) => [...el.querySelectorAll(`[data-${pref}]`)].filter(c => c.checked).map(c => c.dataset[pref]);
+  const yo = S.user.id;
+  $app.innerHTML = `<h1>Usuarios</h1>
+  <p class="hint">Solo entran las personas invitadas. Invita con su email, elige el rol y qué páginas ve. Después envíale el enlace de la app: entra con «Crear cuenta» usando ese mismo email.</p>
+  <form id="finv" class="card frm"><h2>+ Invitar</h2>
+    <div class="two"><label>Email<input id="iem" type="email" required placeholder="nombre@doinn.es"></label>
+    <label>Nombre<input id="inom" placeholder="Nombre y primer apellido"></label></div>
+    <label>Rol<select id="irol">${optRol("taller")}</select></label>
+    <div class="code" style="margin:6px 0 4px">Páginas que verá</div><div id="ipg">${checks("taller", null, "ip")}</div>
+    <button class="btn lime wide">Guardar invitación</button></form>
+  ${inv.data.length ? `<div class="card"><h2>Invitaciones pendientes <small class="code">${inv.data.length}</small></h2>${inv.data.map(x => `<div class="crow"><div><b>${esc(x.email)}</b> <span class="pill">${esc(x.rol)}</span><div class="code">${esc(x.nombre || "")} · aún no ha creado su cuenta</div></div><button class="link" data-idel="${esc(x.email)}">Anular</button></div>`).join("")}</div>` : ""}
+  <h2 style="margin-top:18px">Con acceso</h2>
+  ${u.data.map(x => `<div class="card u" data-id="${x.user_id}"><div class="crow" style="border:0;padding:0"><div><b>${esc(x.nombre || x.email)}</b><div class="code">${esc(x.email)} · ${x.aprobado ? "Activo" : "Sin acceso"}</div></div>
+    ${x.user_id === yo ? `<span class="pill">Tú</span>` : `<button class="btn sm ${x.aprobado ? "ghost" : "lime"}" data-acc>${x.aprobado ? "Quitar acceso" : "Dar acceso"}</button>`}</div>
+    ${x.user_id === yo ? "" : `<label class="frm" style="margin-top:8px">Rol<select data-rol>${optRol(x.rol)}</select></label>
+    <details><summary class="link">Páginas que ve</summary><div data-pgs>${checks(x.rol, x.paginas, "up")}</div><button class="btn sm" data-gpg>Guardar páginas</button></details>`}</div>`).join("")}`;
+  const $ = id => document.getElementById(id);
+  $("irol").onchange = () => $("ipg").innerHTML = checks($("irol").value, null, "ip");
+  $("finv").onsubmit = async ev => {
+    ev.preventDefault();
+    const rol = $("irol").value, pags = rol === "superadmin" ? null : leeChecks($("ipg"), "ip");
+    const row = { email: $("iem").value.trim().toLowerCase(), nombre: $("inom").value.trim() || null, rol, paginas: pags, invitado_por: S.user.email, usada: null };
+    if (u.data.some(x => x.email === row.email)) return toast("Ese email ya tiene cuenta: cambia su rol abajo.");
+    const { error } = await sb.from("invitaciones").upsert(row);
+    if (error) return toast(error.message);
+    toast("Invitación guardada. Envíale el enlace de la app."); vUsuarios();
+  };
+  $app.querySelectorAll("[data-idel]").forEach(b => b.onclick = async () => { await sb.from("invitaciones").delete().eq("email", b.dataset.idel); vUsuarios(); });
   $app.querySelectorAll(".u").forEach(el => {
-    const id = el.dataset.id, sel = el.querySelector("select"), b = el.querySelector("button");
-    sel.onchange = async () => { const { error } = await sb.from("perfiles").update({ rol: sel.value }).eq("user_id", id); toast(error ? error.message : "Rol guardado"); };
-    b.onclick = async () => { const ap = b.textContent === "Aprobar"; const { error } = await sb.from("perfiles").update({ aprobado: ap }).eq("user_id", id); if (error) toast(error.message); else vUsuarios(); };
+    const id = el.dataset.id, x = u.data.find(z => z.user_id === id);
+    const upd = async (c, msg) => { const { error } = await sb.from("perfiles").update(c).eq("user_id", id); toast(error ? error.message : msg); if (!error) vUsuarios(); };
+    const a = el.querySelector("[data-acc]"); if (a) a.onclick = () => upd({ aprobado: !x.aprobado }, x.aprobado ? "Acceso retirado" : "Acceso activado");
+    const r = el.querySelector("[data-rol]"); if (r) r.onchange = () => upd({ rol: r.value, paginas: null }, "Rol guardado (páginas por defecto del rol)");
+    const g = el.querySelector("[data-gpg]"); if (g) g.onclick = () => upd({ paginas: leeChecks(el.querySelector("[data-pgs]"), "up") }, "Páginas guardadas");
   });
 }
 function vProximamente(t) {
-  $app.innerHTML = `<h1>${t}</h1><div class="card empty">Esta pantalla llega en los próximos días. Mientras tanto, usa la app de Power Apps.</div>`;
+  $app.innerHTML = `<h1>${t}</h1><div class="card empty">Esta pantalla llega en los próximos días.</div>`;
 }
 
 // ---------- router ----------
@@ -223,8 +267,11 @@ async function route() {
   if (!S.user) return;
   const h = location.hash.replace(/^#\/?/, "").split("/");
   document.querySelectorAll("#tabs a").forEach(a => a.classList.toggle("on", (a.dataset.t === (h[0] || "proyectos")) || (h[0] === "p" && a.dataset.t === "proyectos")));
-  if (h[0] === "nuevo") return puede("admin", "front") ? vFicha(ctx(), null) : vProyectos();
-  if (h[0] === "p" && h[2] === "editar") { const p = S.proyectos.find(x => x.id === +h[1]); return p && puede("admin", "front") ? vFicha(ctx(), p) : vProyecto(h[1]); }
+  document.querySelectorAll("#tabs a").forEach(a => a.hidden = !ver(a.dataset.t));
+  const pag = h[0] === "p" ? (h[2] && ["editar", "desp", "el"].includes(h[2]) ? (h[2] === "editar" ? "ficha" : h[2] === "desp" ? "despiece" : "elementos") : null) : (h[0] || "proyectos");
+  if (pag && pag !== "usuarios" && pag !== "nuevo" && !ver(pag)) { const pri = TODAS.find(x => ver(x) && ["proyectos", "plan", "escanear", "muelle", "panel"].includes(x)); if (pri && pri !== pag) { location.hash = pri === "proyectos" ? "#/" : "#/" + pri; return; } $app.innerHTML = `<div class="empty">No tienes acceso a esta página.</div>`; return; }
+  if (h[0] === "nuevo") return puede("admin") ? vFicha(ctx(), null) : vProyectos();
+  if (h[0] === "p" && h[2] === "editar") { const p = S.proyectos.find(x => x.id === +h[1]); return p && puede("admin") ? vFicha(ctx(), p) : vProyecto(h[1]); }
   if (h[0] === "p" && h[2] === "desp") { const p = S.proyectos.find(x => x.id === +h[1]); return p ? vElementoForm(ctx(), p, h[3]) : vProyectos(); }
   if (h[0] === "p" && h[2] === "el") { const p = S.proyectos.find(x => x.id === +h[1]); S.dirty = true; return p ? vElemento(ctx(), p, h[3]) : vProyectos(); }
   if (h[0] === "p") return vProyecto(h[1], h[2] || "ficha");
@@ -245,7 +292,7 @@ async function arrancar(session) {
   const { data: perfil } = await sb.from("perfiles").select("*").eq("user_id", S.user.id).maybeSingle();
   S.perfil = perfil;
   const ini = (S.user.email || "?")[0].toUpperCase();
-  $me.innerHTML = `${puede("admin") ? `<a href="#/usuarios" style="font-size:12px;color:#cfd6d6">Usuarios</a>` : ""}<span class="av">${ini}</span><button id="out">Salir</button>`;
+  $me.innerHTML = `${puede("superadmin") ? `<a href="#/usuarios" style="font-size:12px;color:#cfd6d6">Usuarios</a>` : ""}<span class="av">${ini}</span><button id="out">Salir</button>`;
   document.getElementById("out").onclick = async () => { await sb.auth.signOut(); location.hash = ""; location.reload(); };
   if (!perfil || !perfil.aprobado) return vPendiente();
   try { await cargar(); } catch (e) { $app.innerHTML = `<div class="empty">Error cargando datos: ${esc(e.message)}</div>`; return; }

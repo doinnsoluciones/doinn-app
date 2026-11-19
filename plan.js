@@ -52,7 +52,7 @@ export async function vPlan(ctx, modo, ini) {
   const nav = `<div class="pnav">
     <div class="seg2"><a href="#/plan/proyectos/${d0}" class="${modo === "proyectos" ? "on" : ""}">Proyectos</a><a href="#/plan/personal/${d0}" class="${modo === "personal" ? "on" : ""}">Personal</a></div>
     <div class="row"><a class="btn sm ghost" href="#/plan/${modo}/${suma(d0, -14)}">‹</a><a class="btn sm ghost" href="#/plan/${modo}">Hoy</a><a class="btn sm ghost" href="#/plan/${modo}/${suma(d0, 14)}">›</a></div>
-    ${modo === "proyectos" ? `<select id="pfront"><option value="">Todos los Fronts</option>${fronts.map(o => `<option ${o.nombre === S.planFront ? "selected" : ""}>${esc(o.nombre)}</option>`).join("")}</select>` : (puede("admin", "front") ? `<button class="btn sm ghost" id="baus">+ Ausencia</button>` : "")}
+    ${modo === "proyectos" ? `<select id="pfront"><option value="">Todos los Fronts</option>${fronts.map(o => `<option ${o.nombre === S.planFront ? "selected" : ""}>${esc(o.nombre)}</option>`).join("")}</select>` : (puede("admin") ? `<button class="btn sm ghost" id="baus">+ Ausencia</button>` : "")}
   </div>`;
   const leyenda = (modo === "proyectos" ? ["Carga", "Montaje", "Evento", "Desmontaje", "Descarga"] : ["Montaje", "Desmontaje", "Fábrica", "Ausencia"]).map(f => `<span><i style="background:${COL[f]}"></i>${f}</span>`).join("");
   let filas = "";
@@ -143,7 +143,7 @@ function formAusencia(ctx, fin, D) {
 // ---------- pestaña Equipo del proyecto ----------
 export async function vEquipo(ctx, p, cont) {
   const { S, sb, esc, toast, puede, fd } = ctx;
-  const edita = puede("admin", "front");
+  const edita = puede("admin");
   cont.innerHTML = `<div class="loading">Cargando…</div>`;
   let D; try { D = await cargaPlan(sb); } catch (e) { cont.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
   const mias = D.asig.filter(a => a.proyecto_id === p.id).sort((a, b) => FASES.indexOf(a.fase) - FASES.indexOf(b.fase) || (a.fecha_inicio || "").localeCompare(b.fecha_inicio || ""));
