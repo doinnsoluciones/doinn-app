@@ -78,7 +78,7 @@ function vLogin(msg = "") {
     <input id="pw" type="password" required minlength="8" placeholder="Contraseña (mínimo 8 caracteres)" autocomplete="current-password" style="margin-top:0">
     <button class="btn" id="bin">Entrar</button>
     <button class="btn ghost" id="bup" type="button" style="margin-top:8px">Crear cuenta</button></form>
-    <p id="msg">${esc(msg)}</p></div>`;
+    <p id="msg">${esc(msg)}</p><button class="link" id="bolv" type="button">¿Has olvidado la contraseña?</button></div>`;
   const m = t => document.getElementById("msg").textContent = t;
   const datos = () => ({ email: document.getElementById("em").value.trim().toLowerCase(), password: document.getElementById("pw").value });
   const traduce = e => /Invalid login/i.test(e.message) ? "Email o contraseña incorrectos." : /already registered/i.test(e.message) ? "Ese email ya tiene cuenta: pulsa «Entrar»." : /least 8|Password should/i.test(e.message) ? "La contraseña debe tener al menos 8 caracteres." : e.message;
@@ -94,6 +94,40 @@ function vLogin(msg = "") {
     const { data, error } = await sb.auth.signUp(d);
     if (error) return m(traduce(error));
     if (!data.session) m("Cuenta creada. Revisa tu correo para confirmarla y luego pulsa «Entrar».");
+  };
+  document.getElementById("bolv").onclick = () => vRecuperar(document.getElementById("em").value.trim().toLowerCase());
+}
+// Recuperar contraseña con código de 6 cifras (sin enlaces: el filtro de Microsoft los consume)
+function vRecuperar(email = "") {
+  $app.innerHTML = `<div class="auth">
+    <img class="logo-b" src="logo-navy.svg" alt="DOINN">
+    <p>Te enviamos un <b>código de 6 cifras</b> por correo. Escríbelo aquí junto con tu nueva contraseña.</p>
+    <form id="f1"><input id="em" type="email" required placeholder="tu@email.com" value="${esc(email)}" autocomplete="email">
+    <button class="btn" id="benv">Enviar código</button></form>
+    <form id="f2" hidden><input id="cod" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required placeholder="Código de 6 cifras" autocomplete="one-time-code">
+    <input id="pw" type="password" required minlength="8" placeholder="Nueva contraseña (mínimo 8)" autocomplete="new-password" style="margin-top:0">
+    <button class="btn">Cambiar contraseña</button></form>
+    <p id="msg"></p><button class="link" id="bvol" type="button">Volver</button></div>`;
+  const $ = id => document.getElementById(id);
+  const m = t => { const e = $("msg"); if (e) e.textContent = t; };
+  $("bvol").onclick = () => vLogin();
+  $("f1").onsubmit = async ev => {
+    ev.preventDefault(); m("Enviando…");
+    const { error } = await sb.auth.resetPasswordForEmail($("em").value.trim().toLowerCase());
+    if (error) return m(/rate limit|seconds/i.test(error.message) ? "Espera un minuto antes de pedir otro código." : error.message);
+    $("f1").hidden = true; $("f2").hidden = false; $("cod").focus();
+    m("Código enviado a " + $("em").value + ". Mira también en correo no deseado.");
+  };
+  $("f2").onsubmit = async ev => {
+    ev.preventDefault(); m("Comprobando…");
+    const email = $("em").value.trim().toLowerCase(), password = $("pw").value;
+    S.recuperando = true;
+    const { error } = await sb.auth.verifyOtp({ email, token: $("cod").value.trim(), type: "recovery" });
+    if (error) { S.recuperando = false; return m(/expired|invalid/i.test(error.message) ? "Código incorrecto o caducado. Pide otro." : error.message); }
+    const r = await sb.auth.updateUser({ password });
+    S.recuperando = false;
+    toast(r.error ? "No se pudo cambiar: " + r.error.message : "Contraseña cambiada");
+    arrancar((await sb.auth.getSession()).data.session);
   };
 }
 function vPendiente() {
@@ -217,4 +251,4 @@ async function arrancar(session) {
   try { await cargar(); } catch (e) { $app.innerHTML = `<div class="empty">Error cargando datos: ${esc(e.message)}</div>`; return; }
   route();
 }
-sb.auth.onAuthStateChange((ev, session) => { if (ev === "SIGNED_IN" || ev === "SIGNED_OUT" || ev === "INITIAL_SESSION") setTimeout(() => arrancar(session), 0); });
+sb.auth.onAuthStateChange((ev, session) => { if (S.recuperando) return; if (ev === "SIGNED_IN" || ev === "SIGNED_OUT" || ev === "INITIAL_SESSION") setTimeout(() => arrancar(session), 0); });

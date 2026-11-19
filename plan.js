@@ -156,7 +156,8 @@ export async function vEquipo(ctx, p, cont) {
     if (fase === "Descarga") return [p.fecha_descarga, p.fecha_descarga_fin || p.fecha_descarga];
     return [hoy, p.fecha_carga ? suma(p.fecha_carga, -1) : hoy];
   };
-  const taller = S.operarios.filter(o => o.activo !== false).sort((a, b) => ((a.grupo === "Taller" && b.grupo === "Taller") ? ((a.subgrupo === "Montaje") - (b.subgrupo === "Montaje")) : 0) || (a.grupo || "").localeCompare(b.grupo || "") || a.nombre.localeCompare(b.nombre));
+  const rango = o => o.grupo === "Taller" ? (o.subgrupo === "Montaje" ? 0 : 1) : o.grupo === "Externos" ? 2 : 3;
+  const taller = S.operarios.filter(o => o.activo !== false).sort((a, b) => rango(a) - rango(b) || a.nombre.localeCompare(b.nombre));
   const choque = a => D.asig.filter(x => x.id !== a.id && x.operario_id === a.operario_id && x.proyecto_id !== p.id && x.fecha_inicio && a.fecha_inicio && x.fecha_inicio <= (a.fecha_fin || a.fecha_inicio) && (x.fecha_fin || x.fecha_inicio) >= a.fecha_inicio)
     .map(x => (S.proyectos.find(q => q.id === x.proyecto_id) || {}).nombre).filter(Boolean);
   const f0 = fechasDe("Montaje");
