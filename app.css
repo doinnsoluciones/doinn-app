@@ -1,10 +1,10 @@
 :root{
-  --ink:#151E28; --muted:#8E9AA3; --muted2:#5A6771; --line:#E4E9E9; --bg:#F2F4F4; --card:#fff;
-  --lime:#93D400; --lime-d:#4E7300; --lime-bg:#F1F9E0; --amber:#B97F0E; --amber-bg:#FDF4E1;
-  --red:#D0103C; --red-bg:#FDE8ED; --blue-bg:#E8F0F8; --r:14px;
+  --ink:#131E29; --muted:#8E9C9C; --muted2:#3B4955; --line:#E4E9E9; --bg:#F2F4F4; --card:#fff;
+  --lime:#93D500; --lime-d:#4E7300; --lime-bg:#F1F9E0; --amber:#9A6F0E; --amber-bg:#FCF3DE;
+  --red:#D61F3B; --red-bg:#FDE9EC; --blue-bg:#E3F8F9; --r:14px;
 }
 *{box-sizing:border-box}
-html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.4 Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 "Myriad Pro","Core Sans C","Nunito Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
 a{color:inherit;text-decoration:none}
 button{font:inherit;cursor:pointer}
 .top{position:sticky;top:0;z-index:10;height:52px;background:var(--ink);color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 16px}
@@ -42,7 +42,7 @@ a.card:active{transform:scale(.995)}
 .pill.ok{background:var(--lime-bg);color:var(--lime-d)}
 .pill.warn{background:var(--amber-bg);color:var(--amber)}
 .pill.bad{background:var(--red-bg);color:var(--red)}
-.pill.info{background:var(--blue-bg);color:#2C5282}
+.pill.info{background:var(--blue-bg);color:#0E7F86}
 .prog{display:flex;align-items:center;gap:10px;margin-top:10px}
 .bar{flex:1;height:5px;border-radius:9px;background:var(--line);overflow:hidden}
 .bar i{display:block;height:100%;background:var(--lime)}
@@ -51,7 +51,7 @@ a.card:active{transform:scale(.995)}
 .mini span{font-size:11px;border-radius:999px;padding:2px 8px;background:var(--bg);color:var(--muted2)}
 .back{display:inline-block;color:var(--muted2);font-size:13px;margin-bottom:4px}
 .code{font-size:12px;color:var(--muted2)}
-h1{font-size:24px;margin:0 0 12px;text-transform:uppercase;letter-spacing:.01em}
+h1{font-family:"Core Sans C","Nunito Sans","Myriad Pro",system-ui,sans-serif;font-weight:800;font-size:26px;margin:0 0 12px;letter-spacing:-.005em}
 h1::after{content:"_";color:var(--lime)}
 h2{font-size:15px;margin:0 0 10px}
 .seg{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
@@ -166,7 +166,8 @@ a.card.kt{display:flex;flex-direction:column;gap:2px;margin:0}
 .lrow{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:10px 0;border-top:1px solid var(--line)}
 .lrow .r{text-align:right}
 
-/* identidad Doinn: navy Pantone 7547 C, verde #93D400, gris #5A6771 */
+/* identidad Doinn (brandbook): azul casi negro P7547 #131E29 · verde P375 #93D500 · grises P432 #3B4955 / P443 #8E9C9C · rojo P192 #E62643 · naranja P1575 #D37B3E · amarillo P136 #E9BA4B · azul P319 #1DCAD3 · tipografía Core Sans (titulares) y Myriad Pro (web) */
+h2,.pj-name,.btn{font-family:"Core Sans C","Nunito Sans","Myriad Pro",system-ui,sans-serif}
 .top{border-bottom:3px solid var(--lime)}
 .btn.lime{color:var(--ink);background:var(--lime)}
 .btn.lime:hover{filter:brightness(.95)}
