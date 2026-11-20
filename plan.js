@@ -25,12 +25,22 @@ const cuando = t => t ? new Date(t).toLocaleString("es-ES", { day: "2-digit", mo
 const lsGet = (k, def) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : def; } catch { return def; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { } };
 
+// Lee todas las filas (Supabase devuelve como máximo 1000 por consulta)
+async function todas(sb, tabla) {
+  const out = [];
+  for (let i = 0; ; i += 1000) {
+    const r = await sb.from(tabla).select("*").order("fecha").order("operario_id").range(i, i + 999);
+    if (r.error) return { error: r.error, data: out };
+    out.push(...r.data);
+    if (r.data.length < 1000) return { data: out, error: null };
+  }
+}
 async function cargaPlan(sb) {
   const [a, au, f, j] = await Promise.all([
     sb.from("asignaciones").select("*"),
     sb.from("ausencias").select("*"),
     sb.from("festivos").select("*"),
-    sb.from("jornadas").select("*"),
+    todas(sb, "jornadas"),
   ]);
   for (const r of [a, au, f]) if (r.error) throw r.error;
   return { asig: a.data, aus: au.data, fest: f.data.filter(x => x.ambito !== "Comunidad de Madrid"), jor: j.error ? [] : j.data };
