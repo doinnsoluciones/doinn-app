@@ -477,3 +477,7 @@ table.stats tr.sgr td{background:var(--bg);font-weight:600;cursor:pointer;color:
 table.stats tr.sgr td:first-child{background:var(--bg)}
 table.stats td.spn{padding-left:26px}
 table.stats th:not(:first-child),table.stats td:not(:first-child){text-align:center}
+.pc.pcs{padding:0 3px}
+.pl.larga{max-width:none;justify-content:flex-start;padding:0 8px;text-overflow:ellipsis;display:block;line-height:26px;text-align:left;font-size:10px;letter-spacing:.01em}
+.gantt.z3 .pl.larga{line-height:20px}
+body.tv .pl.larga{max-width:none;line-height:32px;font-size:12px}

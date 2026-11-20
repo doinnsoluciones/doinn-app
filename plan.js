@@ -214,6 +214,18 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
           if (!x) return "";
           if (["MO", "DM"].includes(x.cod)) n++;
           const [lab, col, ab] = COD[x.cod] || ["?", "#ccc", "?"];
+          // Montaje / desmontaje de un proyecto: una barra por tramo con nombre y hora de inicio
+          const mismo = y => y && y.cod === x.cod && y.p && x.p && y.p.id === x.p.id;
+          if (["MO", "DM"].includes(x.cod) && x.p) {
+            if (mismo(info[i - 1])) return "";
+            let span = 1; while (mismo(info[i + span])) span++;
+            const hora = x.cod === "MO" ? x.p.hora_montaje : x.p.hora_desmontaje;
+            const txt = x.p.nombre + (hora ? " · " + hora : "");
+            const tit2 = [lab + " · " + x.p.nombre + (hora ? " · inicio " + hora : ""), x.src, x.nota, x.quien || x.cuando ? `${x.quien || "—"} · ${cuando(x.cuando)}` : ""].filter(Boolean).join("\n");
+            const fg = OSCURO.has(col) ? "#131E29" : "#fff";
+            if (span * COLW < 48) return `<div class="pc pcs" style="grid-column:${i + 2}/span ${span}">${pildora([col], ab, COLW, "", `title="${esc(tit2)}"`)}</div>`;
+            return `<div class="pc pcs" style="grid-column:${i + 2}/span ${span}"><div class="pl larga" style="background:${col};color:${fg}" title="${esc(tit2)}">${esc(txt)}</div></div>`;
+          }
           const tit = [lab + (x.p ? " · " + x.p.nombre : ""), x.src, x.nota, x.quien || x.cuando ? `${x.quien || "—"} · ${cuando(x.cuando)}` : ""].filter(Boolean).join("\n");
           return `<div class="pc" style="grid-column:${i + 2}">${pildora([col], ab, COLW, "", `title="${esc(tit)}"`)}</div>`;
         }).join("");
