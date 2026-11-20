@@ -84,7 +84,8 @@ export async function vCartera(ctx) {
     };
     const th = (c, t, cls = "") => `<th class="so ${cls} ${st.ord === c ? "act" : ""}" data-ord="${c}">${t}<i>${st.ord === c ? (st.dir > 0 ? "▲" : "▼") : ""}</i></th>`;
     const clientes = [...new Set(S.proyectos.filter(p => C.has(p.id) && p.cliente).map(p => p.cliente))].sort();
-    const hayFil = st.meses.length || st.desde || st.hasta || st.q || st.cli;
+    const anioHoy = String(new Date().getFullYear());
+    const hayFil = st.meses.length || st.desde || st.hasta || st.q || st.cli || st.front || st.anio !== anioHoy || st.est.join() !== "Confirmado,Pendiente";
     const todosPleg = grupos.length && grupos.every(g => st.pleg.includes(g.m));
     const grupo = g => {
       const cerr = st.pleg.includes(g.m), cf = g.ps.filter(p => p.estado_com === "Confirmado");
@@ -112,7 +113,7 @@ export async function vCartera(ctx) {
     <div class="cart-fil">
       ${FILTROS.map(([f]) => `<button class="chip sm ${st.est.includes(f) ? "on" : ""}" data-est="${f}">${f}</button>`).join("")}
       ${st.meses.length ? `<span class="cfm">Meses: ${st.meses.map(m => MESES[+m - 1].slice(0, 3)).join(", ")}</span>` : ""}
-      ${hayFil ? `<button class="link" id="climp">Quitar filtros ✕</button>` : ""}
+      <button class="btn sm ghost cbor" id="climp" ${hayFil ? "" : "disabled"}>✕ Borrar filtros</button>
       <span style="flex:1"></span>
       ${grupos.length ? `<button class="link" id="cpleg">${todosPleg ? "▾ Desplegar todo" : "▸ Plegar todo"}</button>` : ""}
     </div>
@@ -135,7 +136,7 @@ export async function vCartera(ctx) {
     $app.querySelectorAll("[data-ord]").forEach(h => h.onclick = () => { const c = h.dataset.ord; if (st.ord === c) st.dir = -st.dir; else { st.ord = c; st.dir = ["venta", "coste", "margen", "pct"].includes(c) ? -1 : 1; } pinta(); });
     $app.querySelectorAll("tr.mes").forEach(r => r.onclick = () => { const g = r.dataset.g; st.pleg = st.pleg.includes(g) ? st.pleg.filter(x => x !== g) : [...st.pleg, g]; ls.set("doinn_cart_pleg", st.pleg); pinta(); });
     if ($("cpleg")) $("cpleg").onclick = () => { st.pleg = todosPleg ? st.pleg.filter(m => !grupos.some(g => g.m === m)) : [...new Set([...st.pleg, ...grupos.map(g => g.m)])]; ls.set("doinn_cart_pleg", st.pleg); pinta(); };
-    if ($("climp")) $("climp").onclick = () => { Object.assign(st, { meses: [], desde: "", hasta: "", q: "", cli: "" }); pinta(); };
+    $("climp").onclick = () => { Object.assign(st, { anio: anioHoy, front: "", est: ["Confirmado", "Pendiente"], meses: [], desde: "", hasta: "", q: "", cli: "" }); ls.set("doinn_cart_est", st.est); pinta(); };
     let tq; $("cq").oninput = e => { clearTimeout(tq); tq = setTimeout(() => { st.q = e.target.value; pinta(); const i = $("cq"); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }, 300); };
     $("ccsv").onclick = () => csv(vis, v, k);
     $("cnew").onclick = () => nueva(ctx, fronts, yo, C, pinta);

@@ -654,3 +654,5 @@ table.cart tr.canc select.cfr{background:transparent;font-weight:400}
 .cleg{gap:6px;margin-bottom:6px}
 .cleg .chip i{width:10px;height:10px}
 table.cart td.nr{font-variant-numeric:tabular-nums}
+.cart-fil .cbor{height:28px}
+.cart-fil .cbor:disabled{opacity:.4;cursor:default}
