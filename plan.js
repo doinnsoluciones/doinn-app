@@ -87,7 +87,9 @@ function barra(i, span, cols, txt, w, extra = "", attrs = "", izq = false) {
   const ancho = span * w - 6, cw = cols.length > 1 ? 5.4 : 6.2;
   const t = izq ? (ancho >= 44 ? txt.full : txt.abr) : txt.abr;
   const cabe = t.length * cw + (izq ? 16 : 6) <= ancho || izq && ancho >= 44;
-  return `<div class="pc pcs" style="grid-column:${i + 2}/span ${span}"><div class="pl larga ${izq ? "izq" : ""} ${cols.length > 1 ? "dos" : ""} ${extra}" style="background:${bg};color:${fg}" ${attrs}>${cabe ? t : ""}</div></div>`;
+  // Con hora: siempre en dos líneas (la hora se ve aunque la barra sea corta)
+  if (txt.hora) return `<div class="pc pcs" style="grid-column:${i + 2}/span ${span}"><div class="pl larga l2 ${ancho >= 44 ? "izq" : ""} ${extra}" style="background:${bg};color:${fg}" ${attrs}><span>${t}</span><small>${txt.hora}</small></div></div>`;
+  return `<div class="pc pcs" style="grid-column:${i + 2}/span ${span}"><div class="pl larga ${izq && ancho >= 44 ? "izq" : ""} ${cols.length > 1 ? "dos" : ""} ${extra}" style="background:${bg};color:${fg}" ${attrs}>${cabe ? t : ""}</div></div>`;
 }
 // Píldora de un día: 1 o 2 colores, con abreviatura si cabe
 function pildora(cols, txt, w, extra = "", attrs = "") {
@@ -132,6 +134,7 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
   modo = ["personal", "stats"].includes(modo) ? modo : "proyectos";
   if (modo === "stats") return vStats(ctx, ini);
   const tv = !!opt.tv;
+  $app.classList.add("ancho"); // la planificación usa todo el ancho de la pantalla
   if (S.zoom == null) S.zoom = lsGet("doinn_plan_zoom", 2);
   const [NDIAS, ANCHO] = tv ? [28, 0] : ZOOM[S.zoom];
   const paso = Math.max(7, Math.round(NDIAS / 2 / 7) * 7);
@@ -234,7 +237,7 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
           const conProy = ["MO", "DM"].includes(x.cod) && x.p;
           const hora = conProy ? (x.cod === "MO" ? x.p.hora_montaje : x.p.hora_desmontaje) : "";
           const tit = [lab + (x.p ? " · " + x.p.nombre : "") + (hora ? " · inicio " + hora : ""), x.src, x.nota, x.quien || x.cuando ? `${x.quien || "—"} · ${cuando(x.cuando)}` : ""].filter(Boolean).join("\n");
-          return barra(i, span, [col], { abr: ab, full: conProy ? x.p.nombre + (hora ? " · " + hora : "") : ab }, COLW, "", `title="${esc(tit)}"`, !!conProy);
+          return barra(i, span, [col], { abr: ab, full: conProy ? x.p.nombre : ab, hora: conProy ? (hora || "--:--") : "" }, COLW, "", `title="${esc(tit)}"`, !!conProy);
         }).join("");
         const hits = marca && puedeFila(o) ? dias.map((d, i) => `<div class="hit" data-o="${o.id}" data-d="${d}" style="grid-column:${i + 2}"></div>`).join("") : "";
         return `<div class="gr" data-row="${o.id}"><div class="gn"><b>${esc(o.nombre)}</b><span>${esc(o.subgrupo === "Montaje" ? "Montaje" : o.puesto || "")}${n ? ` · ${n} d montaje` : ""}</span></div>${fondo(dias, D.fest)}${cel}${hits}</div>`;
@@ -252,6 +255,9 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
   const $ = id => document.getElementById(id);
   const re = (o = {}) => vPlan(ctx, modo, d0, { ...opt, ...o });
   const w = $app.querySelector(".gwrap");
+  // La rejilla ocupa el alto disponible y hace scroll dentro: meses, días y movimientos quedan fijos arriba
+  const ajustaAlto = () => { const g = document.querySelector(".gwrap.fija"); if (!g) return; const tb = document.getElementById("tabs"); g.style.maxHeight = Math.max(260, innerHeight - g.getBoundingClientRect().top - (tb ? tb.offsetHeight : 0) - 10) + "px"; };
+  if (!tv) { w.classList.add("fija"); ajustaAlto(); if (!window.__altoPlan) { window.__altoPlan = 1; addEventListener("resize", () => { const g = document.querySelector(".gwrap.fija"); if (g) { ajustaAlto(); } }); } }
   if (scroll0 != null) w.scrollLeft = scroll0;
   else { const h = $app.querySelector(".gd.hoy"); if (w && h && !tv && w.scrollWidth - w.clientWidth > COLW * 4) w.scrollLeft = Math.min(w.scrollWidth - w.clientWidth, Math.max(0, h.offsetLeft - NW - (COLW * 3))); }
   if (tv) return D;

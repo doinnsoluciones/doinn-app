@@ -283,6 +283,7 @@ function vProximamente(t) {
 async function route() {
   if (!S.user) return;
   pintaNav(null);
+  $app.classList.remove("ancho");
   const h = location.hash.replace(/^#\/?/, "").split("/");
   document.querySelectorAll("#tabs a").forEach(a => a.classList.toggle("on", (a.dataset.t === (h[0] || "proyectos")) || (h[0] === "p" && a.dataset.t === "proyectos")));
   document.querySelectorAll("#tabs a").forEach(a => a.hidden = !ver(a.dataset.t));
