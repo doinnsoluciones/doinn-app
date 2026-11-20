@@ -203,6 +203,30 @@ function vProyecto(id, tab = "ficha") {
   if (tab === "equipo") vEquipo(ctx(), p, document.getElementById("tabc"));
 }
 const opNom = id => (id && (S.operarios.find(o => o.id === id) || {}).nombre) || "—";
+// Correo de invitación: se abre en el programa de correo de quien invita (Outlook), ya redactado
+function correoInvitacion(inv) {
+  if (!inv) return;
+  const url = location.origin + location.pathname;
+  const nombre = (inv.nombre || "").split(" ")[0];
+  const de = (S.perfil && S.perfil.nombre) || "";
+  const asunto = "Acceso a la app de Doinn";
+  const cuerpo = `Hola${nombre ? " " + nombre : ""}:
+
+Te he dado acceso a la app de Doinn (proyectos, planificación y taller).
+
+Para entrar la primera vez:
+1. Abre ${url}
+2. Escribe tu email: ${inv.email}
+3. Elige una contraseña (mínimo 8 caracteres).
+4. Pulsa «Activa tu cuenta».
+
+A partir de ahí entra con tu email y tu contraseña. Si la olvidas, pulsa «¿Has olvidado tu contraseña?» y te llegará un código por correo.
+
+Te recomiendo guardarla en favoritos del navegador o añadirla a la pantalla de inicio del móvil.
+
+Un saludo${de ? ",\n" + de : ""}`;
+  location.href = `mailto:${encodeURIComponent(inv.email)}?subject=${encodeURIComponent(asunto)}&body=${encodeURIComponent(cuerpo)}`;
+}
 // Coordinación OK (Front ↔ oficina técnica): quién y cuándo
 async function marcaCoordinacion(p, ok) {
   const cambios = { coordinacion_ok: ok, fecha_coordinacion: ok ? new Date().toISOString() : null, coordinacion_por: ok ? ((S.perfil && S.perfil.nombre) || S.user.email) : null };
@@ -248,7 +272,7 @@ async function vUsuarios() {
   const leeChecks = (el, pref) => [...el.querySelectorAll(`[data-${pref}]`)].filter(c => c.checked).map(c => c.dataset[pref]);
   const yo = S.user.id;
   $app.innerHTML = `<h1>Usuarios</h1>
-  <p class="hint">Solo entran las personas invitadas. Invita con su email, elige el rol y qué páginas ve. Después envíale el enlace de la app: entra con «Activa tu cuenta» usando ese mismo email.</p>
+  <p class="hint">Solo entran las personas invitadas. Invita con su email, elige el rol y qué páginas ve. Al guardar se abre un correo en tu Outlook ya redactado con el enlace y las instrucciones: solo tienes que pulsar Enviar.</p>
   <form id="finv" class="card frm"><h2>+ Invitar</h2>
     <div class="two"><label>Email<input id="iem" type="email" required placeholder="nombre@doinn.es"></label>
     <label>Nombre<input id="inom" placeholder="Nombre y primer apellido"></label></div>
@@ -256,8 +280,8 @@ async function vUsuarios() {
     <label>Su ficha en planificación${selOp('id="iop"', null)}</label></div>
     <label class="pg" style="margin:4px 0 8px"><input type="checkbox" id="igt"> Gestiona al personal de taller (puede marcar días de todo el taller, como el encargado o el team leader)</label>
     <div class="code" style="margin:6px 0 4px">Páginas que verá</div><div id="ipg">${checks("taller", null, "ip")}</div>
-    <button class="btn lime wide">Guardar invitación</button></form>
-  ${inv.data.length ? `<div class="card"><h2>Invitaciones pendientes <small class="code">${inv.data.length}</small></h2>${inv.data.map(x => `<div class="crow"><div><b>${esc(x.email)}</b> <span class="pill">${esc(x.rol)}</span><div class="code">${esc(x.nombre || "")}${x.operario_id ? " · ficha: " + esc(opNomU(x.operario_id) || "") : ""}${x.gestiona_taller ? " · gestiona taller" : ""} · aún no ha creado su cuenta</div></div><button class="link" data-idel="${esc(x.email)}">Anular</button></div>`).join("")}</div>` : ""}
+    <button class="btn lime wide">Guardar invitación y preparar correo</button></form>
+  ${inv.data.length ? `<div class="card"><h2>Invitaciones pendientes <small class="code">${inv.data.length}</small></h2>${inv.data.map(x => `<div class="crow"><div><b>${esc(x.email)}</b> <span class="pill">${esc(x.rol)}</span><div class="code">${esc(x.nombre || "")}${x.operario_id ? " · ficha: " + esc(opNomU(x.operario_id) || "") : ""}${x.gestiona_taller ? " · gestiona taller" : ""} · aún no ha creado su cuenta</div></div><div class="row" style="gap:10px"><button class="link" data-icor="${esc(x.email)}">✉ Enviar correo</button><button class="link" data-idel="${esc(x.email)}">Anular</button></div></div>`).join("")}</div>` : ""}
   <h2 style="margin-top:18px">Con acceso</h2>
   ${u.data.map(x => `<div class="card u" data-id="${x.user_id}"><div class="crow" style="border:0;padding:0"><div><b>${esc(x.nombre || x.email)}</b><div class="code">${esc(x.email)} · ${x.aprobado ? "Activo" : "Sin acceso"}${x.operario_id ? " · ficha: " + esc(opNomU(x.operario_id) || "") : " · sin ficha vinculada"}${x.gestiona_taller ? " · gestiona taller" : ""}</div></div>
     ${x.user_id === yo ? `<span class="pill">Tú</span>` : `<button class="btn sm ${x.aprobado ? "ghost" : "lime"}" data-acc>${x.aprobado ? "Quitar acceso" : "Dar acceso"}</button>`}</div>
@@ -273,8 +297,9 @@ async function vUsuarios() {
     if (u.data.some(x => x.email === row.email)) return toast("Ese email ya tiene cuenta: cambia su rol abajo.");
     const { error } = await sb.from("invitaciones").upsert(row);
     if (error) return toast(error.message);
-    toast("Invitación guardada. Envíale el enlace de la app."); vUsuarios();
+    toast("Invitación guardada. Se abre tu correo para enviársela."); correoInvitacion(row); vUsuarios();
   };
+  $app.querySelectorAll("[data-icor]").forEach(b => b.onclick = () => correoInvitacion(inv.data.find(x => x.email === b.dataset.icor)));
   $app.querySelectorAll("[data-idel]").forEach(b => b.onclick = async () => { await sb.from("invitaciones").delete().eq("email", b.dataset.idel); vUsuarios(); });
   $app.querySelectorAll(".u").forEach(el => {
     const id = el.dataset.id, x = u.data.find(z => z.user_id === id);
