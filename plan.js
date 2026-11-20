@@ -138,7 +138,7 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
   if (S.zoom == null) S.zoom = lsGet("doinn_plan_zoom", 2);
   const [NDIAS, ANCHO] = tv ? [28, 0] : ZOOM[S.zoom];
   const paso = Math.max(7, Math.round(NDIAS / 2 / 7) * 7);
-  const base = ini ? pd(ini) : (() => { const l = lunes(new Date()); if (NDIAS > 14) l.setDate(l.getDate() - 7); return l; })();
+  const base = ini ? pd(ini) : (() => { const t = new Date(); t.setHours(0, 0, 0, 0); return t; })(); // empieza en el día actual
   const dias = Array.from({ length: NDIAS }, (_, i) => { const d = new Date(base); d.setDate(d.getDate() + i); return iso(d); });
   const d0 = dias[0], d1 = dias[NDIAS - 1];
   const movil = ($app.clientWidth || 1000) < 600;

@@ -7,6 +7,10 @@ const pad = n => String(n).padStart(3, "0");
 const fasesTxt = arr => arr.length ? "|" + arr.join("|") + "|" : null;
 const tiene = (l, f) => (l || "").includes("|" + f + "|");
 const ETIQ = "https://doinnsoluciones.github.io/Etiquetas/";
+const ORIGENES = ["Fabricación", "Almacén"];
+export const origenTxt = o => !o ? "Fabricación" : o === "Inventario" ? "Almacén" : o;
+// Medidas en orden alto × ancho × fondo (el fondo se guarda en la columna «largo»)
+export const medidasTxt = x => (x.alto || x.ancho || x.largo) ? `${x.alto || "–"} × ${x.ancho || "–"} × ${x.largo || "–"} mm` : "";
 
 export function urlEtiquetas(p, els) {
   const e = els.map(x => [x.referencia, (x.elemento || "").replace(/[~|]/g, " "), x.cantidad || 1].join("~")).join("|");
@@ -37,12 +41,16 @@ export async function vDespiece(ctx, p, cont) {
   </div>` : ""}
   ${d.els.length ? `<a class="btn ghost wide" target="_blank" rel="noopener" href="${urlEtiquetas(p, d.els)}">Imprimir etiquetas QR del proyecto (${totalQR})</a>` : ""}
   <div style="height:10px"></div>
-  ${d.els.map(x => { const ss = d.subs.filter(s => s.elemento_id === x.id); return `
-    <a class="card el" href="#/p/${p.id}/desp/${x.id}">
+  ${d.els.map(x => { const ss = d.subs.filter(s => s.elemento_id === x.id); const fs = (x.fases || "").split("|").filter(Boolean); return `
+    <div class="card el desp" data-href="#/p/${p.id}/desp/${x.id}">
       <div class="pj-top"><div><span class="num">${pad(x.num_item ?? 0)}</span> <b>${esc(x.elemento)}</b> <span class="code">×${x.cantidad || 1}</span></div>
-      <span class="pill ${x.origen === "Inventario" ? "info" : ""}">${esc(x.origen || "Fabricación")}</span></div>
-      <div class="pj-meta">${x.taller ? `<span>${esc(x.taller)}</span>` : ""}${ss.length ? `<span>${ss.length} subelementos</span>` : (x.fases ? `<span>${esc(x.fases.split("|").filter(Boolean).join(" · "))}</span>` : "")}${x.acabado ? `<span>${esc(x.acabado)}</span>` : ""}${x.es_extra ? `<span class="pill warn">Extra</span>` : ""}</div>
-    </a>`; }).join("") || `<div class="empty">Este proyecto aún no tiene despiece. Crea los elementos o importa el listado Excel de oficina técnica.</div>`}`;
+      <span class="row" style="gap:6px">${x.es_extra ? `<span class="pill warn">Extra</span>` : ""}<span class="pill ${origenTxt(x.origen) === "Almacén" ? "info" : ""}">${esc(origenTxt(x.origen))}</span>${edita ? `<button class="link cp" data-copia="${x.id}" title="Crear un elemento nuevo copiando este">⧉ Copiar</button>` : ""}</span></div>
+      <div class="pj-meta">${medidasTxt(x) ? `<span>📐 ${medidasTxt(x)}</span>` : ""}${!ss.length && fs.length ? `<span>${esc(fs.join(" · "))}</span>` : ""}${x.acabado ? `<span>${esc(x.acabado)}</span>` : ""}</div>
+      ${x.observaciones ? `<div class="code obs">${esc(x.observaciones)}</div>` : ""}
+      ${ss.length ? `<div class="subl">${ss.map(s => `<div><span class="code">S${s.num_sub}</span> <b>${esc(s.desc_sub || s.titulo)}</b> <span class="code">· ${s.cantidad || 1} pieza${(s.cantidad || 1) > 1 ? "s" : ""}${origenTxt(s.origen) === "Almacén" ? " · Almacén" : ""}${s.acabado ? " · " + esc(s.acabado) : ""}${s.fases ? " · " + esc(s.fases.split("|").filter(Boolean).join(" · ")) : ""}</span></div>`).join("")}</div>` : ""}
+    </div>`; }).join("") || `<div class="empty">Este proyecto aún no tiene despiece. Crea los elementos o importa el listado Excel de oficina técnica.</div>`}`;
+  cont.querySelectorAll(".card.desp").forEach(c => c.onclick = () => location.hash = c.dataset.href);
+  cont.querySelectorAll("[data-copia]").forEach(b => b.onclick = e => { e.stopPropagation(); location.hash = `#/p/${p.id}/desp/copia-${b.dataset.copia}`; });
   const nb = document.getElementById("dnew"); if (nb) nb.onclick = () => location.hash = `#/p/${p.id}/desp/nuevo`;
   const fx = document.getElementById("fxl"); if (fx) fx.onchange = () => importar(ctx, p, fx.files[0], d).then(() => vDespiece(ctx, p, cont));
 }
@@ -53,48 +61,55 @@ export async function vElementoForm(ctx, p, eid) {
   if (!puede("admin")) { $app.innerHTML = `<div class="empty">Solo Fronts y oficina técnica editan el despiece.</div>`; return; }
   $app.innerHTML = `<div class="loading">Cargando…</div>`;
   const d = await leer(sb, p.id);
-  const nuevo = eid === "nuevo";
-  const x = nuevo ? { cantidad: 1, origen: "Fabricación", fases: "|Corte|Carpintería|" } : d.els.find(e => e.id === +eid);
+  // «copia-ID»: elemento nuevo con los datos de otro, para editar solo lo que cambia
+  const copiaDe = String(eid).startsWith("copia-") ? d.els.find(e => e.id === +String(eid).slice(6)) : null;
+  const nuevo = eid === "nuevo" || !!copiaDe;
+  const LIMPIA = ["id", "num_item", "referencia", "estado_doc", "estado_fab", "estado_carga", "fecha_doc", "por_doc", "operario_fab", "fases_hechas", "hist_fases", "incidencia", "camion", "orden_carga", "ubicacion_nave", "created_at", "updated_at"];
+  const sinCampos = (o, ks) => { const c = { ...o }; ks.forEach(k => delete c[k]); return c; };
+  const x = copiaDe ? sinCampos(copiaDe, LIMPIA) : eid === "nuevo" ? { cantidad: 1, origen: "Fabricación", fases: "|Corte|Carpintería|" } : d.els.find(e => e.id === +eid);
   if (!x) { $app.innerHTML = `<div class="empty">Elemento no encontrado.</div>`; return; }
-  let subs = nuevo ? [] : d.subs.filter(s => s.elemento_id === x.id).map(s => ({ ...s }));
-  let conSub = nuevo ? false : (x.tiene_sub || subs.length > 0);
+  if (x.origen === "Inventario") x.origen = "Almacén";
+  let subs = (copiaDe ? d.subs.filter(s => s.elemento_id === copiaDe.id).map(s => sinCampos(s, ["id", "elemento_id", "titulo", "terminado", "fases_hechas"])) : nuevo ? [] : d.subs.filter(s => s.elemento_id === x.id).map(s => ({ ...s })));
+  subs.forEach(s => { if (s.origen === "Inventario") s.origen = "Almacén"; });
+  let conSub = copiaDe ? subs.length > 0 : nuevo ? false : (x.tiene_sub || subs.length > 0);
   const v = k => esc(x[k] ?? "");
   const chkF = (pref, val) => FASES.map(f => `<label class="ck"><input type="checkbox" data-f="${pref}" value="${f}" ${tiene(val, f) ? "checked" : ""}> ${f}</label>`).join("");
 
   const pinta = () => {
     $app.innerHTML = `<a class="back" href="#/p/${p.id}/despiece">‹ Despiece</a>
-    <h1>${nuevo ? "Nuevo elemento" : pad(x.num_item) + " · " + esc(x.elemento)}</h1>
+    <h1>${copiaDe ? "Copia de " + pad(copiaDe.num_item) + " · " + esc(copiaDe.elemento) : nuevo ? "Nuevo elemento" : pad(x.num_item) + " · " + esc(x.elemento)}</h1>
+    ${copiaDe ? `<p class="hint">Se crea un elemento nuevo con los mismos datos. Cambia lo que sea distinto y pulsa «Crear elemento».</p>` : ""}
     <form id="fe" class="card frm" autocomplete="off">
       <div class="two"><label>Nombre *<input id="e_nom" value="${v("elemento")}" required></label>
       <label>Unidades *<input id="e_cant" type="number" min="1" value="${x.cantidad || 1}" required></label></div>
-      <div class="two"><label>Origen<select id="e_ori">${["Fabricación", "Inventario"].map(o => `<option ${o === (x.origen || "Fabricación") ? "selected" : ""}>${o}</option>`).join("")}</select></label>
-      <label>Taller<select id="e_tal"><option value="">—</option>${TALLERES.map(o => `<option ${o === x.taller ? "selected" : ""}>${o}</option>`).join("")}</select></label></div>
-      <div class="two"><label>Zona<input id="e_zona" value="${v("zona")}"></label><label>Material<input id="e_mat" value="${v("material")}"></label></div>
-      <label class="small3">Medidas (mm) <small>opcional</small><span class="three"><input id="e_l" type="number" placeholder="Largo" value="${v("largo")}"><input id="e_a" type="number" placeholder="Ancho" value="${v("ancho")}"><input id="e_h" type="number" placeholder="Alto" value="${v("alto")}"></span></label>
+      <label>Origen<select id="e_ori">${ORIGENES.map(o => `<option ${o === (x.origen || "Fabricación") ? "selected" : ""}>${o}</option>`).join("")}</select></label>
+      <div class="code" style="margin-top:6px">Medidas en mm <small>(opcional)</small></div>
+      <div class="three med"><label>Alto<input id="e_h" type="number" value="${v("alto")}"></label><label>Ancho<input id="e_a" type="number" value="${v("ancho")}"></label><label>Fondo<input id="e_l" type="number" value="${v("largo")}"></label></div>
       <label>Observaciones<textarea id="e_obs" rows="2">${v("observaciones")}</textarea></label>
       <div class="pj-top"><b>¿Extra (pedido de última hora)?</b><label class="tg"><input type="checkbox" id="e_extra" ${x.es_extra ? "checked" : ""}><span></span><b>${x.es_extra ? "Sí" : "No"}</b></label></div>
       <div class="pj-top" style="margin-top:10px"><b>¿Tiene subelementos?</b><label class="tg"><input type="checkbox" id="e_sub" ${conSub ? "checked" : ""}><span></span><b>${conSub ? "Sí" : "No"}</b></label></div>
       ${conSub ? `<div id="subs">${subs.map((s, i) => `
         <div class="subf" data-i="${i}">
           <div class="pj-top"><b>Subelemento ${i + 1}</b><button type="button" class="link" data-del="${i}">Quitar</button></div>
-          <div class="two"><label>Nombre<input data-s="desc_sub" value="${esc(s.desc_sub || "")}"></label><label>Nº por elemento<input data-s="cantidad" type="number" min="1" value="${s.cantidad || 1}"></label></div>
-          <div class="two"><label>Origen<select data-s="origen">${["Fabricación", "Inventario"].map(o => `<option ${o === (s.origen || "Fabricación") ? "selected" : ""}>${o}</option>`).join("")}</select></label><label>Acabado<input data-s="acabado" value="${esc(s.acabado || "")}"></label></div>
+          <div class="two"><label>Nombre<input data-s="desc_sub" value="${esc(s.desc_sub || "")}"></label><label>Nº de piezas<input data-s="cantidad" type="number" min="1" value="${s.cantidad || 1}"></label></div>
+          <div class="two"><label>Origen<select data-s="origen">${ORIGENES.map(o => `<option ${o === (s.origen || "Fabricación") ? "selected" : ""}>${o}</option>`).join("")}</select></label><label>Acabado<input data-s="acabado" value="${esc(s.acabado || "")}"></label></div>
           <div class="fasesck">${chkF("s" + i, s.fases)}</div>
         </div>`).join("")}</div>
         <button type="button" class="btn ghost wide" id="addsub">+ Añadir subelemento</button>`
       : `<label>Acabado<input id="e_acab" value="${v("acabado")}"></label><div class="code">Fases de fabricación</div><div class="fasesck">${chkF("e", x.fases)}</div>`}
       <div class="acts" style="margin-top:14px"><button class="btn lime" type="submit" id="esave">${nuevo ? "Crear elemento" : "Guardar"}</button>
-      ${nuevo ? "" : `<button class="btn red" type="button" id="edel">Eliminar</button>`}</div>
+      ${nuevo ? "" : `<button class="btn ghost" type="button" id="ecopia" title="Crear un elemento nuevo con estos mismos datos">⧉ Copiar elemento</button><button class="btn red" type="button" id="edel">Eliminar</button>`}</div>
       ${nuevo ? "" : `<a class="btn ghost wide" target="_blank" rel="noopener" href="${urlEtiquetas(p, [x])}" style="margin-top:10px">Imprimir ${x.cantidad || 1} etiqueta${(x.cantidad || 1) > 1 ? "s" : ""} QR</a>`}
     </form>`;
     const $ = id => document.getElementById(id);
     const leeSubs = () => document.querySelectorAll(".subf").forEach(el => { const s = subs[+el.dataset.i]; el.querySelectorAll("[data-s]").forEach(i => s[i.dataset.s] = i.value); s.fases = fasesTxt([...el.querySelectorAll("input[data-f]:checked")].map(c => c.value)); });
-    const guardaCampos = () => { x.elemento = $("e_nom").value; x.cantidad = +$("e_cant").value || 1; x.origen = $("e_ori").value; x.taller = $("e_tal").value; x.zona = $("e_zona").value; x.material = $("e_mat").value; x.largo = $("e_l").value; x.ancho = $("e_a").value; x.alto = $("e_h").value; x.observaciones = $("e_obs").value; x.es_extra = $("e_extra").checked; if ($("e_acab")) { x.acabado = $("e_acab").value; x.fases = fasesTxt([...document.querySelectorAll("input[data-f=e]:checked")].map(c => c.value)); } if (conSub) leeSubs(); };
+    const guardaCampos = () => { x.elemento = $("e_nom").value; x.cantidad = +$("e_cant").value || 1; x.origen = $("e_ori").value; x.largo = $("e_l").value; x.ancho = $("e_a").value; x.alto = $("e_h").value; x.observaciones = $("e_obs").value; x.es_extra = $("e_extra").checked; if ($("e_acab")) { x.acabado = $("e_acab").value; x.fases = fasesTxt([...document.querySelectorAll("input[data-f=e]:checked")].map(c => c.value)); } if (conSub) leeSubs(); };
     $("e_sub").onchange = () => { guardaCampos(); conSub = $("e_sub").checked; if (conSub && !subs.length) subs.push({ cantidad: 1, origen: "Fabricación", fases: "|Corte|Carpintería|" }); pinta(); };
     $("e_extra").onchange = () => $("e_extra").nextElementSibling.nextElementSibling.textContent = $("e_extra").checked ? "Sí" : "No";
     const as = $("addsub"); if (as) as.onclick = () => { guardaCampos(); subs.push({ cantidad: 1, origen: "Fabricación", fases: "|Corte|Carpintería|" }); pinta(); };
     document.querySelectorAll("[data-del]").forEach(b => b.onclick = () => { guardaCampos(); subs.splice(+b.dataset.del, 1); pinta(); });
     $("fe").onsubmit = async ev => { ev.preventDefault(); guardaCampos(); $("esave").disabled = true; const ok = await guardar(ctx, p, d, x, conSub ? subs : [], nuevo); $("esave").disabled = false; if (ok) location.hash = `#/p/${p.id}/despiece`; };
+    const ec = $("ecopia"); if (ec) ec.onclick = () => location.hash = `#/p/${p.id}/desp/copia-${x.id}`;
     const de = $("edel"); if (de) de.onclick = async () => {
       if (d.pz.some(z => z.elemento_id === x.id && (z.fabricada || z.cargada)) && !confirm("Este elemento tiene unidades fabricadas o cargadas. ¿Eliminarlo igualmente?")) return;
       if (!confirm(`¿Eliminar ${pad(x.num_item)} · ${x.elemento}, sus subelementos y sus QR?`)) return;
