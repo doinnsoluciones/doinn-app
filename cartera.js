@@ -86,7 +86,7 @@ export async function vCartera(ctx) {
       const cerr = st.pleg.includes(g.m), cf = g.ps.filter(p => p.estado_com === "Confirmado");
       return `<tr class="mes" data-g="${g.m}"><td colspan="5"><span class="tg">${cerr ? "▸" : "▾"}</span> ${rot(g.m)} <small class="code">${g.ps.length} proyecto${g.ps.length > 1 ? "s" : ""}${cf.length !== g.ps.length && cf.length ? ` · confirmado ${eur(suma(cf, v))}` : ""}</small></td><td class="nr">${eur(suma(g.ps, v))}</td><td class="nr">${sumaK(g.ps)}</td><td colspan="2"></td></tr>${cerr ? "" : g.ps.map(fila).join("")}`;
     };
-    $app.innerHTML = `<div class="cart-top"><h1>Cartera</h1><div class="row" style="gap:8px"><button class="btn sm ghost" id="ccsv">Descargar Excel (CSV)</button><button class="btn sm lime" id="cnew">+ Oportunidad</button></div></div>
+    $app.innerHTML = `<div class="cart-top"><div class="row" style="gap:8px;margin-left:auto"><button class="btn sm ghost" id="ccsv">Descargar Excel (CSV)</button><button class="btn sm lime" id="cnew">+ Oportunidad</button></div></div>
     <div class="kpis">
       <div class="kpi"><span>Venta confirmada</span><b>${eur(suma(conf, v))}</b><small>${conf.length} proyectos</small></div>
       <div class="kpi"><span>Eventos realizados</span><b>${real.length}</b><small>${eur(suma(real, v))} · ${conf.length - real.length} previstos</small></div>

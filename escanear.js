@@ -21,7 +21,6 @@ export function vEscanear(ctx) {
   S.scan = S.scan || { modo: "fab", operario: null, log: [] };
   const st = S.scan;
   $app.innerHTML = `
-  <h1>Escanear</h1>
   <div class="card">
     <div class="pj-top"><div><div class="code">Operario</div><b id="sop">${st.operario ? esc(st.operario.nombre) : "Escanea tu tarjeta (T-…)"}</b></div>
     ${st.operario ? `<button class="link" id="sout">Cambiar</button>` : ""}</div>

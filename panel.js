@@ -14,7 +14,7 @@ export function vPanel(ctx, h) {
   const sel = h && (grupos[h] ? act.filter(p => els.some(e => e.proyecto_id === p.id && grupos[h].e(e))) : h === "riesgo" ? riesgo : []);
   const prox = act.filter(p => { const d = dias(p.fecha_carga); return d !== null && d >= 0 && d <= 14; }).sort((a, b) => (a.fecha_carga || "").localeCompare(b.fecha_carga || ""));
   const tile = (k, n, l, c = "") => `<a class="card k kt ${c} ${h === k ? "sel" : ""}" href="#/panel/${h === k ? "" : k}"><b>${n}</b><span>${l}</span></a>`;
-  $app.innerHTML = `<h1>Panel</h1>
+  $app.innerHTML = `
   <div class="kgrid">
     ${tile("", act.length, "Proyectos activos")}
     ${tile("taller", els.filter(grupos.taller.e).length, "Elementos en taller")}

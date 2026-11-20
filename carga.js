@@ -162,7 +162,7 @@ export function vMuelle(ctx, ini) {
       <div class="mu-n">${esc(x.p.nombre)}</div>
       <div class="mu-s">${[x.p.codigo, x.tr, x.p.tipo_vehiculo].filter(Boolean).map(esc).join(" · ")}</div></a>`;
   $app.classList.add("ancho");
-  $app.innerHTML = `<div class="mu-top"><h1>Muelle</h1>
+  $app.innerHTML = `<div class="mu-top">
     <div class="mu-res"><span><i class="mu-k c"></i>${todos.filter(x => x.t === "Carga").length} cargas</span><span><i class="mu-k d"></i>${todos.filter(x => x.t === "Descarga").length} descargas</span>${nChoq ? `<span class="mu-al">⚠ ${nChoq} día${nChoq > 1 ? "s" : ""} con horas que coinciden</span>` : ""}</div></div>
   <div class="mu-cal">
     <div class="mu-hd"><div></div>${["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"].map((n, i) => `<div class="${i > 4 ? "we" : ""}">${n}</div>`).join("")}</div>
