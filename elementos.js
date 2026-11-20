@@ -1,6 +1,6 @@
 // Pestaña Elementos del proyecto y detalle de elemento (fases, piezas, subelementos)
 const V = new URL(import.meta.url).search;
-const { origenTxt, medidasTxt } = await import("./despiece.js" + V);
+const { origenTxt, medidasTxt, ralChips } = await import("./despiece.js" + V);
 const ORD = ["Corte", "Carpintería", "Cerrajería", "Pintura"];
 const tiene = (lista, f) => (lista || "").includes("|" + f + "|");
 const fasesDe = x => ORD.filter(f => tiene(x.fases, f));
@@ -56,7 +56,7 @@ export async function vElementos(ctx, p, cont) {
     const pzs = d.pz.filter(z => z.elemento_id === x.id), subs = d.sub.filter(s => s.elemento_id === x.id);
     return `<a class="card el" href="#/p/${p.id}/el/${x.id}">
       <div class="pj-top"><div><span class="num">${String(x.num_item ?? "").padStart(3, "0")}</span> <b>${esc(x.elemento || x.referencia)}</b> <span class="code">· ${x.cantidad || 1} ud${(x.cantidad || 1) > 1 ? "s" : ""}</span></div><span class="pill ${sc}">${sl}</span></div>
-      <div class="pj-meta"><span>${esc(x.referencia || "")}</span>${medidasTxt(x) ? `<span>📐 ${medidasTxt(x)}</span>` : ""}${origenTxt(x.origen) === "Almacén" ? `<span class="pill info">Almacén</span>` : ""}${x.acabado ? `<span>${esc(x.acabado)}</span>` : ""}${pzs.length ? `<span>QR ${pzs.filter(z => z.fabricada).length}/${pzs.length}</span>` : ""}${subs.length ? `<span>Sub ${subs.filter(s => s.terminado).length}/${subs.length}</span>` : ""}${x.es_extra ? `<span class="pill warn">Extra</span>` : ""}${x.incidencia ? `<span class="pill bad">Incidencia</span>` : ""}</div>
+      <div class="pj-meta"><span>${esc(x.referencia || "")}</span>${medidasTxt(x) ? `<span>📐 ${medidasTxt(x)}</span>` : ""}${origenTxt(x.origen) === "Almacén" ? `<span class="pill info">Almacén</span>` : ""}${x.acabado ? `<span>${esc(x.acabado)}</span>` : ""}${x.ral ? `<span>${ralChips(x.ral, esc)}</span>` : ""}${pzs.length ? `<span>QR ${pzs.filter(z => z.fabricada).length}/${pzs.length}</span>` : ""}${subs.length ? `<span>Sub ${subs.filter(s => s.terminado).length}/${subs.length}</span>` : ""}${x.es_extra ? `<span class="pill warn">Extra</span>` : ""}${x.incidencia ? `<span class="pill bad">Incidencia</span>` : ""}</div>
     </a>`;
   }).join("") || `<div class="empty">${n ? "Ningún elemento con este filtro." : "Este proyecto aún no tiene despiece."}</div>`}`;
   cont.querySelectorAll(".chip").forEach(b => b.onclick = () => { S.filtroEl = b.dataset.f; vElementos(ctx, p, cont); });
@@ -114,7 +114,7 @@ export async function vElemento(ctx, p, eid) {
       ${z.cargada ? `<span class="pill ok">Cargada</span>` : ""}</div>`).join("")}</div>` : "";
 
   const subsHtml = subs.length ? `<div class="card"><h2>Subelementos <small class="code">${subs.filter(s => s.terminado).length}/${subs.length} terminados</small></h2>
-    ${subs.map(s => `<div class="sub"><div class="pj-top"><div><b>${esc(s.desc_sub || s.titulo)}</b><div class="code">${[`${s.cantidad || 1} pieza${(s.cantidad || 1) > 1 ? "s" : ""}`, origenTxt(s.origen), s.acabado].filter(Boolean).map(esc).join(" · ")}</div></div><button class="fzb ${s.terminado ? "on" : ""}" data-term="${s.id}" ${edita ? "" : "disabled"}>${s.terminado ? "✓ Terminado" : "Terminado"}</button></div>
+    ${subs.map(s => `<div class="sub"><div class="pj-top"><div><b>${esc(s.desc_sub || s.titulo)}</b><div class="code">${[`${s.cantidad || 1} pieza${(s.cantidad || 1) > 1 ? "s" : ""}`, origenTxt(s.origen), s.acabado].filter(Boolean).map(esc).join(" · ")} ${ralChips(s.ral, esc)}</div></div><button class="fzb ${s.terminado ? "on" : ""}" data-term="${s.id}" ${edita ? "" : "disabled"}>${s.terminado ? "✓ Terminado" : "Terminado"}</button></div>
       ${botonesFase(s, "s")}</div>`).join("")}</div>` : "";
 
   const fabHtml = !subs.length && fasesDe(x).length ? `<div class="card"><h2>Fabricación del elemento</h2>
@@ -125,7 +125,7 @@ export async function vElemento(ctx, p, eid) {
   <div class="code">Ref. ${esc(x.referencia || "")}</div><h1>${esc(x.elemento || "")}</h1>
   <div class="code" style="margin:-8px 0 12px">${[medidasTxt(x) ? "Alto × ancho × fondo: " + medidasTxt(x) : "", x.acabado, origenTxt(x.origen)].filter(Boolean).map(esc).join(" · ")}</div>
   ${pasos}${fabHtml}${subsHtml}${piezasHtml}
-  <div class="card"><dl class="kv">${dato("Unidades", x.cantidad)}${dato("Origen", esc(origenTxt(x.origen)))}${dato("Medidas (alto × ancho × fondo)", medidasTxt(x))}${dato("Acabado", esc(x.acabado))}${dato("Fases", esc(fasesDe(x).join(" · ")))}${x.es_extra ? dato("Extra", "Sí, pedido de última hora") : ""}${dato("Etiquetas", x.num_etiquetas)}${dato("Camión", esc(x.camion))}${dato("Orden de carga", x.orden_carga)}${dato("Ubicación nave", esc(x.ubicacion_nave))}${dato("Observaciones", esc(x.observaciones))}</dl></div>
+  <div class="card"><dl class="kv">${dato("Unidades", x.cantidad)}${dato("Origen", esc(origenTxt(x.origen)))}${dato("Medidas (alto × ancho × fondo)", medidasTxt(x))}${dato("Acabado", esc(x.acabado))}${x.ral ? dato("Color RAL", ralChips(x.ral, esc)) : ""}${dato("Fases", esc(fasesDe(x).join(" · ")))}${x.es_extra ? dato("Extra", "Sí, pedido de última hora") : ""}${dato("Etiquetas", x.num_etiquetas)}${dato("Camión", esc(x.camion))}${dato("Orden de carga", x.orden_carga)}${dato("Ubicación nave", esc(x.ubicacion_nave))}${dato("Observaciones", esc(x.observaciones))}</dl></div>
   <div class="card"><div class="pj-top"><div><b>Incidencia</b><div class="code">${x.incidencia ? "Abierta" : "Sin incidencia"}</div></div>
     <label class="tg"><input type="checkbox" id="inc" ${x.incidencia ? "checked" : ""} ${edita ? "" : "disabled"}><span></span><b>${x.incidencia ? "Sí" : "No"}</b></label></div></div>
   ${x.hist_fases ? `<details class="card"><summary>Historial de fases</summary><pre class="hist">${esc(x.hist_fases)}</pre></details>` : ""}`;

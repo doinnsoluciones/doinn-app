@@ -9,6 +9,25 @@ const tiene = (l, f) => (l || "").includes("|" + f + "|");
 const ETIQ = "https://doinnsoluciones.github.io/Etiquetas/";
 const ORIGENES = ["Fabricación", "Almacén"];
 export const origenTxt = o => !o ? "Fabricación" : o === "Inventario" ? "Almacén" : o;
+// Colores RAL: se guardan como "9010|7016"; muestra con su color aproximado
+const RAL_HEX = { 1013: "#E3D9C6", 1015: "#E6D2B5", 1018: "#F3DA0B", 1021: "#EEC900", 1023: "#F0CA00", 2004: "#E25303", 2008: "#F67828", 3000: "#A72920", 3003: "#8D1D2C", 3020: "#C1121C", 4005: "#76689A", 5002: "#00387B", 5005: "#005387", 5010: "#004F7C", 5012: "#0089B6", 5015: "#007CB0", 5017: "#005B8C", 6005: "#0F4336", 6018: "#48A43F", 6029: "#007243", 7001: "#8C969D", 7004: "#9B9B9B", 7011: "#52595D", 7012: "#575D5E", 7015: "#51565C", 7016: "#383E42", 7021: "#2F3234", 7022: "#4C4A44", 7024: "#474A50", 7030: "#939388", 7035: "#CBD0CC", 7036: "#9A9697", 7038: "#B0B0A9", 7040: "#9DA3A6", 7042: "#8F9695", 7046: "#82898E", 7047: "#D0D0D0", 8014: "#4A3526", 8017: "#45302B", 8019: "#3D3635", 9001: "#E9E0D2", 9002: "#D7D5CB", 9003: "#ECECE7", 9004: "#2B2B2C", 9005: "#0A0A0A", 9006: "#A5A8A6", 9007: "#8F8F8C", 9010: "#F1ECE1", 9011: "#1C1C1C", 9016: "#F1F0EA", 9017: "#29292A", 9018: "#C8CBC4" };
+const ralLista = t => String(t || "").split("|").map(x => x.trim()).filter(Boolean);
+const ralNorm = t => MAY(t).replace(/^RAL\s*/, "");
+export const ralChips = (t, esc = x => x) => ralLista(t).map(c => `<span class="ral"><i style="background:${RAL_HEX[c] || "#C9D1D1"}"></i>RAL ${esc(c)}</span>`).join("");
+// Caja de RAL editable: escribe y pulsa Intro (o coma) para añadir; × para quitar
+function cajaRal(box, valor, cambia) {
+  let lista = ralLista(valor);
+  const pinta = () => {
+    box.innerHTML = lista.map((c, i) => `<span class="ral"><i style="background:${RAL_HEX[c] || "#C9D1D1"}"></i>RAL ${c}<button type="button" data-q="${i}" title="Quitar">×</button></span>`).join("") + `<input placeholder="${lista.length ? "Otro RAL" : "Añadir RAL (ej. 9010)"}" inputmode="text">`;
+    const inp = box.querySelector("input");
+    const add = () => { const v = ralNorm(inp.value.replace(/,/g, "")); if (v && !lista.includes(v)) { lista.push(v); cambia(lista.join("|")); pinta(); box.querySelector("input").focus(); } else inp.value = ""; };
+    inp.onkeydown = e => { if (e.key === "Enter" || e.key === ",") { e.preventDefault(); add(); } else if (e.key === "Backspace" && !inp.value && lista.length) { lista.pop(); cambia(lista.join("|")); pinta(); box.querySelector("input").focus(); } };
+    inp.onblur = () => { if (inp.value.trim()) add(); };
+    box.querySelectorAll("[data-q]").forEach(b => b.onclick = () => { lista.splice(+b.dataset.q, 1); cambia(lista.join("|")); pinta(); });
+  };
+  box.onclick = e => { if (e.target === box) box.querySelector("input").focus(); };
+  pinta();
+}
 // Medidas en orden alto × ancho × fondo (el fondo se guarda en la columna «largo»)
 export const medidasTxt = x => (x.alto || x.ancho || x.largo) ? `${x.alto || "–"} × ${x.ancho || "–"} × ${x.largo || "–"} mm` : "";
 
@@ -45,9 +64,9 @@ export async function vDespiece(ctx, p, cont) {
     <div class="card el desp" data-href="#/p/${p.id}/desp/${x.id}">
       <div class="pj-top"><div><span class="num">${pad(x.num_item ?? 0)}</span> <b>${esc(x.elemento)}</b> <span class="code">×${x.cantidad || 1}</span></div>
       <span class="row" style="gap:6px">${x.es_extra ? `<span class="pill warn">Extra</span>` : ""}<span class="pill ${origenTxt(x.origen) === "Almacén" ? "info" : ""}">${esc(origenTxt(x.origen))}</span>${edita ? `<button class="link cp" data-copia="${x.id}" title="Crear un elemento nuevo copiando este">⧉ Copiar</button>` : ""}</span></div>
-      <div class="pj-meta">${medidasTxt(x) ? `<span>📐 ${medidasTxt(x)}</span>` : ""}${!ss.length && fs.length ? `<span>${esc(fs.join(" · "))}</span>` : ""}${x.acabado ? `<span>${esc(x.acabado)}</span>` : ""}</div>
+      <div class="pj-meta">${medidasTxt(x) ? `<span>📐 ${medidasTxt(x)}</span>` : ""}${!ss.length && fs.length ? `<span>${esc(fs.join(" · "))}</span>` : ""}${x.acabado ? `<span>${esc(x.acabado)}</span>` : ""}${x.ral ? `<span>${ralChips(x.ral, esc)}</span>` : ""}</div>
       ${x.observaciones ? `<div class="code obs">${esc(x.observaciones)}</div>` : ""}
-      ${ss.length ? `<div class="subl">${ss.map(s => `<div><span class="code">S${s.num_sub}</span> <b>${esc(s.desc_sub || s.titulo)}</b> <span class="code">· ${s.cantidad || 1} pieza${(s.cantidad || 1) > 1 ? "s" : ""}${origenTxt(s.origen) === "Almacén" ? " · Almacén" : ""}${s.acabado ? " · " + esc(s.acabado) : ""}${s.fases ? " · " + esc(s.fases.split("|").filter(Boolean).join(" · ")) : ""}</span></div>`).join("")}</div>` : ""}
+      ${ss.length ? `<div class="subl">${ss.map(s => `<div><span class="code">S${s.num_sub}</span> <b>${esc(s.desc_sub || s.titulo)}</b> <span class="code">· ${s.cantidad || 1} pieza${(s.cantidad || 1) > 1 ? "s" : ""}${origenTxt(s.origen) === "Almacén" ? " · Almacén" : ""}${s.acabado ? " · " + esc(s.acabado) : ""}${s.fases ? " · " + esc(s.fases.split("|").filter(Boolean).join(" · ")) : ""}</span> ${ralChips(s.ral, esc)}</div>`).join("")}</div>` : ""}
     </div>`; }).join("") || `<div class="empty">Este proyecto aún no tiene despiece. Crea los elementos o importa el listado Excel de oficina técnica.</div>`}`;
   cont.querySelectorAll(".card.desp").forEach(c => c.onclick = () => location.hash = c.dataset.href);
   cont.querySelectorAll("[data-copia]").forEach(b => b.onclick = e => { e.stopPropagation(); location.hash = `#/p/${p.id}/desp/copia-${b.dataset.copia}`; });
@@ -93,15 +112,18 @@ export async function vElementoForm(ctx, p, eid) {
           <div class="pj-top"><b>Subelemento ${i + 1}</b><button type="button" class="link" data-del="${i}">Quitar</button></div>
           <div class="two"><label>Nombre<input data-s="desc_sub" value="${esc(s.desc_sub || "")}"></label><label>Nº de piezas<input data-s="cantidad" type="number" min="1" value="${s.cantidad || 1}"></label></div>
           <div class="two"><label>Origen<select data-s="origen">${ORIGENES.map(o => `<option ${o === (s.origen || "Fabricación") ? "selected" : ""}>${o}</option>`).join("")}</select></label><label>Acabado<input data-s="acabado" value="${esc(s.acabado || "")}"></label></div>
+          <label>Color RAL <small>(uno o varios)</small><div class="ralbox" data-sral="${i}"></div></label>
           <div class="fasesck">${chkF("s" + i, s.fases)}</div>
         </div>`).join("")}</div>
         <button type="button" class="btn ghost wide" id="addsub">+ Añadir subelemento</button>`
-      : `<label>Acabado<input id="e_acab" value="${v("acabado")}"></label><div class="code">Fases de fabricación</div><div class="fasesck">${chkF("e", x.fases)}</div>`}
+      : `<div class="two"><label>Acabado<input id="e_acab" value="${v("acabado")}"></label><label>Color RAL <small>(uno o varios)</small><div class="ralbox" id="e_ral"></div></label></div><div class="code">Fases de fabricación</div><div class="fasesck">${chkF("e", x.fases)}</div>`}
       <div class="acts" style="margin-top:14px"><button class="btn lime" type="submit" id="esave">${nuevo ? "Crear elemento" : "Guardar"}</button>
       ${nuevo ? "" : `<button class="btn ghost" type="button" id="ecopia" title="Crear un elemento nuevo con estos mismos datos">⧉ Copiar elemento</button><button class="btn red" type="button" id="edel">Eliminar</button>`}</div>
       ${nuevo ? "" : `<a class="btn ghost wide" target="_blank" rel="noopener" href="${urlEtiquetas(p, [x])}" style="margin-top:10px">Imprimir ${x.cantidad || 1} etiqueta${(x.cantidad || 1) > 1 ? "s" : ""} QR</a>`}
     </form>`;
     const $ = id => document.getElementById(id);
+    if ($("e_ral")) cajaRal($("e_ral"), x.ral, t => x.ral = t);
+    document.querySelectorAll("[data-sral]").forEach(b => { const s = subs[+b.dataset.sral]; cajaRal(b, s.ral, t => s.ral = t); });
     const leeSubs = () => document.querySelectorAll(".subf").forEach(el => { const s = subs[+el.dataset.i]; el.querySelectorAll("[data-s]").forEach(i => s[i.dataset.s] = i.value); s.fases = fasesTxt([...el.querySelectorAll("input[data-f]:checked")].map(c => c.value)); });
     const guardaCampos = () => { x.elemento = $("e_nom").value; x.cantidad = +$("e_cant").value || 1; x.origen = $("e_ori").value; x.largo = $("e_l").value; x.ancho = $("e_a").value; x.alto = $("e_h").value; x.observaciones = $("e_obs").value; x.es_extra = $("e_extra").checked; if ($("e_acab")) { x.acabado = $("e_acab").value; x.fases = fasesTxt([...document.querySelectorAll("input[data-f=e]:checked")].map(c => c.value)); } if (conSub) leeSubs(); };
     $("e_sub").onchange = () => { guardaCampos(); conSub = $("e_sub").checked; if (conSub && !subs.length) subs.push({ cantidad: 1, origen: "Fabricación", fases: "|Corte|Carpintería|" }); pinta(); };
@@ -130,7 +152,7 @@ async function guardar(ctx, p, d, x, subs, nuevo) {
   const fasesEl = subs.length ? null : x.fases;
   const row = {
     proyecto_id: p.id, num_item: n, referencia: ref, elemento: MAY(x.elemento), cantidad: x.cantidad, origen: x.origen,
-    taller: x.taller || null, zona: MAY(x.zona) || null, material: MAY(x.material) || null, acabado: subs.length ? null : (MAY(x.acabado) || null),
+    taller: x.taller || null, zona: MAY(x.zona) || null, material: MAY(x.material) || null, acabado: subs.length ? null : (MAY(x.acabado) || null), ral: subs.length ? null : (x.ral || null),
     largo: num(x.largo), ancho: num(x.ancho), alto: num(x.alto), observaciones: MAY(x.observaciones) || null,
     es_extra: !!x.es_extra, tiene_sub: subs.length > 0, fases: fasesEl, pasa_pintura: tiene(fasesEl, "Pintura") || subs.some(s => tiene(s.fases, "Pintura")),
     num_etiquetas: x.cantidad, updated_at: new Date().toISOString(),
@@ -145,7 +167,7 @@ async function guardar(ctx, p, d, x, subs, nuevo) {
   if (quitar.length) await sb.from("subelementos").delete().in("id", quitar);
   for (let i = 0; i < subs.length; i++) {
     const s = subs[i];
-    const sr = { elemento_id: el.id, proyecto_id: p.id, num_sub: i + 1, total_sub: subs.length, titulo: `${ref}-S${i + 1}`, desc_sub: MAY(s.desc_sub) || `SUBELEMENTO ${i + 1}`, cantidad: +s.cantidad || 1, origen: s.origen || "Fabricación", acabado: MAY(s.acabado) || null, fases: s.fases || null, pasa_pintura: tiene(s.fases, "Pintura") };
+    const sr = { elemento_id: el.id, proyecto_id: p.id, num_sub: i + 1, total_sub: subs.length, titulo: `${ref}-S${i + 1}`, desc_sub: MAY(s.desc_sub) || `SUBELEMENTO ${i + 1}`, cantidad: +s.cantidad || 1, origen: s.origen || "Fabricación", acabado: MAY(s.acabado) || null, ral: s.ral || null, fases: s.fases || null, pasa_pintura: tiene(s.fases, "Pintura") };
     const q = s.id ? await sb.from("subelementos").update(sr).eq("id", s.id) : await sb.from("subelementos").insert(sr);
     if (q.error) return toast("Error en subelemento " + (i + 1) + ": " + q.error.message);
   }
