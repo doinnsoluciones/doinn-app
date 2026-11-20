@@ -636,6 +636,8 @@ table.cart td select[data-f=front]{min-width:150px}
 .cart-fil .cdate input{height:34px;border:1px solid var(--line);border-radius:999px;padding:0 10px;font:inherit;font-size:13px;background:var(--card);color:var(--ink)}
 .cart-fil .cfm{font-size:12px;font-weight:600;background:var(--card);border-radius:999px;padding:5px 10px}
 .cart-wrap{overflow:auto}
+.cart-fil select{max-width:230px}
+table.cart td input[data-f=cliente]{min-width:120px}
 table.cart th.so{cursor:pointer;user-select:none}
 table.cart th.so:hover{color:var(--ink)}
 table.cart th.so.act{color:var(--ink)}
