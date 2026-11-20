@@ -12,7 +12,7 @@ const difDias = (a, b) => Math.round((new Date(b + "T00:00:00") - new Date(a + "
 // Avisos de riesgo de un proyecto. nElem = nº de elementos del despiece.
 export function riesgos(p, nElem) {
   const r = [];
-  if (!p || p.estado === "Cerrado" || caido(p)) return r;
+  if (!p || p.estado === "Cerrado" || p.archivado || caido(p)) return r;
   const falta = [["hay_carga", "fecha_carga", "carga"], ["hay_montaje", "fecha_montaje", "montaje"], ["hay_evento", "evento_inicio", "evento"], ["hay_desmontaje", "fecha_desmontaje", "desmontaje"], ["hay_retorno", "fecha_descarga", "descarga"]]
     .filter(([h, f]) => p[h] !== false && !p[f]).map(x => x[2]);
   if (falta.length) r.push("Fechas incompletas: " + falta.join(", "));

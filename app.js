@@ -157,25 +157,28 @@ function vPendiente() {
 }
 function vProyectos() {
   const q = S.q.toLowerCase();
-  let ps = S.proyectos.filter(p => S.verCerrados || p.estado !== "Cerrado");
+  let ps = S.verArch ? S.proyectos.filter(p => p.archivado) : S.proyectos.filter(p => !p.archivado && (S.verCerrados || p.estado !== "Cerrado"));
   if (q) ps = ps.filter(p => [p.codigo, p.nombre, p.cliente, p.front_nombre].some(v => (v || "").toLowerCase().includes(q)));
-  const nCerr = S.proyectos.filter(p => p.estado === "Cerrado").length;
+  const nCerr = S.proyectos.filter(p => p.estado === "Cerrado" && !p.archivado).length, nArch = S.proyectos.filter(p => p.archivado).length;
   $app.innerHTML = `
   <p class="hint">Ordenados por fecha de carga. Pulsa uno para ver su ficha, sus elementos y la carga.</p>
   <div class="search fija"><input id="q" placeholder="Buscar por código, proyecto, cliente o Front…" value="${esc(S.q)}">
   ${puede("admin") ? `<button class="btn lime" id="nuevo">+ Nuevo</button>` : ""}</div>
-  <button class="link" id="vc">${S.verCerrados ? "Ocultar" : "Ver"} proyectos terminados (${nCerr}) ▾</button>
+  <div class="row" style="gap:14px">${S.verArch ? "" : `<button class="link" id="vc">${S.verCerrados ? "Ocultar" : "Ver"} proyectos terminados (${nCerr}) ▾</button>`}
+  ${nArch || S.verArch ? `<button class="link" id="va">${S.verArch ? "‹ Volver a los proyectos activos" : `Ver archivados (${nArch})`}</button>` : ""}</div>
+  ${S.verArch ? `<p class="hint"><b>Proyectos archivados.</b> No aparecen en planificación, panel ni muelle. Ábrelos para desarchivarlos.</p>` : ""}
   ${ps.map(card).join("") || `<div class="empty">No hay proyectos que coincidan.</div>`}`;
   const qi = document.getElementById("q");
   qi.oninput = () => { S.q = qi.value; const pos = qi.selectionStart; vProyectos(); const n = document.getElementById("q"); n.focus(); n.setSelectionRange(pos, pos); };
-  document.getElementById("vc").onclick = () => { S.verCerrados = !S.verCerrados; vProyectos(); };
+  const vcb = document.getElementById("vc"); if (vcb) vcb.onclick = () => { S.verCerrados = !S.verCerrados; vProyectos(); };
+  const vab = document.getElementById("va"); if (vab) vab.onclick = () => { S.verArch = !S.verArch; vProyectos(); };
   const nb = document.getElementById("nuevo"); if (nb) nb.onclick = () => location.hash = "#/nuevo";
 }
 function card(p) {
   const st = stats(p.id), [sl, sc] = salud(p, st), d = dias(p.fecha_carga);
   const cuando = d === null ? "" : d === 0 ? "carga hoy" : d > 0 ? `faltan ${d} días` : `hace ${-d} días`;
   return `<a class="card" href="#/p/${p.id}">
-    <div class="pj-top"><div class="pj-name">${esc(p.nombre || p.codigo)}</div><span class="row" style="gap:6px">${!confirmado(p) ? `<span class="pill" style="background:${COL_COM[estadoCom(p)]}33;color:var(--ink)">${estadoCom(p)}</span>` : ""}<span class="pill ${sc}">${sl}</span></span></div>
+    <div class="pj-top"><div class="pj-name">${esc(p.nombre || p.codigo)}</div><span class="row" style="gap:6px">${p.archivado ? `<span class="pill">Archivado</span>` : ""}${!confirmado(p) ? `<span class="pill" style="background:${COL_COM[estadoCom(p)]}33;color:var(--ink)">${estadoCom(p)}</span>` : ""}<span class="pill ${sc}">${sl}</span></span></div>
     <div class="pj-meta"><b>${esc(p.codigo)}</b><span>carga ${fd(p.fecha_carga)}</span><span>${esc(p.front_nombre || "—")}</span><span>${st.n} elem.</span><span>${cuando}</span>
     <span style="color:${p.coordinacion_ok ? "var(--lime-d)" : "var(--amber)"}">${p.coordinacion_ok ? "✓ Coordinado" : "Sin coordinar"}</span></div>
     <div class="prog"><div class="bar"><i style="width:${st.av}%"></i></div><span class="pc">${st.av}% avance</span>
@@ -192,8 +195,18 @@ function vProyecto(id, tab = "ficha") {
   if (tab === "ficha") body = fichaLectura(p);
   else if (["elementos", "despiece", "carga", "retorno", "equipo"].includes(tab)) body = `<div id="tabc"></div>`;
   else body = `<div class="card empty">Esta pestaña llega en los próximos días.</div>`;
-  $app.innerHTML = `<a class="back" href="#/">‹ Proyectos</a><div class="code">${esc(p.codigo)}</div><h1>${esc(p.nombre || "")}</h1>
+  $app.innerHTML = `<a class="back" href="#/">‹ Proyectos</a><div class="code">${esc(p.codigo)}${p.archivado ? ` · <b>ARCHIVADO</b>` : ""}</div><h1>${esc(p.nombre || "")}</h1>
   <div class="seg">${tabs.map(([k, l]) => `<a href="#/p/${p.id}/${k}" class="${k === tab ? "on" : ""}">${l}</a>`).join("")}</div>${body}`;
+  const ba = document.getElementById("barch");
+  if (ba) ba.onclick = async () => {
+    const ok = !p.archivado;
+    if (ok && !confirm(`¿Archivar «${p.nombre || p.codigo}»?\n\nDejará de verse en Proyectos, Planificación, Panel y Muelle. No se borra nada y se puede desarchivar desde «Ver archivados».`)) return;
+    const cambios = { archivado: ok, fecha_archivado: ok ? new Date().toISOString() : null, archivado_por: ok ? ((S.perfil && S.perfil.nombre) || S.user.email) : null };
+    const { error } = await sb.from("proyectos").update(cambios).eq("id", p.id);
+    if (error) return toast("No se pudo guardar: " + error.message);
+    Object.assign(p, cambios); toast(ok ? "Proyecto archivado" : "Proyecto recuperado");
+    if (ok) { S.verArch = false; location.hash = "#/"; } else vProyecto(id, tab);
+  };
   const bc = document.getElementById("bcoord");
   if (bc) bc.onclick = async () => { bc.disabled = true; if (await marcaCoordinacion(p, !p.coordinacion_ok)) vProyecto(id, tab); else bc.disabled = false; };
   if (tab === "elementos") { S.dirty = true; vElementos(ctx(), p, document.getElementById("tabc")); }
@@ -257,7 +270,9 @@ function fichaLectura(p) {
     ${fila(p.hay_desmontaje, "Desmontaje", p.fecha_desmontaje, p.fecha_desmontaje_fin, p.hora_desmontaje)}
     ${fila(p.hay_retorno, "Descarga en fábrica", p.fecha_descarga, p.fecha_descarga_fin, p.hora_descarga)}
   </table></div>
-  ${puede("admin") ? `<a class="btn ghost wide" href="#/p/${p.id}/editar">Editar ficha del proyecto</a>` : ""}`;
+  ${puede("admin") ? `<a class="btn ghost wide" href="#/p/${p.id}/editar">Editar ficha del proyecto</a>
+  <button class="btn ${p.archivado ? "lime" : "ghost"} wide" id="barch" style="margin-top:8px">${p.archivado ? "Desarchivar proyecto" : "🗄 Archivar proyecto"}</button>
+  ${p.archivado ? `<p class="hint" style="text-align:center">Archivado${p.archivado_por ? " por " + esc(p.archivado_por) : ""}${p.fecha_archivado ? " el " + new Date(p.fecha_archivado).toLocaleDateString("es-ES") : ""}</p>` : ""}` : ""}`;
 }
 async function vUsuarios() {
   if (!puede("superadmin")) { $app.innerHTML = `<div class="empty">Solo el SuperAdmin gestiona usuarios.</div>`; return; }

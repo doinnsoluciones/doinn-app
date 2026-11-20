@@ -113,7 +113,7 @@ function motorDias(S, D) {
     const as = D.asig.find(a => a.operario_id === o.id && enR(d, a.fecha_inicio, a.fecha_fin) && FASE2COD[a.fase]);
     if (as) { const p = P.get(as.proyecto_id); return { cod: FASE2COD[as.fase], p, quien: as.creado_por, cuando: as.created_at, src: "Asignación: " + as.fase }; }
     if (o.grupo === "Fronts") {
-      const p = S.proyectos.find(x => x.front_id === o.id && !caido(x) && fasesProyecto(x).some(([f, a, b]) => f === "Montaje" && enR(d, a, b)));
+      const p = S.proyectos.find(x => x.front_id === o.id && !x.archivado && !caido(x) && fasesProyecto(x).some(([f, a, b]) => f === "Montaje" && enR(d, a, b)));
       if (p) return { cod: "MO", p, src: "Montaje de su proyecto" + (confirmado(p) ? "" : " (sin confirmar)") };
     }
     return null;
@@ -171,7 +171,7 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
 
   let filtros = "", leyenda = "", filas = "", ayuda = "";
   if (modo === "proyectos") {
-    const visibles = S.proyectos.filter(p => p.estado !== "Cerrado" || (p.fecha_descarga && p.fecha_descarga >= d0))
+    const visibles = S.proyectos.filter(p => !p.archivado).filter(p => p.estado !== "Cerrado" || (p.fecha_descarga && p.fecha_descarga >= d0))
       .filter(p => !S.planFront || p.front_nombre === S.planFront)
       .filter(p => S.planEst.includes(estadoCom(p)))
       .map(p => ({ p, f: fasesProyecto(p) })).filter(x => x.f.some(([, a, b]) => b >= d0 && a <= d1));
@@ -311,7 +311,7 @@ function activaMarcado(ctx, D, codigos, fin) {
     const ds = sel.map(h => h.dataset.d).sort();
     const nom = ops.length === 1 ? ((S.operarios.find(o => o.id === ops[0]) || {}).nombre || "") : `${ops.length} personas`;
     const fdc = s => s.split("-").reverse().slice(0, 2).join("/");
-    const proys = S.proyectos.filter(p => p.estado !== "Cerrado" && !caido(p)).sort((a, b) => (a.fecha_carga || "9").localeCompare(b.fecha_carga || "9"));
+    const proys = S.proyectos.filter(p => p.estado !== "Cerrado" && !p.archivado && !caido(p)).sort((a, b) => (a.fecha_carga || "9").localeCompare(b.fecha_carga || "9"));
     const m = document.createElement("div"); m.className = "mmenu";
     m.innerHTML = `<div class="mm-h"><b>${esc(nom)}</b><span>${ds.length === 1 || ds[0] === ds[ds.length - 1] ? fdc(ds[0]) : `${fdc(ds[0])} → ${fdc(ds[ds.length - 1])}`}</span></div>
       ${ops.length === 1 ? `<div class="mm-r"><label>Hasta <input type="date" id="mmh" value="${ds[ds.length - 1]}" min="${ds[0]}"></label></div>` : ""}
