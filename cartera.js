@@ -6,7 +6,11 @@ const { COL_COM } = await import("./estados.js" + V);
 const MESES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 const ESTADOS = ["Presupuestado", "Pre-confirmado", "Confirmado", "Pospuesto", "Cancelado"];
 const FILTROS = [["Confirmado", ["Confirmado"]], ["Pendiente", ["Presupuestado", "Pre-confirmado"]], ["Pospuesto", ["Pospuesto"]], ["Cancelado", ["Cancelado"]]];
-const eur = n => n == null || n === "" || isNaN(n) ? "" : Number(n).toLocaleString("es-ES", { maximumFractionDigits: 0 }) + " €";
+// importes siempre en formato español: 1.234.567,89 (punto de miles, coma decimal, dos decimales)
+const num = n => { if (n == null || n === "" || isNaN(n)) return ""; const [e, d] = Math.abs(Number(n)).toFixed(2).split("."); return (Number(n) < 0 ? "-" : "") + e.replace(/\B(?=(\d{3})+(?!\d))/g, ".") + "," + d; };
+const eur = n => { const t = num(n); return t ? t + " €" : ""; };
+// lee lo que escriba el usuario: «1.234,5», «1234,50», «1234.5» o «1.234»
+const leeNum = t => { t = String(t).replace(/[€\s]/g, ""); if (!t) return null; if (t.includes(",")) t = t.replace(/\./g, "").replace(",", "."); else if (!/^\d+\.\d{1,2}$/.test(t)) t = t.replace(/\./g, ""); const n = Number(t); return isFinite(n) ? Math.round(n * 100) / 100 : NaN; };
 const pct = n => n == null || !isFinite(n) ? "" : Math.round(n * 100) + " %";
 const ls = { get: (k, d) => { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } }, set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { } } };
 
@@ -74,8 +78,8 @@ export async function vCartera(ctx) {
         <td><input data-f="cliente" data-id="${p.id}" value="${esc(p.cliente || "")}"></td>
         <td>${selFront(p)}</td>
         <td><select data-f="estado" data-id="${p.id}" class="cest" style="--c:${COL_COM[p.estado_com] || "#ccc"}">${ESTADOS.map(e => `<option ${e === p.estado_com ? "selected" : ""}>${e}</option>`).join("")}</select></td>
-        <td class="nr"><input type="number" step="0.01" data-f="venta" data-id="${p.id}" value="${vv ?? ""}" placeholder="—"></td>
-        <td class="nr"><input type="number" step="0.01" data-f="coste" data-id="${p.id}" value="${kk ?? ""}" placeholder="—"></td>
+        <td class="nr"><input inputmode="decimal" data-f="venta" data-id="${p.id}" value="${num(vv)}" placeholder="—"></td>
+        <td class="nr"><input inputmode="decimal" data-f="coste" data-id="${p.id}" value="${num(kk)}" placeholder="—"></td>
         <td class="nr">${eur(mg)}</td><td class="nr">${vv && mg != null ? pct(mg / vv) : ""}</td></tr>`;
     };
     const th = (c, t, cls = "") => `<th class="so ${cls} ${st.ord === c ? "act" : ""}" data-ord="${c}">${t}<i>${st.ord === c ? (st.dir > 0 ? "▲" : "▼") : ""}</i></th>`;
@@ -140,8 +144,9 @@ export async function vCartera(ctx) {
       const p = S.proyectos.find(x => x.id === +el.dataset.id), f = el.dataset.f, val = el.value;
       let r;
       if (f === "venta" || f === "coste") {
-        const c = C.get(p.id) || { proyecto_id: p.id };
-        const fila = { proyecto_id: p.id, venta: f === "venta" ? (val === "" ? null : +val) : c.venta ?? null, coste_est: f === "coste" ? (val === "" ? null : +val) : c.coste_est ?? null, updated_at: new Date().toISOString(), updated_por: S.perfil.nombre || S.user.email };
+        const c = C.get(p.id) || { proyecto_id: p.id }, nv = leeNum(val);
+        if (Number.isNaN(nv)) { toast("Importe no válido: usa 1.234,56"); el.value = num(f === "venta" ? c.venta : c.coste_est); return; }
+        const fila = { proyecto_id: p.id, venta: f === "venta" ? nv : c.venta ?? null, coste_est: f === "coste" ? nv : c.coste_est ?? null, updated_at: new Date().toISOString(), updated_por: S.perfil.nombre || S.user.email };
         r = await sb.from("proyectos_comercial").upsert(fila);
         if (!r.error) C.set(p.id, { ...c, ...fila });
       } else {
@@ -162,7 +167,7 @@ export async function vCartera(ctx) {
 
 function csv(vis, v, k) {
   const q = s => `"${String(s ?? "").replace(/"/g, '""')}"`;
-  const n = x => x == null ? "" : String(x).replace(".", ",");
+  const n = x => x == null ? "" : Number(x).toFixed(2).replace(".", ",");
   const lin = [["Fecha evento", "Mes", "Proyecto", "Código", "Cliente", "Front", "Estado", "Venta", "Coste estimado", "Margen"].map(q).join(";"),
     ...vis.map(p => [p.evento_inicio || "", p.evento_inicio ? MESES[+p.evento_inicio.slice(5, 7) - 1] : "", p.nombre, p.codigo, p.cliente, p.front_nombre, p.estado_com, n(v(p)), n(k(p)), v(p) != null && k(p) != null ? n(v(p) - k(p)) : ""].map((x, i) => i >= 7 ? x : q(x)).join(";"))];
   const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob(["﻿" + lin.join("\n")], { type: "text/csv" })); a.download = "cartera_doinn.csv"; a.click();
@@ -177,7 +182,7 @@ function nueva(ctx, fronts, yo, C, pinta) {
     <div class="two"><label>Cliente<input id="o_cli"></label><label>Fecha del evento<input id="o_fec" type="date"></label></div>
     <div class="two"><label>Front<select id="o_fr">${fronts.map(f => `<option value="${f.id}" ${yo && yo.id === f.id ? "selected" : ""}>${esc(f.nombre)}</option>`).join("")}</select></label>
     <label>Estado<select id="o_est">${ESTADOS.map(e => `<option ${e === "Presupuestado" ? "selected" : ""}>${e}</option>`).join("")}</select></label></div>
-    <div class="two"><label>Venta (€)<input id="o_ven" type="number" step="0.01"></label><label>Coste estimado (€)<input id="o_cos" type="number" step="0.01"></label></div>
+    <div class="two"><label>Venta (€)<input id="o_ven" inputmode="decimal" placeholder="0,00"></label><label>Coste estimado (€)<input id="o_cos" inputmode="decimal" placeholder="0,00"></label></div>
     <p class="hint">Se crea con un código provisional (OP-…). Cuando se confirme, pon el código definitivo en la ficha del proyecto.</p>
     <button class="btn lime wide">Crear oportunidad</button></form>`;
   document.body.appendChild(m);
@@ -194,8 +199,8 @@ function nueva(ctx, fronts, yo, C, pinta) {
     const row = { codigo: `${base}.${String(n).padStart(2, "0")}`, nombre: $("o_nom").value.trim().toUpperCase(), cliente: $("o_cli").value.trim().toUpperCase() || null, front_id: f ? f.id : null, front_nombre: f ? f.nombre : null, evento_inicio: fec, evento_fin: fec, estado_com: est, estado: "En preparación" };
     const { data: p, error } = await sb.from("proyectos").insert(row).select().single();
     if (error) return toast("No se pudo crear: " + error.message);
-    const ven = $("o_ven").value, cos = $("o_cos").value;
-    const c = { proyecto_id: p.id, venta: ven === "" ? null : +ven, coste_est: cos === "" ? null : +cos, updated_at: new Date().toISOString(), updated_por: S.perfil.nombre || S.user.email };
+    const ven = leeNum($("o_ven").value), cos = leeNum($("o_cos").value);
+    const c = { proyecto_id: p.id, venta: Number.isNaN(ven) ? null : ven, coste_est: Number.isNaN(cos) ? null : cos, updated_at: new Date().toISOString(), updated_por: S.perfil.nombre || S.user.email };
     const r = await sb.from("proyectos_comercial").insert(c);
     if (r.error) toast("Proyecto creado, pero no se guardó el importe: " + r.error.message);
     S.proyectos.push(p); C.set(p.id, c);

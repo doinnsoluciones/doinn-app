@@ -559,7 +559,7 @@ table.cart tfoot td{font-weight:700;padding:10px 6px;border-top:2px solid var(--
 table.cart input,table.cart select{width:100%;height:30px;border:1px solid transparent;border-radius:8px;background:transparent;font:inherit;font-size:13px;color:var(--ink);padding:0 6px}
 table.cart input:hover,table.cart select:hover{border-color:var(--line)}
 table.cart input:focus,table.cart select:focus{border-color:var(--lime-d);background:var(--card);outline:none}
-table.cart td.nr input{text-align:right;min-width:90px}
+table.cart td.nr input{text-align:right;min-width:110px;font-variant-numeric:tabular-nums}
 table.cart input[type=date]{min-width:128px}
 table.cart td.cn{min-width:220px}
 table.cart td.cn a{font-weight:600;color:var(--ink);display:block}
@@ -625,7 +625,7 @@ table.cart td select[data-f=front]{min-width:150px}
 .cmes{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:6px;margin:0 0 12px}
 .cm{background:var(--card);border:1px solid transparent;border-radius:12px;padding:8px 8px 7px;text-align:left;display:flex;flex-direction:column;gap:1px;cursor:pointer;color:var(--ink);font:inherit;min-width:0}
 .cm span{font-size:11px;color:var(--muted2);text-transform:uppercase;letter-spacing:.04em;font-weight:600}
-.cm b{font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cm b{font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cm small{font-size:10.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cm.fut b{color:var(--muted2)}
 .cm.hoy{box-shadow:inset 0 -3px 0 var(--lime)}
@@ -653,3 +653,4 @@ table.cart tbody tr:not(.mes) td:first-child{box-shadow:inset 4px 0 0 var(--fc,t
 table.cart tr.canc select.cfr{background:transparent;font-weight:400}
 .cleg{gap:6px;margin-bottom:6px}
 .cleg .chip i{width:10px;height:10px}
+table.cart td.nr{font-variant-numeric:tabular-nums}
