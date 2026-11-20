@@ -1,7 +1,7 @@
 // Panel de indicadores
 export function vPanel(ctx, h) {
   const { $app, S, esc, stats, salud, fd, dias } = ctx;
-  const act = S.proyectos.filter(p => p.estado !== "Cerrado" && !p.archivado);
+  const act = S.proyectos.filter(p => p.estado !== "Cerrado" && !p.archivado && ["Confirmado", "Pre-confirmado"].includes(p.estado_com || "Confirmado"));
   const ids = new Set(act.map(p => p.id));
   const els = S.elementos.filter(e => ids.has(e.proyecto_id));
   const grupos = {

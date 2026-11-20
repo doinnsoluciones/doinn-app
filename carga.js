@@ -139,7 +139,7 @@ export function vMuelle(ctx, ini) {
   const movs = dia => {
     const out = [];
     for (const p of S.proyectos) {
-      if (p.archivado || (p.estado === "Cerrado" && !(p.fecha_descarga && p.fecha_descarga >= dias[0]))) continue;
+      if (p.archivado || !["Confirmado", "Pre-confirmado"].includes(p.estado_com || "Confirmado") || (p.estado === "Cerrado" && !(p.fecha_descarga && p.fecha_descarga >= dias[0]))) continue;
       if (p.hay_carga !== false && enRango(dia, p.fecha_carga, p.fecha_carga_fin)) out.push({ t: "Carga", p, h: p.hora_carga, tr: p.transporte_ida });
       if (p.hay_retorno !== false && enRango(dia, p.fecha_descarga, p.fecha_descarga_fin)) out.push({ t: "Descarga", p, h: p.hora_descarga, tr: p.transporte_vuelta || p.transporte_ida });
     }

@@ -540,3 +540,31 @@ dd.coord{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
 .ro-b button:disabled{opacity:.3}
 .falta{color:var(--red);font-weight:600}
 .ok-t{color:var(--lime-d);font-weight:600}
+/* cartera */
+.cart-top{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:6px 0 12px}
+.kpi{background:var(--card);border-radius:var(--r);padding:12px 14px;display:flex;flex-direction:column;gap:2px}
+.kpi span{font-size:12px;color:var(--muted2)}
+.kpi b{font-size:22px;font-weight:700;letter-spacing:-.01em}
+.kpi small{font-size:11px;color:var(--muted)}
+.cart-fil{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}
+.cart-fil select,.cart-fil .cq{height:34px;border:1px solid var(--line);border-radius:999px;padding:0 12px;font:inherit;background:var(--card);color:var(--ink)}
+.cart-fil .cq{flex:1;min-width:180px}
+table.cart{width:100%;border-collapse:collapse;font-size:13px;background:var(--card)}
+table.cart th{position:sticky;top:0;background:var(--card);text-align:left;font-size:11px;font-weight:600;color:var(--muted2);padding:8px 6px;border-bottom:1px solid var(--line);z-index:2;white-space:nowrap}
+table.cart td{padding:3px 6px;border-bottom:1px solid var(--line);vertical-align:middle}
+table.cart .nr{text-align:right;white-space:nowrap}
+table.cart tr.mes td{background:var(--bg);font-weight:600;padding:8px 6px}
+table.cart tfoot td{font-weight:700;padding:10px 6px;border-top:2px solid var(--line)}
+table.cart input,table.cart select{width:100%;height:30px;border:1px solid transparent;border-radius:8px;background:transparent;font:inherit;font-size:13px;color:var(--ink);padding:0 6px}
+table.cart input:hover,table.cart select:hover{border-color:var(--line)}
+table.cart input:focus,table.cart select:focus{border-color:var(--lime-d);background:var(--card);outline:none}
+table.cart td.nr input{text-align:right;min-width:90px}
+table.cart input[type=date]{min-width:128px}
+table.cart td.cn{min-width:220px}
+table.cart td.cn a{font-weight:600;color:var(--ink);display:block}
+table.cart td.cn small{font-size:10px}
+table.cart select.cest{border-left:4px solid var(--c);min-width:130px}
+table.cart tr.canc td{color:var(--muted)}
+table.cart tr.canc td.cn a{text-decoration:line-through;color:var(--muted)}
+table.cart td select[data-f=front]{min-width:150px}

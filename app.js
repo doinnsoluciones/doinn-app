@@ -11,6 +11,7 @@ const { vCarga, vRetorno, vMuelle } = await import("./carga.js" + V);
 const { vPlan, vEquipo, vTv } = await import("./plan.js" + V);
 const { COL_COM, estadoCom, confirmado, riesgos, neonOn } = await import("./estados.js" + V);
 const { iniciaCabecera, pintaUsuario, pintaNav } = await import("./cabecera.js" + V);
+const { vCartera } = await import("./cartera.js" + V);
 
 const sb = createClient(CONFIG.url, CONFIG.anonKey, { auth: { persistSession: true, detectSessionInUrl: true } });
 const $app = document.getElementById("app");
@@ -38,7 +39,10 @@ const DEF_PAG = {
 };
 const ROLES = [["superadmin", "SuperAdmin · control total"], ["admin", "Admin · proyectos (Fronts y OT)"], ["taller", "Taller · estado de producción"], ["lectura", "Lectura · solo consulta"]];
 const pagsDe = (rol, pags) => rol === "superadmin" ? TODAS : (pags && pags.length ? pags : DEF_PAG[rol] || []);
-const ver = pg => !!S.perfil && pagsDe(S.perfil.rol, S.perfil.paginas).includes(pg);
+const verCartera = () => !!S.perfil && S.perfil.aprobado && (S.perfil.rol === "superadmin" || !!S.perfil.ve_cartera);
+const ver = pg => pg === "cartera" ? verCartera() : !!S.perfil && pagsDe(S.perfil.rol, S.perfil.paginas).includes(pg);
+// Proyectos en producción: confirmados o pre-confirmados (o con trabajo ya hecho); el resto solo se ve en Cartera y Planificación
+const enProduccion = p => ["Confirmado", "Pre-confirmado"].includes(p.estado_com || "Confirmado") || S.elementos.some(e => e.proyecto_id === p.id);
 
 // ---------- datos ----------
 async function cargar() {
@@ -157,9 +161,9 @@ function vPendiente() {
 }
 function vProyectos() {
   const q = S.q.toLowerCase();
-  let ps = S.verArch ? S.proyectos.filter(p => p.archivado) : S.proyectos.filter(p => !p.archivado && (S.verCerrados || p.estado !== "Cerrado"));
+  let ps = S.verArch ? S.proyectos.filter(p => p.archivado) : S.proyectos.filter(p => !p.archivado && enProduccion(p) && (S.verCerrados || p.estado !== "Cerrado"));
   if (q) ps = ps.filter(p => [p.codigo, p.nombre, p.cliente, p.front_nombre].some(v => (v || "").toLowerCase().includes(q)));
-  const nCerr = S.proyectos.filter(p => p.estado === "Cerrado" && !p.archivado).length, nArch = S.proyectos.filter(p => p.archivado).length;
+  const nCerr = S.proyectos.filter(p => p.estado === "Cerrado" && !p.archivado && enProduccion(p)).length, nArch = S.proyectos.filter(p => p.archivado).length;
   $app.innerHTML = `
   <p class="hint">Ordenados por fecha de carga. Pulsa uno para ver su ficha, sus elementos y la carga.</p>
   <div class="search fija"><input id="q" placeholder="Buscar por código, proyecto, cliente o Front…" value="${esc(S.q)}">
@@ -294,6 +298,7 @@ async function vUsuarios() {
     <div class="two"><label>Rol<select id="irol">${optRol("taller")}</select></label>
     <label>Su ficha en planificación${selOp('id="iop"', null)}</label></div>
     <label class="pg" style="margin:4px 0 8px"><input type="checkbox" id="igt"> Gestiona al personal de taller (puede marcar días de todo el taller, como el encargado o el team leader)</label>
+    <label class="pg" style="margin:0 0 8px"><input type="checkbox" id="ivc"> Ve la cartera comercial (ventas y márgenes: Fronts y dirección)</label>
     <div class="code" style="margin:6px 0 4px">Páginas que verá</div><div id="ipg">${checks("taller", null, "ip")}</div>
     <button class="btn lime wide">Guardar invitación y preparar correo</button></form>
   ${inv.data.length ? `<div class="card"><h2>Invitaciones pendientes <small class="code">${inv.data.length}</small></h2>${inv.data.map(x => `<div class="crow"><div><b>${esc(x.email)}</b> <span class="pill">${esc(x.rol)}</span><div class="code">${esc(x.nombre || "")}${x.operario_id ? " · ficha: " + esc(opNomU(x.operario_id) || "") : ""}${x.gestiona_taller ? " · gestiona taller" : ""} · aún no ha creado su cuenta</div></div><div class="row" style="gap:10px"><button class="link" data-icor="${esc(x.email)}">✉ Enviar correo</button><button class="link" data-idel="${esc(x.email)}">Anular</button></div></div>`).join("")}</div>` : ""}
@@ -302,13 +307,15 @@ async function vUsuarios() {
     ${x.user_id === yo ? `<span class="pill">Tú</span>` : `<button class="btn sm ${x.aprobado ? "ghost" : "lime"}" data-acc>${x.aprobado ? "Quitar acceso" : "Dar acceso"}</button>`}</div>
     ${x.user_id === yo ? "" : `<div class="two frm" style="margin-top:8px"><label>Rol<select data-rol>${optRol(x.rol)}</select></label><label>Su ficha en planificación${selOp("data-op", x.operario_id)}</label></div>
     <label class="pg" style="margin:6px 0"><input type="checkbox" data-gt ${x.gestiona_taller ? "checked" : ""}> Gestiona al personal de taller</label>
+    <label class="pg" style="margin:0 0 6px"><input type="checkbox" data-vc ${x.ve_cartera ? "checked" : ""}> Ve la cartera comercial</label>
     <details><summary class="link">Páginas que ve</summary><div data-pgs>${checks(x.rol, x.paginas, "up")}</div><button class="btn sm" data-gpg>Guardar páginas</button></details>`}</div>`).join("")}`;
   const $ = id => document.getElementById(id);
   $("irol").onchange = () => $("ipg").innerHTML = checks($("irol").value, null, "ip");
+  $("iop").onchange = () => { const o = S.operarios.find(x => x.id === +$("iop").value); if (o && o.grupo === "Fronts") $("ivc").checked = true; };
   $("finv").onsubmit = async ev => {
     ev.preventDefault();
     const rol = $("irol").value, pags = rol === "superadmin" ? null : leeChecks($("ipg"), "ip");
-    const row = { email: $("iem").value.trim().toLowerCase(), nombre: $("inom").value.trim() || null, rol, paginas: pags, invitado_por: S.user.email, usada: null, operario_id: $("iop").value ? +$("iop").value : null, gestiona_taller: $("igt").checked };
+    const row = { email: $("iem").value.trim().toLowerCase(), nombre: $("inom").value.trim() || null, rol, paginas: pags, invitado_por: S.user.email, usada: null, operario_id: $("iop").value ? +$("iop").value : null, gestiona_taller: $("igt").checked, ve_cartera: $("ivc").checked };
     if (u.data.some(x => x.email === row.email)) return toast("Ese email ya tiene cuenta: cambia su rol abajo.");
     const { error } = await sb.from("invitaciones").upsert(row);
     if (error) return toast(error.message);
@@ -322,6 +329,7 @@ async function vUsuarios() {
     const a = el.querySelector("[data-acc]"); if (a) a.onclick = () => upd({ aprobado: !x.aprobado }, x.aprobado ? "Acceso retirado" : "Acceso activado");
     const r = el.querySelector("[data-rol]"); if (r) r.onchange = () => upd({ rol: r.value, paginas: null }, "Rol guardado (páginas por defecto del rol)");
     const so = el.querySelector("[data-op]"); if (so) so.onchange = () => upd({ operario_id: so.value ? +so.value : null }, "Ficha vinculada");
+    const vc = el.querySelector("[data-vc]"); if (vc) vc.onchange = () => upd({ ve_cartera: vc.checked }, vc.checked ? "Ahora ve la cartera comercial" : "Ya no ve la cartera comercial");
     const gt = el.querySelector("[data-gt]"); if (gt) gt.onchange = () => upd({ gestiona_taller: gt.checked }, gt.checked ? "Ahora gestiona al personal de taller" : "Ya no gestiona al personal de taller");
     const g = el.querySelector("[data-gpg]"); if (g) g.onclick = () => upd({ paginas: leeChecks(el.querySelector("[data-pgs]"), "up") }, "Páginas guardadas");
   });
@@ -346,6 +354,7 @@ async function route() {
   if (h[0] === "p" && h[2] === "el") { const p = S.proyectos.find(x => x.id === +h[1]); S.dirty = true; return p ? vElemento(ctx(), p, h[3]) : vProyectos(); }
   if (h[0] === "p") return vProyecto(h[1], h[2] || "ficha");
   if (h[0] === "usuarios") return vUsuarios();
+  if (h[0] === "cartera") return vCartera(ctx());
   if (h[0] === "plan") return vPlan(ctx(), h[1] || "proyectos", h[2] || "");
   if (h[0] === "tv") return vTv(ctx());
   if (h[0] === "escanear") return vEscanear(ctx());
