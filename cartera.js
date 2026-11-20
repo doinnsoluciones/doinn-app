@@ -18,28 +18,49 @@ export async function vCartera(ctx) {
   const C = new Map(com.map(c => [c.proyecto_id, c]));
   const fronts = S.operarios.filter(o => o.grupo === "Fronts" && o.activo !== false).sort((a, b) => a.nombre.localeCompare(b.nombre));
   const yo = S.perfil.operario_id && fronts.find(f => f.id === S.perfil.operario_id);
-  S.cart = S.cart || { anio: String(new Date().getFullYear()), front: yo ? String(yo.id) : "", est: ls.get("doinn_cart_est", ["Confirmado", "Pendiente"]), q: "" };
+  S.cart = S.cart || { anio: String(new Date().getFullYear()), front: yo ? String(yo.id) : "", est: ls.get("doinn_cart_est", ["Confirmado", "Pendiente"]), q: "", cli: "", meses: [], desde: "", hasta: "", ord: "fecha", dir: 1, pleg: ls.get("doinn_cart_pleg", []) };
   const st = S.cart;
   const anios = [...new Set(S.proyectos.filter(p => C.has(p.id) && p.evento_inicio).map(p => p.evento_inicio.slice(0, 4)))].sort();
   if (!anios.includes(st.anio)) anios.push(st.anio);
+  const hoy = new Date().toISOString().slice(0, 10);
+  const v = p => { const c = C.get(p.id); return c && c.venta != null ? Number(c.venta) : null; };
+  const k = p => { const c = C.get(p.id); return c && c.coste_est != null ? Number(c.coste_est) : null; };
+  const suma = (arr, f) => arr.reduce((s, p) => s + (f(p) || 0), 0);
+  const sumaK = arr => arr.some(p => k(p) != null) ? eur(suma(arr, k)) : "";
+  const ORD = { fecha: p => p.evento_inicio || "9999", nombre: p => p.nombre || "", cliente: p => p.cliente || "", front: p => p.front_nombre || "", estado: p => ESTADOS.indexOf(p.estado_com), venta: p => v(p) ?? -1, coste: p => k(p) ?? -1, margen: p => v(p) != null && k(p) != null ? v(p) - k(p) : -1e12, pct: p => v(p) && k(p) != null ? (v(p) - k(p)) / v(p) : -1e12 };
 
   const pinta = () => {
-    const filas = S.proyectos.filter(p => !p.archivado)
+    const scroll = document.querySelector(".cart-wrap")?.scrollTop || 0;
+    // base: año + Front + texto + cliente (sin mes ni fechas ni estado) → alimenta la tira mensual
+    const base = S.proyectos.filter(p => !p.archivado)
       .filter(p => st.anio === "todos" || (p.evento_inicio || "").startsWith(st.anio) || (!p.evento_inicio && st.anio === String(new Date().getFullYear())))
       .filter(p => !st.front || (st.front === "otros" ? !p.front_id : String(p.front_id) === st.front))
-      .filter(p => !st.q || [p.nombre, p.cliente, p.codigo, p.front_nombre].some(v => (v || "").toLowerCase().includes(st.q.toLowerCase())));
-    const v = p => { const c = C.get(p.id); return c && c.venta != null ? Number(c.venta) : null; };
-    const k = p => { const c = C.get(p.id); return c && c.coste_est != null ? Number(c.coste_est) : null; };
-    const suma = (arr, f) => arr.reduce((s, p) => s + (f(p) || 0), 0);
-    // indicadores (año y Front elegidos, todos los estados)
+      .filter(p => !st.cli || (p.cliente || "") === st.cli)
+      .filter(p => !st.q || [p.nombre, p.cliente, p.codigo, p.front_nombre].some(x => (x || "").toLowerCase().includes(st.q.toLowerCase())));
+    // filas: además mes(es) y rango de días
+    const filas = base.filter(p => !st.meses.length || (p.evento_inicio && st.meses.includes(p.evento_inicio.slice(5, 7))))
+      .filter(p => !st.desde || (p.evento_inicio && p.evento_inicio >= st.desde))
+      .filter(p => !st.hasta || (p.evento_inicio && p.evento_inicio <= st.hasta));
     const conf = filas.filter(p => p.estado_com === "Confirmado"), pend = filas.filter(p => ["Presupuestado", "Pre-confirmado"].includes(p.estado_com)), canc = filas.filter(p => p.estado_com === "Cancelado");
+    const real = conf.filter(p => p.evento_inicio && p.evento_inicio <= hoy);
     const conCoste = conf.filter(p => k(p) != null && v(p));
     const margen = conCoste.length ? (suma(conCoste, v) - suma(conCoste, k)) / suma(conCoste, v) : null;
     const decididos = conf.length + canc.length;
     const estSel = FILTROS.filter(f => st.est.includes(f[0])).flatMap(f => f[1]);
-    const vis = filas.filter(p => estSel.includes(p.estado_com)).sort((a, b) => (a.evento_inicio || "9999").localeCompare(b.evento_inicio || "9999"));
+    const of = ORD[st.ord] || ORD.fecha;
+    const vis = filas.filter(p => estSel.includes(p.estado_com)).sort((a, b) => { const x = of(a), y = of(b); return (x < y ? -1 : x > y ? 1 : (a.evento_inicio || "").localeCompare(b.evento_inicio || "")) * st.dir; });
     const grupos = []; vis.forEach(p => { const m = p.evento_inicio ? p.evento_inicio.slice(0, 7) : "sin"; let g = grupos.find(x => x.m === m); if (!g) grupos.push(g = { m, ps: [] }); g.ps.push(p); });
+    grupos.sort((a, b) => a.m.localeCompare(b.m) * (st.ord === "fecha" ? st.dir : 1));
     const rot = m => m === "sin" ? "Sin fecha" : `${MESES[+m.slice(5, 7) - 1]} ${m.slice(0, 4)}`;
+    // tira mes a mes (solo con un año concreto)
+    const mesHoy = hoy.slice(0, 7);
+    const tira = st.anio === "todos" ? "" : `<div class="cmes">${MESES.map((n, i) => {
+      const mm = String(i + 1).padStart(2, "0"), clave = `${st.anio}-${mm}`;
+      const ps = base.filter(p => (p.evento_inicio || "").startsWith(clave) && p.estado_com === "Confirmado");
+      const re = ps.filter(p => p.evento_inicio <= hoy).length, prev = ps.length - re;
+      return `<button class="cm ${st.meses.includes(mm) ? "on" : ""} ${clave === mesHoy ? "hoy" : ""} ${clave > mesHoy ? "fut" : ""}" data-mes="${mm}" title="Filtrar ${n}">
+        <span>${n.slice(0, 3)}</span><b>${ps.length ? eur(suma(ps, v)) : "—"}</b><small>${re ? `${re} realizado${re > 1 ? "s" : ""}` : ""}${re && prev ? " · " : ""}${prev ? `${prev} previsto${prev > 1 ? "s" : ""}` : ""}${!ps.length ? "sin eventos" : ""}</small></button>`;
+    }).join("")}</div>`;
     const selFront = p => `<select data-f="front" data-id="${p.id}"><option value="">${p.front_id ? "—" : esc(p.front_nombre || "—")}</option>${fronts.map(f => `<option value="${f.id}" ${p.front_id === f.id ? "selected" : ""}>${esc(f.nombre)}</option>`).join("")}</select>`;
     const fila = p => {
       const vv = v(p), kk = k(p), mg = vv != null && kk != null ? vv - kk : null;
@@ -53,28 +74,58 @@ export async function vCartera(ctx) {
         <td class="nr"><input type="number" step="0.01" data-f="coste" data-id="${p.id}" value="${kk ?? ""}" placeholder="—"></td>
         <td class="nr">${eur(mg)}</td><td class="nr">${vv && mg != null ? pct(mg / vv) : ""}</td></tr>`;
     };
+    const th = (c, t, cls = "") => `<th class="so ${cls} ${st.ord === c ? "act" : ""}" data-ord="${c}">${t}<i>${st.ord === c ? (st.dir > 0 ? "▲" : "▼") : ""}</i></th>`;
+    const clientes = [...new Set(S.proyectos.filter(p => C.has(p.id) && p.cliente).map(p => p.cliente))].sort();
+    const hayFil = st.meses.length || st.desde || st.hasta || st.q || st.cli;
+    const todosPleg = grupos.length && grupos.every(g => st.pleg.includes(g.m));
+    const grupo = g => {
+      const cerr = st.pleg.includes(g.m), cf = g.ps.filter(p => p.estado_com === "Confirmado");
+      return `<tr class="mes" data-g="${g.m}"><td colspan="5"><span class="tg">${cerr ? "▸" : "▾"}</span> ${rot(g.m)} <small class="code">${g.ps.length} proyecto${g.ps.length > 1 ? "s" : ""}${cf.length !== g.ps.length && cf.length ? ` · confirmado ${eur(suma(cf, v))}` : ""}</small></td><td class="nr">${eur(suma(g.ps, v))}</td><td class="nr">${sumaK(g.ps)}</td><td colspan="2"></td></tr>${cerr ? "" : g.ps.map(fila).join("")}`;
+    };
     $app.innerHTML = `<div class="cart-top"><h1>Cartera</h1><div class="row" style="gap:8px"><button class="btn sm ghost" id="ccsv">Descargar Excel (CSV)</button><button class="btn sm lime" id="cnew">+ Oportunidad</button></div></div>
     <div class="kpis">
       <div class="kpi"><span>Venta confirmada</span><b>${eur(suma(conf, v))}</b><small>${conf.length} proyectos</small></div>
+      <div class="kpi"><span>Eventos realizados</span><b>${real.length}</b><small>${eur(suma(real, v))} · ${conf.length - real.length} previstos</small></div>
       <div class="kpi"><span>Cartera pendiente</span><b>${eur(suma(pend, v))}</b><small>${pend.length} presupuestos abiertos</small></div>
       <div class="kpi"><span>Cancelado</span><b>${eur(suma(canc, v))}</b><small>${canc.length} proyectos</small></div>
       <div class="kpi"><span>Tasa de éxito</span><b>${decididos ? pct(conf.length / decididos) : "—"}</b><small>confirmados / decididos</small></div>
       <div class="kpi"><span>Margen medio</span><b>${margen != null ? pct(margen) : "—"}</b><small>${conCoste.length ? `${conCoste.length} con coste estimado` : "falta el coste estimado"}</small></div>
     </div>
+    ${tira}
     <div class="cart-fil">
       <select id="canio">${anios.map(a => `<option ${a === st.anio ? "selected" : ""}>${a}</option>`).join("")}<option value="todos" ${st.anio === "todos" ? "selected" : ""}>Todos los años</option></select>
       <select id="cfront"><option value="">Todos los Fronts</option>${fronts.map(f => `<option value="${f.id}" ${String(f.id) === st.front ? "selected" : ""}>${esc(f.nombre)}${yo && yo.id === f.id ? " (yo)" : ""}</option>`).join("")}<option value="otros" ${st.front === "otros" ? "selected" : ""}>Externos y antiguos</option></select>
-      ${FILTROS.map(([f]) => `<button class="chip ${st.est.includes(f) ? "on" : ""}" data-est="${f}">${f}</button>`).join("")}
-      <input id="cq" class="cq" placeholder="Buscar proyecto o cliente…" value="${esc(st.q)}">
+      <select id="ccli"><option value="">Todos los clientes</option>${clientes.map(c => `<option ${c === st.cli ? "selected" : ""}>${esc(c)}</option>`).join("")}</select>
+      <label class="cdate">Desde<input type="date" id="cdes" value="${st.desde}"></label>
+      <label class="cdate">Hasta<input type="date" id="chas" value="${st.hasta}"></label>
+      <input id="cq" class="cq" placeholder="Buscar proyecto, código o cliente…" value="${esc(st.q)}">
     </div>
-    <div class="gwrap"><table class="cart"><thead><tr><th>Fecha evento</th><th>Proyecto</th><th>Cliente</th><th>Front</th><th>Estado</th><th class="nr">Venta</th><th class="nr">Coste est.</th><th class="nr">Margen</th><th class="nr">%</th></tr></thead>
-    <tbody>${grupos.map(g => `<tr class="mes"><td colspan="5">${rot(g.m)} <small class="code">${g.ps.length}</small></td><td class="nr">${eur(suma(g.ps, v))}</td><td class="nr">${eur(suma(g.ps, k)) }</td><td colspan="2"></td></tr>${g.ps.map(fila).join("")}`).join("") || `<tr><td colspan="9" class="empty">No hay proyectos con estos filtros.</td></tr>`}</tbody>
-    <tfoot><tr><td colspan="5">Total (${vis.length})</td><td class="nr">${eur(suma(vis, v))}</td><td class="nr">${eur(suma(vis, k))}</td><td colspan="2"></td></tr></tfoot></table></div>`;
+    <div class="cart-fil">
+      ${FILTROS.map(([f]) => `<button class="chip sm ${st.est.includes(f) ? "on" : ""}" data-est="${f}">${f}</button>`).join("")}
+      ${st.meses.length ? `<span class="cfm">Meses: ${st.meses.map(m => MESES[+m - 1].slice(0, 3)).join(", ")}</span>` : ""}
+      ${hayFil ? `<button class="link" id="climp">Quitar filtros ✕</button>` : ""}
+      <span style="flex:1"></span>
+      ${grupos.length ? `<button class="link" id="cpleg">${todosPleg ? "▾ Desplegar todo" : "▸ Plegar todo"}</button>` : ""}
+    </div>
+    <div class="gwrap cart-wrap"><table class="cart"><thead><tr>${th("fecha", "Fecha evento")}${th("nombre", "Proyecto")}${th("cliente", "Cliente")}${th("front", "Front")}${th("estado", "Estado")}${th("venta", "Venta", "nr")}${th("coste", "Coste est.", "nr")}${th("margen", "Margen", "nr")}${th("pct", "%", "nr")}</tr></thead>
+    <tbody>${grupos.map(grupo).join("") || `<tr><td colspan="9" class="empty">No hay proyectos con estos filtros.</td></tr>`}</tbody>
+    <tfoot><tr><td colspan="5">Total (${vis.length})</td><td class="nr">${eur(suma(vis, v))}</td><td class="nr">${sumaK(vis)}</td><td colspan="2"></td></tr></tfoot></table></div>`;
 
     const $ = id => document.getElementById(id);
-    $("canio").onchange = e => { st.anio = e.target.value; pinta(); };
+    const w = $app.querySelector(".cart-wrap");
+    const alto = () => { if (w && innerWidth > 700) w.style.maxHeight = Math.max(380, innerHeight - w.getBoundingClientRect().top - 14) + "px"; };
+    alto(); window._cartAlto = alto; if (!window._cartRs) { window._cartRs = 1; addEventListener("resize", () => document.querySelector(".cart-wrap") && window._cartAlto()); } if (w) w.scrollTop = scroll;
+    $("canio").onchange = e => { st.anio = e.target.value; st.meses = []; pinta(); };
     $("cfront").onchange = e => { st.front = e.target.value; pinta(); };
+    $("ccli").onchange = e => { st.cli = e.target.value; pinta(); };
+    $("cdes").onchange = e => { st.desde = e.target.value; pinta(); };
+    $("chas").onchange = e => { st.hasta = e.target.value; pinta(); };
+    $app.querySelectorAll("[data-mes]").forEach(b => b.onclick = () => { const m = b.dataset.mes; st.meses = st.meses.includes(m) ? st.meses.filter(x => x !== m) : [...st.meses, m].sort(); pinta(); });
     $app.querySelectorAll("[data-est]").forEach(b => b.onclick = () => { const e = b.dataset.est; st.est = st.est.includes(e) ? st.est.filter(x => x !== e) : [...st.est, e]; ls.set("doinn_cart_est", st.est); pinta(); });
+    $app.querySelectorAll("[data-ord]").forEach(h => h.onclick = () => { const c = h.dataset.ord; if (st.ord === c) st.dir = -st.dir; else { st.ord = c; st.dir = ["venta", "coste", "margen", "pct"].includes(c) ? -1 : 1; } pinta(); });
+    $app.querySelectorAll("tr.mes").forEach(r => r.onclick = () => { const g = r.dataset.g; st.pleg = st.pleg.includes(g) ? st.pleg.filter(x => x !== g) : [...st.pleg, g]; ls.set("doinn_cart_pleg", st.pleg); pinta(); });
+    if ($("cpleg")) $("cpleg").onclick = () => { st.pleg = todosPleg ? st.pleg.filter(m => !grupos.some(g => g.m === m)) : [...new Set([...st.pleg, ...grupos.map(g => g.m)])]; ls.set("doinn_cart_pleg", st.pleg); pinta(); };
+    if ($("climp")) $("climp").onclick = () => { Object.assign(st, { meses: [], desde: "", hasta: "", q: "", cli: "" }); pinta(); };
     let tq; $("cq").oninput = e => { clearTimeout(tq); tq = setTimeout(() => { st.q = e.target.value; pinta(); const i = $("cq"); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }, 300); };
     $("ccsv").onclick = () => csv(vis, v, k);
     $("cnew").onclick = () => nueva(ctx, fronts, yo, C, pinta);

@@ -620,3 +620,29 @@ table.cart td select[data-f=front]{min-width:150px}
 }
 .mu-gu{display:none;font-style:normal}
 @media (max-width:760px){.mu-gu{display:inline}}
+
+/* cartera: tira mensual, orden y plegado */
+.cmes{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:6px;margin:0 0 12px}
+.cm{background:var(--card);border:1px solid transparent;border-radius:12px;padding:8px 8px 7px;text-align:left;display:flex;flex-direction:column;gap:1px;cursor:pointer;color:var(--ink);font:inherit;min-width:0}
+.cm span{font-size:11px;color:var(--muted2);text-transform:uppercase;letter-spacing:.04em;font-weight:600}
+.cm b{font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cm small{font-size:10.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cm.fut b{color:var(--muted2)}
+.cm.hoy{box-shadow:inset 0 -3px 0 var(--lime)}
+.cm:hover{border-color:var(--line)}
+.cm.on{background:var(--ink);color:var(--on-ink)}
+.cm.on span,.cm.on small,.cm.on.fut b{color:var(--on-ink);opacity:.85}
+.cart-fil .cdate{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted2);margin:0}
+.cart-fil .cdate input{height:34px;border:1px solid var(--line);border-radius:999px;padding:0 10px;font:inherit;font-size:13px;background:var(--card);color:var(--ink)}
+.cart-fil .cfm{font-size:12px;font-weight:600;background:var(--card);border-radius:999px;padding:5px 10px}
+.cart-wrap{overflow:auto}
+table.cart th.so{cursor:pointer;user-select:none}
+table.cart th.so:hover{color:var(--ink)}
+table.cart th.so.act{color:var(--ink)}
+table.cart th.so i{font-style:normal;font-size:9px;margin-left:4px}
+table.cart tr.mes{cursor:pointer}
+table.cart tr.mes:hover td{filter:brightness(.97)}
+table.cart tr.mes .tg{display:inline-block;width:14px;color:var(--muted2)}
+table.cart tfoot td{position:sticky;bottom:0;background:var(--card);z-index:2}
+@media(max-width:900px){.cmes{grid-template-columns:repeat(6,minmax(0,1fr))}}
+@media(max-width:520px){.cmes{grid-template-columns:repeat(3,minmax(0,1fr))}.cm b{font-size:13px}}
