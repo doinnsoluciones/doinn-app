@@ -131,10 +131,15 @@ export async function vRetorno(ctx, p, cont) {
 }
 
 // ---------- Muelle: calendario de cargas y descargas ----------
+// Rejilla por semanas (lunes a domingo): se distinguen días, fines de semana, hoy y semanas.
+const MES3 = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+const semanaISO = d => { const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())); const dn = t.getUTCDay() || 7; t.setUTCDate(t.getUTCDate() + 4 - dn); const y0 = new Date(Date.UTC(t.getUTCFullYear(), 0, 1)); return Math.ceil(((t - y0) / 864e5 + 1) / 7); };
 export function vMuelle(ctx, ini) {
   const { $app, S, esc } = ctx;
-  const base = ini ? pd(ini) : new Date(new Date().setHours(0, 0, 0, 0));
-  const dias = Array.from({ length: 7 }, (_, i) => { const d = new Date(base); d.setDate(d.getDate() + i); return iso(d); });
+  const NSEM = 3;
+  const b0 = ini ? pd(ini) : new Date(new Date().setHours(0, 0, 0, 0));
+  const lun = new Date(b0); lun.setDate(lun.getDate() - ((lun.getDay() + 6) % 7));
+  const dias = Array.from({ length: NSEM * 7 }, (_, i) => { const d = new Date(lun); d.setDate(d.getDate() + i); return iso(d); });
   const enRango = (dia, a, b) => a && dia >= a && dia <= (b || a);
   const movs = dia => {
     const out = [];
@@ -146,12 +151,25 @@ export function vMuelle(ctx, ini) {
     return out.sort((a, b) => (a.h || "99").localeCompare(b.h || "99"));
   };
   const hoyI = iso(new Date());
-  $app.innerHTML = `<h1>Muelle</h1>
-  <p class="hint">Cargas y descargas de montaje en un solo calendario. Las horas que coinciden salen en rojo.</p>
-  <div class="row" style="margin-bottom:10px"><a class="btn sm ghost" href="#/muelle/${suma(dias[0], -7)}">‹ Semana</a><a class="btn sm ghost" href="#/muelle">Hoy</a><a class="btn sm ghost" href="#/muelle/${suma(dias[0], 7)}">Semana ›</a></div>
-  ${dias.map(dia => { const m = movs(dia); const horas = m.map(x => x.h).filter(Boolean); return `
-    <div class="card ${dia === hoyI ? "today" : ""}"><div class="pj-top"><h2 style="margin:0">${fdl(dia)}${dia === hoyI ? " · hoy" : ""}</h2><span class="code">${m.length ? m.length + " movimiento" + (m.length > 1 ? "s" : "") : "Libre"}</span></div>
-    ${m.map(x => { const choque = x.h && horas.filter(h => h === x.h).length > 1; return `
-      <a class="mv" href="#/p/${x.p.id}/carga"><span class="pill ${x.t === "Carga" ? "ok" : "info"}">${x.t}</span>
-      <b class="${choque ? "clash" : ""}">${esc(x.h || "—")}</b><div class="mvb"><b>${esc(x.p.nombre)}</b><div class="code">${esc(x.p.codigo)}${x.tr ? " · " + esc(x.tr) : ""}${x.p.tipo_vehiculo ? " · " + esc(x.p.tipo_vehiculo) : ""}</div></div></a>`; }).join("")}</div>`; }).join("")}`;
+  const M = Object.fromEntries(dias.map(d => [d, movs(d)]));
+  const choques = d => { const hs = M[d].map(x => x.h).filter(Boolean); return new Set(hs.filter((h, i) => hs.indexOf(h) !== i)); };
+  const todos = dias.flatMap(d => M[d]);
+  const nChoq = dias.filter(d => choques(d).size).length;
+  const fcorta = s => { const d = pd(s); return `${d.getDate()} ${MES3[d.getMonth()]}`; };
+  if (ctx.cabNav) ctx.cabNav({ label: `${fcorta(dias[0])} – ${fcorta(dias[dias.length - 1])}`, prev: `#/muelle/${suma(dias[0], -7)}`, next: `#/muelle/${suma(dias[0], 7)}`, hoy: "#/muelle" });
+  const tarjeta = (x, ch) => `<a class="mu-m ${x.t === "Carga" ? "c" : "d"} ${ch.has(x.h) ? "choque" : ""}" href="#/p/${x.p.id}/carga" title="${esc(x.t + " · " + x.p.nombre + (x.tr ? " · " + x.tr : ""))}">
+      <div class="mu-h"><b>${esc(x.h || "--:--")}</b><span>${x.t}</span></div>
+      <div class="mu-n">${esc(x.p.nombre)}</div>
+      <div class="mu-s">${[x.p.codigo, x.tr, x.p.tipo_vehiculo].filter(Boolean).map(esc).join(" · ")}</div></a>`;
+  $app.classList.add("ancho");
+  $app.innerHTML = `<div class="mu-top"><h1>Muelle</h1>
+    <div class="mu-res"><span><i class="mu-k c"></i>${todos.filter(x => x.t === "Carga").length} cargas</span><span><i class="mu-k d"></i>${todos.filter(x => x.t === "Descarga").length} descargas</span>${nChoq ? `<span class="mu-al">⚠ ${nChoq} día${nChoq > 1 ? "s" : ""} con horas que coinciden</span>` : ""}</div></div>
+  <div class="mu-cal">
+    <div class="mu-hd"><div></div>${["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"].map((n, i) => `<div class="${i > 4 ? "we" : ""}">${n}</div>`).join("")}</div>
+    ${Array.from({ length: NSEM }, (_, w) => { const ds = dias.slice(w * 7, w * 7 + 7); const n = ds.reduce((s, d) => s + M[d].length, 0); const actual = ds.includes(hoyI); return `
+    <div class="mu-sem ${actual ? "actual" : ""}"><div class="mu-sl"><b>S${semanaISO(pd(ds[0]))}</b><span>${fcorta(ds[0])}<em class="mu-gu"> – </em><br>${fcorta(ds[6])}</span><small>${n || "—"}${n ? " mov." : ""}</small></div>
+      ${ds.map((d, i) => { const ch = choques(d); const dd = pd(d); return `<div class="mu-d ${i > 4 ? "we" : ""} ${d === hoyI ? "hoy" : ""} ${d < hoyI ? "pas" : ""} ${M[d].length ? "" : "vacio"}">
+        <div class="mu-dn"><span class="mu-dw">${["L", "M", "X", "J", "V", "S", "D"][i]}</span><b>${dd.getDate()}</b>${dd.getDate() === 1 || (w === 0 && i === 0) ? `<span class="mu-mes">${MES3[dd.getMonth()]}</span>` : ""}${d === hoyI ? `<span class="mu-hoy">Hoy</span>` : ""}${ch.size ? `<span class="mu-ch" title="Horas que coinciden">⚠</span>` : ""}</div>
+        ${M[d].map(x => tarjeta(x, ch)).join("")}</div>`; }).join("")}</div>`; }).join("")}
+  </div>`;
 }
