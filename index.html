@@ -2,6 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
+<script>try{if(JSON.parse(localStorage.getItem("doinn_tema"))==="oscuro")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#131E29">
 <meta name="robots" content="noindex, nofollow">
@@ -13,10 +14,8 @@
 <link rel="stylesheet" href="app.css">
 </head>
 <body>
-<header class="top">
-  <a class="logo" href="#/"><img src="logo-white.svg" alt="DOINN"></a>
-  <div id="me" class="me"></div>
-</header>
+<header class="top" id="top"><a class="logo" href="#/"><img src="logo-white.svg" alt="DOINN"></a></header>
+<div class="hpeek" id="hpeek" title="Mostrar cabecera"></div>
 <main id="app"><div class="loading">Cargando…</div></main>
 <nav class="tabs" id="tabs">
   <a href="#/" data-t="proyectos"><svg class="ic" viewBox="0 0 24 24"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>Proyectos</a>

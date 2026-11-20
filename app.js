@@ -10,10 +10,10 @@ const { vDespiece, vElementoForm } = await import("./despiece.js" + V);
 const { vCarga, vRetorno, vMuelle } = await import("./carga.js" + V);
 const { vPlan, vEquipo, vTv } = await import("./plan.js" + V);
 const { COL_COM, estadoCom, confirmado, riesgos, neonOn } = await import("./estados.js" + V);
+const { iniciaCabecera, pintaUsuario, pintaNav } = await import("./cabecera.js" + V);
 
 const sb = createClient(CONFIG.url, CONFIG.anonKey, { auth: { persistSession: true, detectSessionInUrl: true } });
 const $app = document.getElementById("app");
-const $me = document.getElementById("me");
 const S = { user: null, perfil: null, proyectos: [], elementos: [], operarios: [], verCerrados: false, q: "" };
 
 // ---------- utilidades ----------
@@ -63,7 +63,7 @@ async function autoArchivar() {
   const { error } = await sb.from("proyectos").update({ estado: "Cerrado" }).in("id", viejos.map(p => p.id));
   if (!error) viejos.forEach(p => p.estado = "Cerrado");
 }
-const ctx = () => ({ $app, S, sb, esc, toast, puede, recargar: cargar, stats, salud, fd, dias });
+const ctx = () => ({ $app, S, sb, esc, toast, puede, recargar: cargar, stats, salud, fd, dias, cabNav: pintaNav });
 function stats(pid) {
   const els = S.elementos.filter(x => x.proyecto_id === pid);
   const n = els.length;
@@ -85,15 +85,19 @@ function salud(p, st) {
 // ---------- vistas ----------
 function vLogin(msg = "") {
   document.body.classList.add("noauth");
-  $me.innerHTML = "";
+  pintaUsuario(); pintaNav(null);
   $app.innerHTML = `<div class="auth">
     <img class="logo-b" src="logo-navy.svg" alt="DOINN">
-    <p>Entra con tu email y tu contraseña. Si te han invitado y es la primera vez, pulsa «Crear cuenta» con el email de la invitación.</p>
-    <form id="f"><input id="em" type="email" required placeholder="tu@email.com" autocomplete="email">
-    <input id="pw" type="password" required minlength="8" placeholder="Contraseña (mínimo 8 caracteres)" autocomplete="current-password" style="margin-top:0">
-    <button class="btn" id="bin">Entrar</button>
-    <button class="btn ghost" id="bup" type="button" style="margin-top:8px">Crear cuenta</button></form>
-    <p id="msg">${esc(msg)}</p><button class="link" id="bolv" type="button">¿Has olvidado la contraseña?</button></div>`;
+    <h2 class="auth-t">Acceso a la plataforma<span class="us">_</span></h2>
+    <form id="f" class="frm">
+      <label>Usuario<input id="em" type="email" required placeholder="nombre@doinn.es" autocomplete="username"></label>
+      <label>Contraseña<span class="pwbox"><input id="pw" type="password" required minlength="8" placeholder="Mínimo 8 caracteres" autocomplete="current-password"><button type="button" class="pweye" id="beye" aria-label="Mostrar contraseña" title="Mostrar contraseña"><svg viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button></span></label>
+      <div class="auth-olv"><button class="link" id="bolv" type="button">¿Has olvidado tu contraseña?</button></div>
+      <button class="btn" id="bin">Entrar</button>
+      <p id="msg" class="auth-msg">${esc(msg)}</p>
+      <div class="auth-inv">¿Te han invitado y es tu primera vez? <button class="link" id="bup" type="button">Activa tu cuenta</button></div>
+    </form></div>`;
+  document.getElementById("beye").onclick = () => { const i = document.getElementById("pw"); i.type = i.type === "password" ? "text" : "password"; };
   const m = t => document.getElementById("msg").textContent = t;
   const datos = () => ({ email: document.getElementById("em").value.trim().toLowerCase(), password: document.getElementById("pw").value });
   const traduce = e => /Invalid login/i.test(e.message) ? "Email o contraseña incorrectos." : /already registered/i.test(e.message) ? "Ese email ya tiene cuenta: pulsa «Entrar»." : /least 8|Password should/i.test(e.message) ? "La contraseña debe tener al menos 8 caracteres." : /Database error|SIN_INVITACION/i.test(e.message) ? "Ese email no tiene invitación. Pide acceso a un administrador de Doinn." : e.message;
@@ -233,7 +237,7 @@ async function vUsuarios() {
   const leeChecks = (el, pref) => [...el.querySelectorAll(`[data-${pref}]`)].filter(c => c.checked).map(c => c.dataset[pref]);
   const yo = S.user.id;
   $app.innerHTML = `<h1>Usuarios</h1>
-  <p class="hint">Solo entran las personas invitadas. Invita con su email, elige el rol y qué páginas ve. Después envíale el enlace de la app: entra con «Crear cuenta» usando ese mismo email.</p>
+  <p class="hint">Solo entran las personas invitadas. Invita con su email, elige el rol y qué páginas ve. Después envíale el enlace de la app: entra con «Activa tu cuenta» usando ese mismo email.</p>
   <form id="finv" class="card frm"><h2>+ Invitar</h2>
     <div class="two"><label>Email<input id="iem" type="email" required placeholder="nombre@doinn.es"></label>
     <label>Nombre<input id="inom" placeholder="Nombre y primer apellido"></label></div>
@@ -278,6 +282,7 @@ function vProximamente(t) {
 // ---------- router ----------
 async function route() {
   if (!S.user) return;
+  pintaNav(null);
   const h = location.hash.replace(/^#\/?/, "").split("/");
   document.querySelectorAll("#tabs a").forEach(a => a.classList.toggle("on", (a.dataset.t === (h[0] || "proyectos")) || (h[0] === "p" && a.dataset.t === "proyectos")));
   document.querySelectorAll("#tabs a").forEach(a => a.hidden = !ver(a.dataset.t));
@@ -298,6 +303,7 @@ async function route() {
   return vProyectos();
 }
 window.addEventListener("hashchange", route);
+iniciaCabecera({ S, sb, esc, toast, puede, rerender: () => route() });
 
 async function arrancar(session) {
   S.user = session?.user || null;
@@ -305,9 +311,7 @@ async function arrancar(session) {
   document.body.classList.remove("noauth");
   const { data: perfil } = await sb.from("perfiles").select("*").eq("user_id", S.user.id).maybeSingle();
   S.perfil = perfil;
-  const ini = (S.user.email || "?")[0].toUpperCase();
-  $me.innerHTML = `${puede("superadmin") ? `<a href="#/usuarios" style="font-size:12px;color:#cfd6d6">Usuarios</a>` : ""}<span class="av">${ini}</span><button id="out">Salir</button>`;
-  document.getElementById("out").onclick = async () => { await sb.auth.signOut(); location.hash = ""; location.reload(); };
+  pintaUsuario();
   if (!perfil || !perfil.aprobado) return vPendiente();
   try { await cargar(); } catch (e) { $app.innerHTML = `<div class="empty">Error cargando datos: ${esc(e.message)}</div>`; return; }
   route();

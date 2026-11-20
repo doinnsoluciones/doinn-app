@@ -17,6 +17,8 @@ const FASE2COD = { Montaje: "MO", Desmontaje: "DM", "Fábrica": "FA" };
 
 const iso = d => d.toLocaleDateString("sv-SE");
 const pd = s => s ? new Date(s + "T00:00:00") : null;
+const MESES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+const rotuloMeses = (a, b) => { const x = pd(a), y = pd(b); if (x.getMonth() === y.getMonth() && x.getFullYear() === y.getFullYear()) return `${MESES[x.getMonth()]} ${x.getFullYear()}`; const m = d => MESES[d.getMonth()].slice(0, 3); return x.getFullYear() === y.getFullYear() ? `${m(x)} – ${m(y)} ${y.getFullYear()}` : `${m(x)} ${x.getFullYear()} – ${m(y)} ${y.getFullYear()}`; };
 const suma = (s, n) => { const d = pd(s); d.setDate(d.getDate() + n); return iso(d); };
 const lunes = d => { const x = new Date(d); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; };
 const enR = (dia, a, b) => a && dia >= a && dia <= (b || a);
@@ -127,8 +129,6 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
   const nav = tv ? "" : `<div class="pnav">
     <div class="seg2"><a href="#/plan/proyectos/${d0}" class="${modo === "proyectos" ? "on" : ""}">Proyectos</a><a href="#/plan/personal/${d0}" class="${modo === "personal" ? "on" : ""}">Personal</a>${admin ? `<a href="#/plan/stats">Estadísticas</a>` : ""}</div>
     <div class="row">
-      <div class="zoom" title="Zoom: más o menos días a la vista"><button class="btn sm ghost" id="zmenos" ${S.zoom === 0 ? "disabled" : ""}>−</button><span>${NDIAS === 14 ? "2 sem" : NDIAS === 28 ? "4 sem" : NDIAS === 42 ? "6 sem" : "12 sem"}</span><button class="btn sm ghost" id="zmas" ${S.zoom === ZOOM.length - 1 ? "disabled" : ""}>+</button></div>
-      <a class="btn sm ghost" href="#/plan/${modo}/${suma(d0, -paso)}">‹</a><a class="btn sm ghost" href="#/plan/${modo}">Hoy</a><a class="btn sm ghost" href="#/plan/${modo}/${suma(d0, paso)}">›</a>
       <a class="btn sm ghost" href="#/tv" title="Pantalla de taller: a pantalla completa y se actualiza sola">📺</a></div>
   </div>`;
 
@@ -187,7 +187,7 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
           const fz = ["MO", "DM"].includes(x.cod) && esFestivo(dias[i], D.fest);
           const tit = [lab + (x.p ? " · " + x.p.nombre : ""), x.src, x.nota, x.quien || x.cuando ? `${x.quien || "—"} · ${cuando(x.cuando)}` : ""].filter(Boolean).join("\n");
           const txt = ini ? (x.p ? corto(x.p.nombre, Math.max(3, Math.floor(span * (ANCHO || 40) / 7))) : (span * (ANCHO || 40) >= 60 ? lab : x.cod)) : "";
-          const st = x.cod === "PV" ? `border:2px dashed ${col};color:var(--ink);background:#fff` : `background:${col};${["LB", "LIC", "FA"].includes(x.cod) ? "color:var(--ink)" : ""}`;
+          const st = x.cod === "PV" ? `border:2px dashed ${col};color:var(--ink);background:var(--card)` : `background:${col};${["LB", "LIC", "FA"].includes(x.cod) ? "color:var(--ink)" : ""}`;
           const nx = info[i + 1], ult = !nx || nx.cod !== x.cod || (nx.p && nx.p.id) !== (x.p && x.p.id);
           return `<div class="cx ${fz ? "fz" : ""} ${ini ? "ini" : ""} ${ult ? "ult" : ""}" style="grid-column:${i + 2};${st}" title="${esc(tit)}">${esc(txt)}</div>`;
         }).join("");
@@ -197,7 +197,8 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
     }).join("") || `<div class="empty">Nadie coincide con el filtro.</div>`;
   }
 
-  const ajustes = tv ? "" : `<label class="neon-t"><input type="checkbox" id="bneon" ${neon ? "checked" : ""}> Avisos parpadeantes</label>`;
+  const ajustes = "";
+  if (!tv && ctx.cabNav) ctx.cabNav({ label: rotuloMeses(d0, d1), prev: `#/plan/${modo}/${suma(d0, -paso)}`, next: `#/plan/${modo}/${suma(d0, paso)}`, hoy: `#/plan/${modo}` });
   const cols = tv ? "190px repeat(28,1fr)" : `150px repeat(${NDIAS},${Math.max(ANCHO, Math.floor((($app.clientWidth || 1000) - 152) / NDIAS))}px)`;
   $app.innerHTML = `${tv ? `<div class="tvhead"><b>Planificación · ${modo === "proyectos" ? "Proyectos" : "Personal"}</b><span>${new Date().toLocaleString("es-ES", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}</span><a href="#/plan" class="btn sm ghost">Salir</a></div>` : `<h1>Planificación</h1>`}
   ${nav}${filtros}${ayuda}<div class="ley">${leyenda}${ajustes}</div>
@@ -210,10 +211,6 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
   else { const h = $app.querySelector(".gd.hoy"); if (w && h && !tv) w.scrollLeft = Math.max(0, h.offsetLeft - 150 - (ANCHO * 3)); }
   if (tv) return D;
 
-  const zoomA = dz => { S.zoom = Math.min(ZOOM.length - 1, Math.max(0, S.zoom + dz)); lsSet("doinn_plan_zoom", S.zoom); vPlan(ctx, modo, ini, opt); };
-  $("zmenos").onclick = () => zoomA(-1);
-  $("zmas").onclick = () => zoomA(1);
-  const bn = $("bneon"); if (bn) bn.onchange = () => { setNeon(bn.checked); re({ scroll: w.scrollLeft }); };
   if (modo === "proyectos") {
     $("pfront").onchange = e => { S.planFront = e.target.value; re(); };
     $app.querySelectorAll("[data-est]").forEach(b => b.onclick = () => { const e = b.dataset.est; S.planEst = S.planEst.includes(e) ? S.planEst.filter(x => x !== e) : [...S.planEst, e]; lsSet("doinn_plan_estados", S.planEst); re(); });
@@ -363,9 +360,10 @@ async function vStats(ctx, anio) {
     return { o, c };
   }).filter(f => COLS.some(([k]) => f.c[k]));
   const tot = {}; COLS.forEach(([k]) => tot[k] = filas.reduce((s, f) => s + f.c[k], 0));
+  if (ctx.cabNav) ctx.cabNav({ label: String(y), prev: `#/plan/stats/${y - 1}`, next: `#/plan/stats/${y + 1}`, hoy: `#/plan/stats` });
   $app.innerHTML = `<h1>Planificación</h1>
   <div class="pnav"><div class="seg2"><a href="#/plan/proyectos">Proyectos</a><a href="#/plan/personal">Personal</a><a class="on">Estadísticas</a></div>
-    <div class="row"><a class="btn sm ghost" href="#/plan/stats/${y - 1}">‹ ${y - 1}</a><b>${y}</b><a class="btn sm ghost" href="#/plan/stats/${y + 1}">${y + 1} ›</a><button class="btn sm ghost" id="bcsv">Descargar CSV</button></div></div>
+    <div class="row"><button class="btn sm ghost" id="bcsv">Descargar CSV</button></div></div>
   <p class="hint">Días por persona en ${y}${y === new Date().getFullYear() ? ` (incluye lo planificado después de hoy, ${hoy.split("-").reverse().join("/")})` : ""}. Cuenta asignaciones, ausencias y lo pintado con el pincel. «En festivo / finde» = días de montaje o desmontaje en sábado, domingo o festivo.</p>
   <div class="gwrap"><table class="stats"><thead><tr><th>Persona</th>${COLS.map(([, l]) => `<th>${l}</th>`).join("")}</tr></thead>
   <tbody>${filas.map(f => `<tr><td><b>${esc(f.o.nombre)}</b><span class="code"> ${esc(f.o.grupo || "")}</span></td>${COLS.map(([k]) => `<td class="${k === "F" && f.c[k] ? "fzt" : ""}">${f.c[k] || ""}</td>`).join("")}</tr>`).join("") || `<tr><td colspan="${COLS.length + 1}" class="code">Sin datos en ${y}.</td></tr>`}</tbody>
