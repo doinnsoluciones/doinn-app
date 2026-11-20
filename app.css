@@ -648,3 +648,8 @@ table.cart tr.mes .tg{display:inline-block;width:14px;color:var(--muted2)}
 table.cart tfoot td{position:sticky;bottom:0;background:var(--card);z-index:2}
 @media(max-width:900px){.cmes{grid-template-columns:repeat(6,minmax(0,1fr))}}
 @media(max-width:520px){.cmes{grid-template-columns:repeat(3,minmax(0,1fr))}.cm b{font-size:13px}}
+table.cart select.cfr{border-left:4px solid var(--c);background:color-mix(in srgb,var(--c) 10%,transparent);font-weight:600}
+table.cart tbody tr:not(.mes) td:first-child{box-shadow:inset 4px 0 0 var(--fc,transparent)}
+table.cart tr.canc select.cfr{background:transparent;font-weight:400}
+.cleg{gap:6px;margin-bottom:6px}
+.cleg .chip i{width:10px;height:10px}

@@ -17,6 +17,9 @@ export async function vCartera(ctx) {
   if (error) { $app.innerHTML = `<div class="empty">No se pudo leer la cartera: ${esc(error.message)}</div>`; return; }
   const C = new Map(com.map(c => [c.proyecto_id, c]));
   const fronts = S.operarios.filter(o => o.grupo === "Fronts" && o.activo !== false).sort((a, b) => a.nombre.localeCompare(b.nombre));
+  const PAL = ["#2E7CF6", "#E8833A", "#8B5CF6", "#16A085", "#D9467A", "#C9A227", "#0EA5C6", "#7C9A2E"];
+  const colF = new Map(fronts.slice().sort((a, b) => a.id - b.id).map((f, i) => [f.id, PAL[i % PAL.length]]));
+  const cF = p => colF.get(p.front_id) || "#A0A8B0";
   const yo = S.perfil.operario_id && fronts.find(f => f.id === S.perfil.operario_id);
   S.cart = S.cart || { anio: String(new Date().getFullYear()), front: yo ? String(yo.id) : "", est: ls.get("doinn_cart_est", ["Confirmado", "Pendiente"]), q: "", cli: "", meses: [], desde: "", hasta: "", ord: "fecha", dir: 1, pleg: ls.get("doinn_cart_pleg", []) };
   const st = S.cart;
@@ -61,10 +64,10 @@ export async function vCartera(ctx) {
       return `<button class="cm ${st.meses.includes(mm) ? "on" : ""} ${clave === mesHoy ? "hoy" : ""} ${clave > mesHoy ? "fut" : ""}" data-mes="${mm}" title="Filtrar ${n}">
         <span>${n.slice(0, 3)}</span><b>${ps.length ? eur(suma(ps, v)) : "—"}</b><small>${re ? `${re} realizado${re > 1 ? "s" : ""}` : ""}${re && prev ? " · " : ""}${prev ? `${prev} previsto${prev > 1 ? "s" : ""}` : ""}${!ps.length ? "sin eventos" : ""}</small></button>`;
     }).join("")}</div>`;
-    const selFront = p => `<select data-f="front" data-id="${p.id}"><option value="">${p.front_id ? "—" : esc(p.front_nombre || "—")}</option>${fronts.map(f => `<option value="${f.id}" ${p.front_id === f.id ? "selected" : ""}>${esc(f.nombre)}</option>`).join("")}</select>`;
+    const selFront = p => `<select data-f="front" data-id="${p.id}" class="cfr" style="--c:${cF(p)}"><option value="">${p.front_id ? "—" : esc(p.front_nombre || "—")}</option>${fronts.map(f => `<option value="${f.id}" ${p.front_id === f.id ? "selected" : ""}>${esc(f.nombre)}</option>`).join("")}</select>`;
     const fila = p => {
       const vv = v(p), kk = k(p), mg = vv != null && kk != null ? vv - kk : null;
-      return `<tr class="${p.estado_com === "Cancelado" ? "canc" : ""}">
+      return `<tr class="${p.estado_com === "Cancelado" ? "canc" : ""}" style="--fc:${cF(p)}">
         <td><input type="date" data-f="fecha" data-id="${p.id}" value="${p.evento_inicio || ""}"></td>
         <td class="cn"><a href="#/p/${p.id}">${esc(p.nombre || p.codigo)}</a><small class="code">${esc(p.codigo)}</small></td>
         <td><input data-f="cliente" data-id="${p.id}" value="${esc(p.cliente || "")}"></td>
@@ -100,6 +103,7 @@ export async function vCartera(ctx) {
       <label class="cdate">Hasta<input type="date" id="chas" value="${st.hasta}"></label>
       <input id="cq" class="cq" placeholder="Buscar proyecto, código o cliente…" value="${esc(st.q)}">
     </div>
+    <div class="cart-fil cleg">${fronts.map(f => `<button class="chip sm ${String(f.id) === st.front ? "on" : ""}" data-fr="${f.id}"><i style="background:${colF.get(f.id)}"></i>${esc(f.nombre.split(" ")[0])}</button>`).join("")}<button class="chip sm ${st.front === "otros" ? "on" : ""}" data-fr="otros"><i style="background:#A0A8B0"></i>Externos y antiguos</button></div>
     <div class="cart-fil">
       ${FILTROS.map(([f]) => `<button class="chip sm ${st.est.includes(f) ? "on" : ""}" data-est="${f}">${f}</button>`).join("")}
       ${st.meses.length ? `<span class="cfm">Meses: ${st.meses.map(m => MESES[+m - 1].slice(0, 3)).join(", ")}</span>` : ""}
@@ -117,6 +121,7 @@ export async function vCartera(ctx) {
     alto(); window._cartAlto = alto; if (!window._cartRs) { window._cartRs = 1; addEventListener("resize", () => document.querySelector(".cart-wrap") && window._cartAlto()); } if (w) w.scrollTop = scroll;
     $("canio").onchange = e => { st.anio = e.target.value; st.meses = []; pinta(); };
     $("cfront").onchange = e => { st.front = e.target.value; pinta(); };
+    $app.querySelectorAll("[data-fr]").forEach(b => b.onclick = () => { st.front = st.front === b.dataset.fr ? "" : b.dataset.fr; pinta(); });
     $("ccli").onchange = e => { st.cli = e.target.value; pinta(); };
     $("cdes").onchange = e => { st.desde = e.target.value; pinta(); };
     $("chas").onchange = e => { st.hasta = e.target.value; pinta(); };
