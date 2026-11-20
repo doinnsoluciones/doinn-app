@@ -1,6 +1,6 @@
 // Pestaña Elementos del proyecto y detalle de elemento (fases, piezas, subelementos)
 const V = new URL(import.meta.url).search;
-const { origenTxt, medidasTxt, ralChips } = await import("./despiece.js" + V);
+const { origenTxt, medidasTxt, ralChips, ordenEl } = await import("./despiece.js" + V);
 const ORD = ["Corte", "Carpintería", "Cerrajería", "Pintura"];
 const tiene = (lista, f) => (lista || "").includes("|" + f + "|");
 const fasesDe = x => ORD.filter(f => tiene(x.fases, f));
@@ -13,7 +13,7 @@ async function datosProyecto(sb, pid) {
     sb.from("subelementos").select("*").eq("proyecto_id", pid).order("num_sub"),
   ]);
   for (const r of [e, pz, sub]) if (r.error) throw r.error;
-  return { els: e.data, pz: pz.data, sub: sub.data };
+  return { els: e.data.sort(ordenEl), pz: pz.data, sub: sub.data };
 }
 
 function estadoPill(x) {

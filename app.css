@@ -527,3 +527,14 @@ dd.coord{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
 .ralbox{display:flex;flex-wrap:wrap;align-items:center;gap:4px;min-height:42px;margin-top:4px;padding:4px 8px;border:1px solid var(--line);border-radius:10px;background:var(--card);cursor:text}
 .frm .ralbox input{border:0;outline:none;height:30px;margin:0;padding:0 4px;flex:1;min-width:120px;width:auto;background:transparent;display:inline-block}
 .ralbox:focus-within{border-color:var(--lime-d)}
+/* reordenar despiece */
+.ordhead{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px;position:sticky;top:60px;z-index:5}
+.ro{display:flex;align-items:center;gap:10px;background:var(--card);border-radius:12px;padding:8px 10px;margin-bottom:6px;border:1px solid var(--line);cursor:grab;user-select:none}
+.ro b{font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ro .hdl{color:var(--muted);font-size:18px;line-height:1}
+.ro.drag{opacity:.4}
+.ro.sobre-arr{box-shadow:0 -3px 0 var(--lime)}
+.ro.sobre-abj{box-shadow:0 3px 0 var(--lime)}
+.ro-b{display:flex;gap:4px}
+.ro-b button{width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:var(--card);color:var(--ink);font-size:12px}
+.ro-b button:disabled{opacity:.3}

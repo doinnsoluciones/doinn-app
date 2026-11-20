@@ -28,6 +28,8 @@ function cajaRal(box, valor, cambia) {
   box.onclick = e => { if (e.target === box) box.querySelector("input").focus(); };
   pinta();
 }
+// Orden visual del despiece (columna «orden»); sin orden, por número de elemento y al final
+export const ordenEl = (a, b) => (a.orden ?? 1e6 + (a.num_item || 0)) - (b.orden ?? 1e6 + (b.num_item || 0));
 // Medidas en orden alto × ancho × fondo (el fondo se guarda en la columna «largo»)
 export const medidasTxt = x => (x.alto || x.ancho || x.largo) ? `${x.alto || "–"} × ${x.ancho || "–"} × ${x.largo || "–"} mm` : "";
 
@@ -43,11 +45,11 @@ async function leer(sb, pid) {
     sb.from("piezas").select("id,elemento_id,num_pieza,fabricada,cargada").eq("proyecto_id", pid),
   ]);
   for (const r of [e, s, z]) if (r.error) throw r.error;
-  return { els: e.data, subs: s.data, pz: z.data };
+  return { els: e.data.sort(ordenEl), subs: s.data, pz: z.data };
 }
 
 // ---------- lista ----------
-export async function vDespiece(ctx, p, cont) {
+export async function vDespiece(ctx, p, cont, reordenar = false) {
   const { sb, esc, toast, puede } = ctx;
   const edita = puede("admin");
   cont.innerHTML = `<div class="loading">Cargando despiece…</div>`;
@@ -58,6 +60,7 @@ export async function vDespiece(ctx, p, cont) {
     <button class="btn lime" id="dnew">+ Nuevo elemento</button>
     <label class="btn ghost" for="fxl">Importar listado Excel</label><input type="file" id="fxl" accept=".xlsx,.xls" hidden>
   </div>` : ""}
+  ${edita && d.els.length > 1 ? `<div class="row" style="justify-content:flex-end;margin:8px 0 0"><button class="btn sm ghost" id="dreord">↕ Reordenar elementos</button></div>` : ""}
   ${d.els.length ? `<a class="btn ghost wide" target="_blank" rel="noopener" href="${urlEtiquetas(p, d.els)}">Imprimir etiquetas QR del proyecto (${totalQR})</a>` : ""}
   <div style="height:10px"></div>
   ${d.els.map(x => { const ss = d.subs.filter(s => s.elemento_id === x.id); const fs = (x.fases || "").split("|").filter(Boolean); return `
@@ -70,8 +73,43 @@ export async function vDespiece(ctx, p, cont) {
     </div>`; }).join("") || `<div class="empty">Este proyecto aún no tiene despiece. Crea los elementos o importa el listado Excel de oficina técnica.</div>`}`;
   cont.querySelectorAll(".card.desp").forEach(c => c.onclick = () => location.hash = c.dataset.href);
   cont.querySelectorAll("[data-copia]").forEach(b => b.onclick = e => { e.stopPropagation(); location.hash = `#/p/${p.id}/desp/copia-${b.dataset.copia}`; });
+  const br = document.getElementById("dreord"); if (br) br.onclick = () => modoOrden(ctx, p, cont, d);
   const nb = document.getElementById("dnew"); if (nb) nb.onclick = () => location.hash = `#/p/${p.id}/desp/nuevo`;
   const fx = document.getElementById("fxl"); if (fx) fx.onchange = () => importar(ctx, p, fx.files[0], d).then(() => vDespiece(ctx, p, cont));
+}
+
+// ---------- reordenar (arrastrar o flechas); no cambia referencias ni QR ----------
+function modoOrden(ctx, p, cont, d) {
+  const { sb, esc, toast } = ctx;
+  const lista = d.els.slice();
+  let arrastra = null;
+  const pinta = () => {
+    cont.innerHTML = `<div class="card ordhead"><div><b>Reordenar elementos</b><div class="code">Arrastra cada fila (⠿) o usa las flechas. Solo cambia el orden en pantalla: las referencias y las etiquetas QR no cambian.</div></div>
+      <div class="row" style="gap:8px"><button class="btn sm ghost" id="ocan">Cancelar</button><button class="btn sm lime" id="ook">Guardar orden</button></div></div>
+      <div id="olist">${lista.map((x, i) => `<div class="ro" draggable="true" data-i="${i}"><span class="hdl" title="Arrastrar">⠿</span><span class="num">${pad(x.num_item ?? 0)}</span><b>${esc(x.elemento)}</b><span class="code">×${x.cantidad || 1}</span>
+        <span class="ro-b"><button type="button" data-up="${i}" ${i === 0 ? "disabled" : ""} title="Subir">▲</button><button type="button" data-dn="${i}" ${i === lista.length - 1 ? "disabled" : ""} title="Bajar">▼</button></span></div>`).join("")}</div>`;
+    const mueve = (de, a) => { if (a < 0 || a >= lista.length || de === a) return; const [it] = lista.splice(de, 1); lista.splice(a, 0, it); pinta(); };
+    cont.querySelectorAll("[data-up]").forEach(b => b.onclick = () => mueve(+b.dataset.up, +b.dataset.up - 1));
+    cont.querySelectorAll("[data-dn]").forEach(b => b.onclick = () => mueve(+b.dataset.dn, +b.dataset.dn + 1));
+    cont.querySelectorAll(".ro").forEach(r => {
+      r.ondragstart = e => { arrastra = +r.dataset.i; r.classList.add("drag"); e.dataTransfer.effectAllowed = "move"; };
+      r.ondragend = () => r.classList.remove("drag");
+      r.ondragover = e => { e.preventDefault(); const b = r.getBoundingClientRect(); r.classList.toggle("sobre-arr", e.clientY < b.top + b.height / 2); r.classList.toggle("sobre-abj", e.clientY >= b.top + b.height / 2); };
+      r.ondragleave = () => r.classList.remove("sobre-arr", "sobre-abj");
+      r.ondrop = e => { e.preventDefault(); const i = +r.dataset.i, b = r.getBoundingClientRect(); let a = e.clientY < b.top + b.height / 2 ? i : i + 1; if (arrastra < a) a--; mueve(arrastra, a); };
+    });
+    document.getElementById("ocan").onclick = () => vDespiece(ctx, p, cont);
+    document.getElementById("ook").onclick = async () => {
+      const bt = document.getElementById("ook"); bt.disabled = true; bt.textContent = "Guardando…";
+      const cambios = lista.map((x, i) => ({ x, o: i + 1 })).filter(({ x, o }) => x.orden !== o);
+      for (let k = 0; k < cambios.length; k += 10) {
+        const res = await Promise.all(cambios.slice(k, k + 10).map(({ x, o }) => sb.from("elementos").update({ orden: o }).eq("id", x.id)));
+        const err = res.find(r => r.error); if (err) { toast("No se pudo guardar el orden: " + err.error.message); bt.disabled = false; bt.textContent = "Guardar orden"; return; }
+      }
+      toast("Orden guardado"); ctx.S.dirty = true; vDespiece(ctx, p, cont);
+    };
+  };
+  pinta();
 }
 
 // ---------- formulario de elemento ----------
@@ -83,7 +121,7 @@ export async function vElementoForm(ctx, p, eid) {
   // «copia-ID»: elemento nuevo con los datos de otro, para editar solo lo que cambia
   const copiaDe = String(eid).startsWith("copia-") ? d.els.find(e => e.id === +String(eid).slice(6)) : null;
   const nuevo = eid === "nuevo" || !!copiaDe;
-  const LIMPIA = ["id", "num_item", "referencia", "estado_doc", "estado_fab", "estado_carga", "fecha_doc", "por_doc", "operario_fab", "fases_hechas", "hist_fases", "incidencia", "camion", "orden_carga", "ubicacion_nave", "created_at", "updated_at"];
+  const LIMPIA = ["id", "num_item", "referencia", "estado_doc", "estado_fab", "estado_carga", "fecha_doc", "por_doc", "operario_fab", "fases_hechas", "hist_fases", "incidencia", "camion", "orden_carga", "ubicacion_nave", "orden", "created_at", "updated_at"];
   const sinCampos = (o, ks) => { const c = { ...o }; ks.forEach(k => delete c[k]); return c; };
   const x = copiaDe ? sinCampos(copiaDe, LIMPIA) : eid === "nuevo" ? { cantidad: 1, origen: "Fabricación", fases: "|Corte|Carpintería|" } : d.els.find(e => e.id === +eid);
   if (!x) { $app.innerHTML = `<div class="empty">Elemento no encontrado.</div>`; return; }
