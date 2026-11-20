@@ -538,3 +538,5 @@ dd.coord{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
 .ro-b{display:flex;gap:4px}
 .ro-b button{width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:var(--card);color:var(--ink);font-size:12px}
 .ro-b button:disabled{opacity:.3}
+.falta{color:var(--red);font-weight:600}
+.ok-t{color:var(--lime-d);font-weight:600}

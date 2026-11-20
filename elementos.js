@@ -1,6 +1,6 @@
 // Pestaña Elementos del proyecto y detalle de elemento (fases, piezas, subelementos)
 const V = new URL(import.meta.url).search;
-const { origenTxt, medidasTxt, ralChips, ordenEl } = await import("./despiece.js" + V);
+const { origenTxt, medidasTxt, ralChips, ordenEl, faltanFases } = await import("./despiece.js" + V);
 const ORD = ["Corte", "Carpintería", "Cerrajería", "Pintura"];
 const tiene = (lista, f) => (lista || "").includes("|" + f + "|");
 const fasesDe = x => ORD.filter(f => tiene(x.fases, f));
@@ -16,9 +16,10 @@ async function datosProyecto(sb, pid) {
   return { els: e.data.sort(ordenEl), pz: pz.data, sub: sub.data };
 }
 
-function estadoPill(x) {
+function estadoPill(x, subs = []) {
   if (x.estado_carga === "Cargado") return ["Cargado", "ok"];
   if (x.estado_fab === "Hecho") return ["Listo para carga", "ok"];
+  if (x.estado_doc === "Hecho" && (x.fases || subs.length) && !faltanFases(x, subs).length) return ["Fases terminadas · escanear QR", "info"];
   if (x.estado_fab === "En curso") return ["Fab · en curso", "warn"];
   if (x.estado_doc === "Hecho") return ["Pendiente fabricar", "info"];
   return ["Falta doc.", ""];
@@ -52,8 +53,8 @@ export async function vElementos(ctx, p, cont) {
   </div>
   <div class="chips">${filtros.map(([k, l, g]) => `<button class="chip ${k === f ? "on" : ""}" data-f="${k}">${l} · ${cnt(g)}</button>`).join("")}</div>
   ${els.filter(fn).map(x => {
-    const [sl, sc] = estadoPill(x);
     const pzs = d.pz.filter(z => z.elemento_id === x.id), subs = d.sub.filter(s => s.elemento_id === x.id);
+    const [sl, sc] = estadoPill(x, subs);
     return `<a class="card el" href="#/p/${p.id}/el/${x.id}">
       <div class="pj-top"><div><span class="num">${String(x.num_item ?? "").padStart(3, "0")}</span> <b>${esc(x.elemento || x.referencia)}</b> <span class="code">· ${x.cantidad || 1} ud${(x.cantidad || 1) > 1 ? "s" : ""}</span></div><span class="pill ${sc}">${sl}</span></div>
       <div class="pj-meta"><span>${esc(x.referencia || "")}</span>${medidasTxt(x) ? `<span>📐 ${medidasTxt(x)}</span>` : ""}${origenTxt(x.origen) === "Almacén" ? `<span class="pill info">Almacén</span>` : ""}${x.acabado ? `<span>${esc(x.acabado)}</span>` : ""}${x.ral ? `<span>${ralChips(x.ral, esc)}</span>` : ""}${pzs.length ? `<span>QR ${pzs.filter(z => z.fabricada).length}/${pzs.length}</span>` : ""}${subs.length ? `<span>Sub ${subs.filter(s => s.terminado).length}/${subs.length}</span>` : ""}${x.es_extra ? `<span class="pill warn">Extra</span>` : ""}${x.incidencia ? `<span class="pill bad">Incidencia</span>` : ""}</div>
@@ -88,14 +89,16 @@ export async function vElemento(ctx, p, eid) {
       <div class="sb"><div class="pj-top"><b>${titulo}</b><span class="pill ${hecho ? "ok" : estado === "En curso" ? "warn" : ""}">${hecho ? "✓ Hecho" : estado || "Pendiente"}</span></div>
       ${bloqueado ? `<div class="code">🔒 Se desbloquea cuando la fase anterior esté hecha</div>` : edita ? `<div class="row">${botones}</div>` : ""}${nota ? `<div class="code">${nota}</div>` : ""}</div>
     </div>`;
+  const faltan = faltanFases(x, subs);
   const docH = x.estado_doc === "Hecho", fabH = x.estado_fab === "Hecho", carH = x.estado_carga === "Cargado";
   const pasos = `<div class="card steps"><div class="code">${esc(x.revision ? "Rev. " + x.revision : "")}</div>
     ${paso("Documentación técnica", x.estado_doc, docH, false,
       docH ? `<button class="btn sm ghost" data-a="doc-undo">Deshacer</button>` : `${x.estado_doc !== "En curso" ? `<button class="btn sm ghost" data-a="doc-start">Empezar</button>` : ""}<button class="btn sm lime" data-a="doc-ok">Marcar hecho</button>`,
       x.fecha_doc && docH ? `Hecho ${new Date(x.fecha_doc).toLocaleDateString("es-ES")}${x.por_doc ? " · " + esc(x.por_doc) : ""}` : "")}
     ${paso("Fabricación", x.estado_fab, fabH, !docH,
-      fabH ? `<button class="btn sm ghost" data-a="fab-undo">Deshacer</button>` : `<button class="btn sm lime" data-a="fab-ok">Marcar hecho</button>`,
-      fabH && x.operario_fab ? "Cerrada por " + esc(x.operario_fab) : "")}
+      fabH && puede("admin") ? `<button class="btn sm ghost" data-a="fab-undo">Deshacer</button>` : "",
+      fabH ? (x.operario_fab ? "Fabricado (QR escaneado) · " + esc(x.operario_fab) : "Fabricado (QR escaneado)")
+        : faltan.length ? `<span class="falta">Falta: ${faltan.map(esc).join(" · ")}</span>` : `<span class="ok-t">✓ Todas las fases terminadas. Se marca como fabricado al escanear el QR de cada unidad.</span>`)}
     ${paso("Carga", x.estado_carga, carH, !fabH,
       carH ? `<button class="btn sm ghost" data-a="car-undo">Deshacer</button>` : `<button class="btn sm lime" data-a="car-ok">Marcar cargado</button>`, "")}
   </div>`;
@@ -108,13 +111,13 @@ export async function vElemento(ctx, p, eid) {
   };
 
   const piezasHtml = pzs.length ? `<div class="card"><div class="pj-top"><h2>Piezas y cajas</h2><span class="pill ${pzs.every(z => z.fabricada) ? "ok" : ""}">${pzs.filter(z => z.fabricada).length}/${pzs.length}</span></div>
-    <p class="hint">Cada unidad lleva su etiqueta QR. Se marca fabricada al escanearla (o tocando aquí) y cargada en la carga.</p>
+    <p class="hint">Cada unidad lleva su etiqueta QR. Se marca fabricada solo al escanearla en Escanear (cuando todas las fases están hechas) y cargada al escanearla en la carga.</p>
     ${pzs.map(z => `<div class="pz"><span class="num">P${z.num_pieza}</span><div class="pzb"><b>${esc(z.desc_pieza || x.elemento)}</b><div class="code">${esc(z.referencia)} · ${z.num_pieza}/${z.total_piezas}</div></div>
-      <button class="fzb ${z.fabricada ? "on" : ""}" data-pz="${z.id}" ${edita ? "" : "disabled"}>${z.fabricada ? "✓ Fabricada" : "Fabricada"}</button>
+      <span class="pill ${z.fabricada ? "ok" : ""}" data-pz="${z.id}" title="Se marca al escanear su QR">${z.fabricada ? "✓ Fabricada" : "Escanear QR"}</span>
       ${z.cargada ? `<span class="pill ok">Cargada</span>` : ""}</div>`).join("")}</div>` : "";
 
   const subsHtml = subs.length ? `<div class="card"><h2>Subelementos <small class="code">${subs.filter(s => s.terminado).length}/${subs.length} terminados</small></h2>
-    ${subs.map(s => `<div class="sub"><div class="pj-top"><div><b>${esc(s.desc_sub || s.titulo)}</b><div class="code">${[`${s.cantidad || 1} pieza${(s.cantidad || 1) > 1 ? "s" : ""}`, origenTxt(s.origen), s.acabado].filter(Boolean).map(esc).join(" · ")} ${ralChips(s.ral, esc)}</div></div><button class="fzb ${s.terminado ? "on" : ""}" data-term="${s.id}" ${edita ? "" : "disabled"}>${s.terminado ? "✓ Terminado" : "Terminado"}</button></div>
+    ${subs.map(s => `<div class="sub"><div class="pj-top"><div><b>${esc(s.desc_sub || s.titulo)}</b><div class="code">${[`${s.cantidad || 1} pieza${(s.cantidad || 1) > 1 ? "s" : ""}`, origenTxt(s.origen), s.acabado].filter(Boolean).map(esc).join(" · ")} ${ralChips(s.ral, esc)}</div></div>${fasesDe(s).length ? `<span class="pill ${s.terminado ? "ok" : ""}">${s.terminado ? "✓ Terminado" : `${fasesDe(s).filter(f => tiene(s.fases_hechas, f)).length}/${fasesDe(s).length} fases`}</span>` : `<button class="fzb ${s.terminado ? "on" : ""}" data-term="${s.id}" ${edita ? "" : "disabled"}>${s.terminado ? "✓ Listo" : "Marcar listo"}</button>`}</div>
       ${botonesFase(s, "s")}</div>`).join("")}</div>` : "";
 
   const fabHtml = !subs.length && fasesDe(x).length ? `<div class="card"><h2>Fabricación del elemento</h2>
@@ -154,8 +157,12 @@ export async function vElemento(ctx, p, eid) {
     const nueva = on ? h.replace("|" + f + "|", "|") : h + f + "|";
     const cambios = { fases_hechas: nueva, hist_fases: (obj.hist_fases || "") + `${ahora()} · ${on ? "Desmarca " : ""}${f} · ${yo}\n` };
     if (tabla === "elementos" && !on && x.estado_fab === "Pendiente") cambios.estado_fab = "En curso";
+    if (tabla === "subelementos") { const todas = fasesDe(obj).every(g => tiene(nueva, g)); if (todas !== !!obj.terminado) Object.assign(cambios, { terminado: todas, fecha_term: todas ? new Date().toISOString() : null, operario_term: todas ? yo : null }); }
+    if (on && x.estado_fab === "Hecho") return toast("El elemento ya está fabricado: deshaz la fabricación antes de desmarcar fases.");
     if (await upd(tabla, obj.id, cambios, on ? `${f} desmarcada` : `✓ ${f}`)) {
-      if (tabla === "elementos" && !on && fasesDe(x).every(g => g === f || tiene(nueva, g))) toast("Todas las fases hechas: escanea el QR de cada unidad.");
+      const subs2 = tabla === "subelementos" ? subs.map(k => k.id === obj.id ? { ...k, ...cambios } : k) : subs;
+      const x2 = tabla === "elementos" ? { ...x, fases_hechas: nueva } : x;
+      if (!on && !faltanFases(x2, subs2).length) toast("✓ Todas las fases terminadas: escanea el QR de cada unidad.");
       recarga();
     }
   });
@@ -164,17 +171,8 @@ export async function vElemento(ctx, p, eid) {
     const s = subs.find(k => k.id === +b.dataset.term), t = !s.terminado;
     if (await upd("subelementos", s.id, { terminado: t, fecha_term: t ? new Date().toISOString() : null, operario_term: t ? yo : null })) recarga();
   });
-  // pieza fabricada (sustituye al escaneo hasta tener el lector)
-  $app.querySelectorAll("[data-pz]").forEach(b => b.onclick = async () => {
-    const z = pzs.find(k => k.id === +b.dataset.pz), t = !z.fabricada;
-    if (t && subs.length && !subs.every(s => s.terminado)) return toast("Faltan subelementos por terminar.");
-    if (!(await upd("piezas", z.id, { fabricada: t, fecha_fab: t ? new Date().toISOString() : null, operario_fab: t ? yo : null }))) return;
-    const resto = pzs.filter(k => k.id !== z.id).every(k => k.fabricada);
-    if (t && resto && x.estado_doc === "Hecho" && x.estado_fab !== "Hecho") await upd("elementos", x.id, { estado_fab: "Hecho", fecha_fab: new Date().toISOString(), operario_fab: yo }, "Todas las unidades fabricadas: elemento listo para carga");
-    else if (!t && x.estado_fab === "Hecho") await upd("elementos", x.id, { estado_fab: "En curso", fecha_fab: null, operario_fab: null });
-    else if (t && x.estado_fab === "Pendiente") await upd("elementos", x.id, { estado_fab: "En curso" });
-    recarga();
-  });
+  // las unidades se marcan fabricadas solo al escanear su QR
+  $app.querySelectorAll("[data-pz]").forEach(b => b.onclick = () => toast(faltan.length ? "Falta: " + faltan.join(" · ") : "Se marca como fabricada al escanear su QR en Escanear."));
   const inc = document.getElementById("inc");
   inc.onchange = async () => { if (await upd("elementos", x.id, { incidencia: inc.checked }, inc.checked ? "Incidencia abierta" : "Incidencia cerrada")) recarga(); };
 }

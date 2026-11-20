@@ -1,5 +1,7 @@
 // Escanear: cámara del móvil, pistola Bluetooth (teclado + Enter) o código escrito a mano.
 // Entiende la etiqueta de unidad "DOINN|proyecto|REF|nombre|i/n", el código "REF-Pn" y la tarjeta de operario "T-####".
+const V = new URL(import.meta.url).search;
+const { faltanFases } = await import("./despiece.js" + V);
 const MODOS = [["fab", "Fabricar"], ["corte", "Cortar"], ["carga", "Cargar"]];
 let stream = null, loopId = null, detector = null, ultimo = { c: "", t: 0 };
 
@@ -130,8 +132,9 @@ async function procesa(ctx, raw) {
   if (st.modo === "fab") {
     if (x.estado_doc !== "Hecho") return resultado(ctx, false, "Falta la documentación técnica", nom);
     if (z.fabricada) return resultado(ctx, true, "Ya estaba fabricada", nom);
-    const { data: subs } = await sb.from("subelementos").select("id,terminado").eq("elemento_id", x.id);
-    if (subs && subs.length && !subs.every(s => s.terminado)) return resultado(ctx, false, "Faltan subelementos por terminar", `${subs.filter(s => s.terminado).length}/${subs.length} · ${nom}`);
+    const { data: subs } = await sb.from("subelementos").select("id,num_sub,desc_sub,fases,fases_hechas,terminado").eq("elemento_id", x.id).order("num_sub");
+    const falta = faltanFases(x, subs || []);
+    if (falta.length) return resultado(ctx, false, "Faltan fases por terminar", `Falta: ${falta.join(" · ")} · ${nom}`);
     await sb.from("piezas").update({ fabricada: true, fecha_fab: now, operario_fab: quien, cortada: true }).eq("id", z.id);
     const { data: todas } = await sb.from("piezas").select("id,fabricada").eq("elemento_id", x.id);
     const listas = todas.filter(k => k.fabricada || k.id === z.id).length;

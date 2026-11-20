@@ -28,6 +28,14 @@ function cajaRal(box, valor, cambia) {
   box.onclick = e => { if (e.target === box) box.querySelector("input").focus(); };
   pinta();
 }
+// Qué fases faltan para poder escanear el QR (elemento sin subelementos: sus fases; con subelementos: las de cada uno)
+const FASES_ORD = ["Corte", "Carpintería", "Cerrajería", "Pintura"];
+export function faltanFases(x, subs = []) {
+  const de = o => FASES_ORD.filter(f => tiene(o.fases, f));
+  const sin = o => de(o).filter(f => !tiene(o.fases_hechas, f));
+  if (!subs.length) { const m = sin(x); return m.length ? [m.join(", ")] : []; }
+  return subs.map(s => { const n = `S${s.num_sub || ""} ${s.desc_sub || ""}`.trim(); if (!de(s).length) return s.terminado ? null : `${n} (sin marcar como listo)`; const m = sin(s); return m.length ? `${n}: ${m.join(", ")}` : null; }).filter(Boolean);
+}
 // Orden visual del despiece (columna «orden»); sin orden, por número de elemento y al final
 export const ordenEl = (a, b) => (a.orden ?? 1e6 + (a.num_item || 0)) - (b.orden ?? 1e6 + (b.num_item || 0));
 // Medidas en orden alto × ancho × fondo (el fondo se guarda en la columna «largo»)
