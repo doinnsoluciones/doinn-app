@@ -80,6 +80,15 @@ function fondo(dias, fest) {
   const hoy = iso(new Date());
   return dias.map((d, i) => `<div class="bg ${esFestivo(d, fest) ? "we" : ""} ${d === hoy ? "hoy" : ""}" style="grid-column:${i + 2}"></div>`).join("");
 }
+// Barra continua que ocupa varios días (mismo estilo en Proyectos y en Personal)
+function barra(i, span, cols, txt, w, extra = "", attrs = "", izq = false) {
+  const bg = cols.length > 1 ? `linear-gradient(90deg,${cols[0]} 50%,${cols[1]} 50%)` : cols[0];
+  const fg = OSCURO.has(cols[0]) && (cols.length === 1 || OSCURO.has(cols[1])) ? "#131E29" : "#fff";
+  const ancho = span * w - 6, cw = cols.length > 1 ? 5.4 : 6.2;
+  const t = izq ? (ancho >= 44 ? txt.full : txt.abr) : txt.abr;
+  const cabe = t.length * cw + (izq ? 16 : 6) <= ancho || izq && ancho >= 44;
+  return `<div class="pc pcs" style="grid-column:${i + 2}/span ${span}"><div class="pl larga ${izq ? "izq" : ""} ${cols.length > 1 ? "dos" : ""} ${extra}" style="background:${bg};color:${fg}" ${attrs}>${cabe ? t : ""}</div></div>`;
+}
 // Píldora de un día: 1 o 2 colores, con abreviatura si cabe
 function pildora(cols, txt, w, extra = "", attrs = "") {
   const bg = cols.length > 1 ? `linear-gradient(90deg,${cols[0]} 50%,${cols[1]} 50%)` : cols[0];
@@ -179,13 +188,17 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
     filas = filaMov + ps.map(({ p, f }) => {
       const est = estadoCom(p), rs = riesgos(p, nElem(p.id));
       const cls = caido(p) ? "caido" : !confirmado(p) ? "prev" : "";
-      const pills = dias.map((d, i) => {
-        const hoyF = f.filter(([, a, b]) => enR(d, a, b));
-        if (!hoyF.length) return "";
-        const dos = hoyF.slice(0, 2);
-        const tit = hoyF.map(([fa, a, b]) => `${fa}: ${fd0(a)}${a !== b ? " → " + fd0(b) : ""}`).join("\n") + ` · ${est}`;
-        return `<div class="pc" style="grid-column:${i + 2}">${pildora(dos.map(x => COL[x[0]]), dos.map(x => ABR[x[0]]).join("/"), COLW, cls, `data-pid="${p.id}" title="${esc(p.nombre)}\n${esc(tit)}"`)}</div>`;
-      }).join("");
+      // Tramos de días seguidos con las mismas fases → una barra
+      const fd = dias.map(d => f.filter(([, a, b]) => enR(d, a, b)).slice(0, 2));
+      const clave = k => fd[k] ? fd[k].map(x => x[0]).join("/") : "";
+      let pills = "";
+      for (let k = 0; k < dias.length; k++) {
+        if (!fd[k].length || (k > 0 && clave(k - 1) === clave(k))) continue;
+        let span = 1; while (k + span < dias.length && clave(k + span) === clave(k)) span++;
+        const fs = fd[k];
+        const tit = fs.map(([fa, a, b]) => `${fa}: ${fd0(a)}${a !== b ? " → " + fd0(b) : ""}`).join("\n") + ` · ${est}`;
+        pills += barra(k, span, fs.map(x => COL[x[0]]), { abr: fs.map(x => ABR[x[0]]).join("/") }, COLW, cls, `data-pid="${p.id}" title="${esc(p.nombre)}\n${esc(tit)}"`);
+      }
       const sub = [p.codigo, p.front_nombre, p.transporte_ida].filter(Boolean).map(esc).join(" · ");
       return `<div class="gr"><div class="gn pj ${rs.length && neon ? "neon" : ""}" data-pid="${p.id}" title="${esc(p.nombre)}${rs.length ? "\n⚠ " + esc(rs.join("\n⚠ ")) : ""}">
         <b>${rs.length ? `<span class="warn-i">⚠</span>` : ""}${esc(p.nombre)}</b><span><i class="dot" style="background:${COL_COM[est]}"></i>${sub}</span></div>${fondo(dias, D.fest)}${pills}</div>`;
@@ -214,20 +227,14 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
           if (!x) return "";
           if (["MO", "DM"].includes(x.cod)) n++;
           const [lab, col, ab] = COD[x.cod] || ["?", "#ccc", "?"];
-          // Montaje / desmontaje de un proyecto: una barra por tramo con nombre y hora de inicio
-          const mismo = y => y && y.cod === x.cod && y.p && x.p && y.p.id === x.p.id;
-          if (["MO", "DM"].includes(x.cod) && x.p) {
-            if (mismo(info[i - 1])) return "";
-            let span = 1; while (mismo(info[i + span])) span++;
-            const hora = x.cod === "MO" ? x.p.hora_montaje : x.p.hora_desmontaje;
-            const txt = x.p.nombre + (hora ? " · " + hora : "");
-            const tit2 = [lab + " · " + x.p.nombre + (hora ? " · inicio " + hora : ""), x.src, x.nota, x.quien || x.cuando ? `${x.quien || "—"} · ${cuando(x.cuando)}` : ""].filter(Boolean).join("\n");
-            const fg = OSCURO.has(col) ? "#131E29" : "#fff";
-            if (span * COLW < 48) return `<div class="pc pcs" style="grid-column:${i + 2}/span ${span}">${pildora([col], ab, COLW, "", `title="${esc(tit2)}"`)}</div>`;
-            return `<div class="pc pcs" style="grid-column:${i + 2}/span ${span}"><div class="pl larga" style="background:${col};color:${fg}" title="${esc(tit2)}">${esc(txt)}</div></div>`;
-          }
-          const tit = [lab + (x.p ? " · " + x.p.nombre : ""), x.src, x.nota, x.quien || x.cuando ? `${x.quien || "—"} · ${cuando(x.cuando)}` : ""].filter(Boolean).join("\n");
-          return `<div class="pc" style="grid-column:${i + 2}">${pildora([col], ab, COLW, "", `title="${esc(tit)}"`)}</div>`;
+          // Días seguidos con el mismo código (y el mismo proyecto) → una barra
+          const mismo = y => y && y.cod === x.cod && (y.p && y.p.id) === (x.p && x.p.id);
+          if (mismo(info[i - 1])) return "";
+          let span = 1; while (mismo(info[i + span])) span++;
+          const conProy = ["MO", "DM"].includes(x.cod) && x.p;
+          const hora = conProy ? (x.cod === "MO" ? x.p.hora_montaje : x.p.hora_desmontaje) : "";
+          const tit = [lab + (x.p ? " · " + x.p.nombre : "") + (hora ? " · inicio " + hora : ""), x.src, x.nota, x.quien || x.cuando ? `${x.quien || "—"} · ${cuando(x.cuando)}` : ""].filter(Boolean).join("\n");
+          return barra(i, span, [col], { abr: ab, full: conProy ? x.p.nombre + (hora ? " · " + hora : "") : ab }, COLW, "", `title="${esc(tit)}"`, !!conProy);
         }).join("");
         const hits = marca && puedeFila(o) ? dias.map((d, i) => `<div class="hit" data-o="${o.id}" data-d="${d}" style="grid-column:${i + 2}"></div>`).join("") : "";
         return `<div class="gr" data-row="${o.id}"><div class="gn"><b>${esc(o.nombre)}</b><span>${esc(o.subgrupo === "Montaje" ? "Montaje" : o.puesto || "")}${n ? ` · ${n} d montaje` : ""}</span></div>${fondo(dias, D.fest)}${cel}${hits}</div>`;
