@@ -469,3 +469,11 @@ body.noauth .hd-nav{display:none}
 [data-theme=dark] .pill.info{color:#1DCAD3}
 
 .m-usu a{font-weight:700}
+/* estadísticas por grupo */
+table.stats .sth-g{font-size:10px;color:var(--muted2);text-align:center;border-bottom:0;padding-bottom:0;letter-spacing:.08em}
+table.stats .sep{border-left:2px solid var(--line)}
+table.stats th .sw2{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+table.stats tr.sgr td{background:var(--bg);font-weight:600;cursor:pointer;color:var(--ink)}
+table.stats tr.sgr td:first-child{background:var(--bg)}
+table.stats td.spn{padding-left:26px}
+table.stats th:not(:first-child),table.stats td:not(:first-child){text-align:center}

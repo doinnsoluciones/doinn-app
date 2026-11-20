@@ -16,6 +16,11 @@ const COD = {
   BA: ["Baja", "#E62643", "B"], LB: ["Libre", "#D5DCDC", "LB"],
 };
 const CON_PROY = ["MO", "DM", "PV", "RE"];
+// Leyenda y marcado: producción y resto (ausencias y formación)
+const COD_PROD = ["MO", "DM", "FA", "RE"], COD_OTROS = ["FO", "VA", "BA"];
+// Códigos retirados: la previsión se ve como montaje; licencia y libre no se muestran
+const normCod = c => c === "PV" ? "MO" : c === "LB" || c === "LIC" ? null : c;
+const ORDEN_PER = (a, b) => (a.grupo === "Taller" && b.grupo === "Taller" ? ((a.subgrupo === "Montaje") - (b.subgrupo === "Montaje")) : 0) || a.nombre.localeCompare(b.nombre);
 const AUS2COD = { Vacaciones: "VA", Baja: "BA", Curso: "FO", Otros: "LIC" };
 const FASE2COD = { Montaje: "MO", Desmontaje: "DM", "Fábrica": "FA" };
 
@@ -89,27 +94,28 @@ const esFestivo = (d, fest) => { const w = pd(d).getDay(); return w === 0 || w =
 function motorDias(S, D) {
   const J = new Map(D.jor.map(j => [j.operario_id + "|" + j.fecha, j]));
   const P = new Map(S.proyectos.map(p => [p.id, p]));
-  return (o, d) => {
+  const motor = (o, d) => {
     const j = J.get(o.id + "|" + d);
     if (j) return { cod: j.codigo, p: P.get(j.proyecto_id), quien: j.autor, cuando: j.actualizado, src: "Pintado a mano", nota: j.nota };
     const au = D.aus.find(a => a.operario_id === o.id && enR(d, a.desde, a.hasta));
     if (au) return { cod: AUS2COD[au.tipo] || "LIC", quien: au.registrado_por, cuando: au.created_at, src: "Ausencia: " + (au.tipo || "") };
     const as = D.asig.find(a => a.operario_id === o.id && enR(d, a.fecha_inicio, a.fecha_fin) && FASE2COD[a.fase]);
-    if (as) { const p = P.get(as.proyecto_id); return { cod: p && !confirmado(p) ? "PV" : FASE2COD[as.fase], p, quien: as.creado_por, cuando: as.created_at, src: "Asignación: " + as.fase }; }
+    if (as) { const p = P.get(as.proyecto_id); return { cod: FASE2COD[as.fase], p, quien: as.creado_por, cuando: as.created_at, src: "Asignación: " + as.fase }; }
     if (o.grupo === "Fronts") {
       const p = S.proyectos.find(x => x.front_id === o.id && !caido(x) && fasesProyecto(x).some(([f, a, b]) => f === "Montaje" && enR(d, a, b)));
-      if (p) return { cod: confirmado(p) ? "MO" : "PV", p, src: "Montaje de su proyecto" };
+      if (p) return { cod: "MO", p, src: "Montaje de su proyecto" + (confirmado(p) ? "" : " (sin confirmar)") };
     }
     return null;
   };
+  return (o, d) => { const x = motor(o, d); if (!x) return null; const c = normCod(x.cod); return c ? { ...x, cod: c } : null; };
 }
 
 // ---------- Planificación ----------
 // Zoom: nº de días visibles y ancho de columna
 const ZOOM = [[14, 64], [28, 44], [42, 30], [84, 17]];
 // Qué códigos puede marcar cada rol (el resto, solo SuperAdmin)
-const COD_TRABAJO = ["MO", "DM", "PV", "FA", "RE", "FO", "LB"];
-const COD_AUSENCIA = ["VA", "LIC", "BA"];
+const COD_TRABAJO = [...COD_PROD, "FO"];
+const COD_AUSENCIA = ["VA", "BA"];
 const GRUPOS_PER = [["Fronts", o => o.grupo === "Fronts"], ["Oficina técnica", o => o.grupo === "OT"], ["Taller y montaje", o => o.grupo === "Taller"], ["Externos", o => o.grupo === "Externos"]];
 
 export async function vPlan(ctx, modo, ini, opt = {}) {
@@ -140,7 +146,7 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
   const neon = neonOn();
   // Permisos de marcado en Personal
   const yo = S.perfil && S.perfil.operario_id, gestor = !!(S.perfil && S.perfil.gestiona_taller);
-  const misCodigos = superA || admin || gestor ? Object.keys(COD) : taller && yo ? COD_AUSENCIA : [];
+  const misCodigos = superA || admin || gestor ? [...COD_PROD, ...COD_OTROS] : taller && yo ? COD_AUSENCIA : [];
   const puedeFila = o => superA || ((admin || gestor) && (o.grupo === "Taller" || o.grupo === "Externos" || o.id === yo)) || (taller && o.id === yo);
   const marca = !tv && modo === "personal" && misCodigos.length > 0;
   const largo = ANCHO >= 40 ? 18 : ANCHO >= 30 ? 12 : 6;
@@ -186,14 +192,15 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
     }).join("") || `<div class="empty">No hay proyectos con estos filtros en estas fechas.</div>`;
   } else {
     const dia = motorDias(S, D);
-    const orden = (a, b) => (a.grupo === "Taller" && b.grupo === "Taller" ? ((a.subgrupo === "Montaje") - (b.subgrupo === "Montaje")) : 0) || a.nombre.localeCompare(b.nombre);
+    const orden = ORDEN_PER;
     const q = S.perQ.trim().toLowerCase();
     const activos = S.operarios.filter(o => o.activo !== false).filter(o => !q || o.nombre.toLowerCase().includes(q));
     if (!tv) filtros = `<div class="pfil">
       <input id="perq" class="perq" placeholder="Buscar persona…" value="${esc(S.perQ)}">
       <div class="ests"><button class="chip sm ${!S.perGrupo ? "on" : ""}" data-pg="">Todos</button>${GRUPOS_PER.map(([g]) => `<button class="chip sm ${S.perGrupo === g ? "on" : ""}" data-pg="${g}">${g}</button>`).join("")}</div>
     </div>`;
-    leyenda = Object.entries(COD).map(([k, [l, c]]) => `<span><i style="${k === "PV" ? `border:2px dashed ${c};background:transparent` : `background:${c}`}"></i>${l}</span>`).join("") + `<span><b class="fz-i">F</b> montaje en festivo</span>`;
+    const lg = cs => cs.map(k => `<span><i style="background:${COD[k][1]}"></i>${COD[k][0]}</span>`).join("");
+    leyenda = `<div class="ley1"><span class="code">Producción:</span>${lg(COD_PROD)}</div><div class="ley2"><span class="code">Ausencias y formación:</span>${lg(COD_OTROS)}</div>`;
     if (marca) ayuda = `<div class="ayuda">✎ Pulsa un día (o arrastra sobre varios días y personas) y elige qué marcar. ${superA ? "Puedes marcar a cualquier persona." : admin || gestor ? "Puedes marcar al personal de taller y externos, y tus propios días." : "Puedes marcar tus vacaciones, licencias y bajas en tu fila."}</div>`;
     else if (!tv && taller && !yo) ayuda = `<div class="ayuda">Tu usuario aún no está vinculado a tu ficha de operario. Pide al administrador que lo vincule para poder marcar tus vacaciones y permisos.</div>`;
     filas = GRUPOS_PER.filter(([g]) => !S.perGrupo || S.perGrupo === g).map(([g, fn]) => {
@@ -207,9 +214,8 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
           if (!x) return "";
           if (["MO", "DM"].includes(x.cod)) n++;
           const [lab, col, ab] = COD[x.cod] || ["?", "#ccc", "?"];
-          const fz = ["MO", "DM"].includes(x.cod) && esFestivo(dias[i], D.fest);
           const tit = [lab + (x.p ? " · " + x.p.nombre : ""), x.src, x.nota, x.quien || x.cuando ? `${x.quien || "—"} · ${cuando(x.cuando)}` : ""].filter(Boolean).join("\n");
-          return `<div class="pc" style="grid-column:${i + 2}">${pildora([col], ab, COLW, (x.cod === "PV" ? "prev" : "") + (fz ? " fz" : ""), `title="${esc(tit)}"`)}</div>`;
+          return `<div class="pc" style="grid-column:${i + 2}">${pildora([col], ab, COLW, "", `title="${esc(tit)}"`)}</div>`;
         }).join("");
         const hits = marca && puedeFila(o) ? dias.map((d, i) => `<div class="hit" data-o="${o.id}" data-d="${d}" style="grid-column:${i + 2}"></div>`).join("") : "";
         return `<div class="gr" data-row="${o.id}"><div class="gn"><b>${esc(o.nombre)}</b><span>${esc(o.subgrupo === "Montaje" ? "Montaje" : o.puesto || "")}${n ? ` · ${n} d montaje` : ""}</span></div>${fondo(dias, D.fest)}${cel}${hits}</div>`;
@@ -285,7 +291,7 @@ function activaMarcado(ctx, D, codigos, fin) {
     m.innerHTML = `<div class="mm-h"><b>${esc(nom)}</b><span>${ds.length === 1 || ds[0] === ds[ds.length - 1] ? fdc(ds[0]) : `${fdc(ds[0])} → ${fdc(ds[ds.length - 1])}`}</span></div>
       ${ops.length === 1 ? `<div class="mm-r"><label>Hasta <input type="date" id="mmh" value="${ds[ds.length - 1]}" min="${ds[0]}"></label></div>` : ""}
       ${codigos.some(c => CON_PROY.includes(c)) ? `<div class="mm-r"><select id="mmp"><option value="">Proyecto (opcional)</option>${proys.map(p => `<option value="${p.id}" ${String(p.id) === String(S.ultProy || "") ? "selected" : ""}>${esc(p.codigo)} · ${esc(corto(p.nombre, 28))}</option>`).join("")}</select></div>` : ""}
-      <div class="mm-g">${codigos.map(c => `<button data-c="${c}" style="--c:${COD[c][1]}" class="${c === "PV" ? "pv" : ""}">${COD[c][0]}</button>`).join("")}</div>
+      <div class="mm-g">${codigos.map(c => `<button data-c="${c}" style="--c:${COD[c][1]}" >${COD[c][0]}</button>`).join("")}</div>
       <div class="mm-f"><button class="link" id="mmq">Quitar marca</button><button class="link" id="mmx">Cancelar</button></div>`;
     document.body.appendChild(m);
     const r = m.getBoundingClientRect();
@@ -372,26 +378,30 @@ async function vStats(ctx, anio) {
   const dia = motorDias(S, D);
   const hoy = iso(new Date());
   const dias = []; for (let d = new Date(y, 0, 1); d.getFullYear() === y; d.setDate(d.getDate() + 1)) dias.push(iso(d));
-  const COLS = [["MO", "Montaje"], ["DM", "Desmontaje"], ["F", "En festivo / finde"], ["PV", "Previsión"], ["RE", "Reuniones"], ["FO", "Formación"], ["VA", "Vacaciones"], ["LIC", "Licencias"], ["BA", "Baja"]];
-  const ops = S.operarios.filter(o => o.activo !== false).sort((a, b) => (a.grupo || "").localeCompare(b.grupo || "") || a.nombre.localeCompare(b.nombre));
-  const filas = ops.map(o => {
-    const c = {}; COLS.forEach(([k]) => c[k] = 0);
-    dias.forEach(d => { const x = dia(o, d); if (!x) return; if (c[x.cod] != null) c[x.cod]++; if (["MO", "DM"].includes(x.cod) && esFestivo(d, D.fest)) c.F++; });
-    return { o, c };
-  }).filter(f => COLS.some(([k]) => f.c[k]));
-  const tot = {}; COLS.forEach(([k]) => tot[k] = filas.reduce((s, f) => s + f.c[k], 0));
+  const COLS = [...COD_PROD, ...COD_OTROS].map(k => [k, COD[k][0], COD[k][1]]);
+  const cuenta = o => { const c = {}; COLS.forEach(([k]) => c[k] = 0); dias.forEach(d => { const x = dia(o, d); if (x && c[x.cod] != null) c[x.cod]++; }); return c; };
+  const activos = S.operarios.filter(o => o.activo !== false);
+  const grupos = GRUPOS_PER.map(([g, fn]) => ({ g, filas: activos.filter(fn).sort(ORDEN_PER).map(o => ({ o, c: cuenta(o) })) })).filter(x => x.filas.length);
+  const suma0 = fs => { const t = {}; COLS.forEach(([k]) => t[k] = fs.reduce((s, f) => s + f.c[k], 0)); return t; };
+  const tot = suma0(grupos.flatMap(x => x.filas));
+  S.statCerr = S.statCerr || {};
+  const celdas = c => COLS.map(([k], i) => `<td class="${i === COD_PROD.length ? "sep" : ""}">${c[k] || ""}</td>`).join("");
   if (ctx.cabNav) ctx.cabNav({ label: String(y), prev: `#/plan/stats/${y - 1}`, next: `#/plan/stats/${y + 1}`, hoy: `#/plan/stats` });
-  $app.innerHTML = `<h1>Planificación</h1>
-  <div class="pnav"><div class="seg2"><a href="#/plan/proyectos">Proyectos</a><a href="#/plan/personal">Personal</a><a class="on">Estadísticas</a></div>
+  const pinta = () => {
+    $app.innerHTML = `<div class="pnav"><div class="seg2"><a href="#/plan/proyectos">Proyectos</a><a href="#/plan/personal">Personal</a><a class="on">Estadísticas</a></div>
     <div class="row"><button class="btn sm ghost" id="bcsv">Descargar CSV</button></div></div>
-  <p class="hint">Días por persona en ${y}${y === new Date().getFullYear() ? ` (incluye lo planificado después de hoy, ${hoy.split("-").reverse().join("/")})` : ""}. Cuenta asignaciones, ausencias y lo pintado con el pincel. «En festivo / finde» = días de montaje o desmontaje en sábado, domingo o festivo.</p>
-  <div class="gwrap"><table class="stats"><thead><tr><th>Persona</th>${COLS.map(([, l]) => `<th>${l}</th>`).join("")}</tr></thead>
-  <tbody>${filas.map(f => `<tr><td><b>${esc(f.o.nombre)}</b><span class="code"> ${esc(f.o.grupo || "")}</span></td>${COLS.map(([k]) => `<td class="${k === "F" && f.c[k] ? "fzt" : ""}">${f.c[k] || ""}</td>`).join("")}</tr>`).join("") || `<tr><td colspan="${COLS.length + 1}" class="code">Sin datos en ${y}.</td></tr>`}</tbody>
-  <tfoot><tr><td>Total</td>${COLS.map(([k]) => `<td>${tot[k] || ""}</td>`).join("")}</tr></tfoot></table></div>`;
-  document.getElementById("bcsv").onclick = () => {
-    const csv = ["Persona;Grupo;" + COLS.map(c => c[1]).join(";"), ...filas.map(f => [f.o.nombre, f.o.grupo || "", ...COLS.map(([k]) => f.c[k])].join(";"))].join("\n");
-    const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob(["﻿" + csv], { type: "text/csv" })); a.download = `planificacion_${y}.csv`; a.click();
+  <p class="hint">Días por persona en ${y}${y === new Date().getFullYear() ? ` (incluye lo planificado después de hoy, ${hoy.split("-").reverse().join("/")})` : ""}. Cuenta asignaciones, ausencias y lo marcado en Personal.</p>
+  <div class="gwrap"><table class="stats"><thead><tr><th class="sth-g"></th><th colspan="${COD_PROD.length}" class="sth-g">Producción</th><th colspan="${COD_OTROS.length}" class="sth-g sep">Ausencias y formación</th></tr>
+  <tr><th>Persona</th>${COLS.map(([k, l, c], i) => `<th class="${i === COD_PROD.length ? "sep" : ""}"><i class="sw2" style="background:${c}"></i>${l}</th>`).join("")}</tr></thead>
+  <tbody>${grupos.map(({ g, filas }) => { const cerr = S.statCerr[g], st = suma0(filas); return `<tr class="sgr" data-sg="${g}"><td>${cerr ? "▸" : "▾"} ${g} <small class="code">${filas.length}</small></td>${celdas(st)}</tr>` + (cerr ? "" : filas.map(f => `<tr><td class="spn">${esc(f.o.nombre)}</td>${celdas(f.c)}</tr>`).join("")); }).join("") || `<tr><td colspan="${COLS.length + 1}" class="code">Sin datos en ${y}.</td></tr>`}</tbody>
+  <tfoot><tr><td>Total</td>${celdas(tot)}</tr></tfoot></table></div>`;
+    $app.querySelectorAll("[data-sg]").forEach(tr => tr.onclick = () => { S.statCerr[tr.dataset.sg] = !S.statCerr[tr.dataset.sg]; pinta(); });
+    document.getElementById("bcsv").onclick = () => {
+      const csv = ["Grupo;Persona;" + COLS.map(c => c[1]).join(";"), ...grupos.flatMap(({ g, filas }) => filas.map(f => [g, f.o.nombre, ...COLS.map(([k]) => f.c[k])].join(";")))].join("\n");
+      const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob(["\ufeff" + csv], { type: "text/csv" })); a.download = `planificacion_${y}.csv`; a.click();
+    };
   };
+  pinta();
 }
 
 // ---------- Pantalla de taller (TV) ----------
