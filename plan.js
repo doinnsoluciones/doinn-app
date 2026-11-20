@@ -172,7 +172,7 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
   let filtros = "", leyenda = "", filas = "", ayuda = "";
   if (modo === "proyectos") {
     const visibles = S.proyectos.filter(p => !p.archivado).filter(p => p.estado !== "Cerrado" || (p.fecha_descarga && p.fecha_descarga >= d0))
-      .filter(p => !S.planFront || p.front_nombre === S.planFront)
+      .filter(p => { if (!S.planFront) return true; const f = fronts.find(o => o.nombre === S.planFront); return f ? p.front_id === f.id : p.front_nombre === S.planFront; })
       .filter(p => S.planEst.includes(estadoCom(p)))
       .map(p => ({ p, f: fasesProyecto(p) })).filter(x => x.f.some(([, a, b]) => b >= d0 && a <= d1));
     const ocultosAqui = visibles.filter(x => S.ocultos.includes(x.p.id));
