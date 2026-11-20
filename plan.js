@@ -3,13 +3,17 @@ const V = new URL(import.meta.url).search;
 const { ESTADOS_COM, COL_COM, GRUPOS_COM, estadoCom, confirmado, caido, riesgos, neonOn, setNeon } = await import("./estados.js" + V);
 
 const FASES = ["Montaje", "Desmontaje", "Carga", "Descarga", "Fábrica"];
-const COL = { Carga: "#E9BA4B", Montaje: "#1DCAD3", Evento: "#93D500", Desmontaje: "#3B4955", Descarga: "#D37B3E", "Fábrica": "#B9DD7A", Ausencia: "#8E9C9C" };
+// Colores y abreviaturas del Gantt (los mismos que en Power Apps)
+const COL = { Carga: "#8A949C", Montaje: "#F2C230", Evento: "#2F8F83", Desmontaje: "#E8833A", Descarga: "#1F3A68", "Fábrica": "#CFE6A8", Ausencia: "#8E9C9C" };
+const ABR = { Carga: "C", Montaje: "M", Evento: "E", Desmontaje: "DS", Descarga: "DC", "Fábrica": "F" };
+const OSCURO = new Set(["#F2C230", "#CFE6A8", "#AEB9B9", "#D5DCDC"]); // fondos claros: texto oscuro
+const MOVS = ["Carga", "Montaje", "Desmontaje", "Descarga"];
 const TIPOS_AUS = ["Vacaciones", "Baja", "Curso", "Otros"];
 // Códigos de jornada (pincel)
 const COD = {
-  MO: ["Montaje", "#1DCAD3"], DM: ["Desmontaje", "#3B4955"], PV: ["Previsión", "#1DCAD3"], FA: ["Fábrica", "#B9DD7A"],
-  RE: ["Reunión / visita", "#E9BA4B"], FO: ["Formación", "#D37B3E"], VA: ["Vacaciones", "#8E9C9C"], LIC: ["Licencia / permiso", "#AEB9B9"],
-  BA: ["Baja", "#E62643"], LB: ["Libre", "#D5DCDC"],
+  MO: ["Montaje", "#F2C230", "M"], DM: ["Desmontaje", "#E8833A", "DS"], PV: ["Previsión", "#F2C230", "M"], FA: ["Fábrica", "#CFE6A8", "F"],
+  RE: ["Reunión / visita", "#1DCAD3", "R"], FO: ["Formación", "#3B4955", "FO"], VA: ["Vacaciones", "#8E9C9C", "V"], LIC: ["Licencia / permiso", "#AEB9B9", "L"],
+  BA: ["Baja", "#E62643", "B"], LB: ["Libre", "#D5DCDC", "LB"],
 };
 const CON_PROY = ["MO", "DM", "PV", "RE"];
 const AUS2COD = { Vacaciones: "VA", Baja: "BA", Curso: "FO", Otros: "LIC" };
@@ -21,6 +25,7 @@ const MESES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "
 const rotuloMeses = (a, b) => { const x = pd(a), y = pd(b); if (x.getMonth() === y.getMonth() && x.getFullYear() === y.getFullYear()) return `${MESES[x.getMonth()]} ${x.getFullYear()}`; const m = d => MESES[d.getMonth()].slice(0, 3); return x.getFullYear() === y.getFullYear() ? `${m(x)} – ${m(y)} ${y.getFullYear()}` : `${m(x)} ${x.getFullYear()} – ${m(y)} ${y.getFullYear()}`; };
 const suma = (s, n) => { const d = pd(s); d.setDate(d.getDate() + n); return iso(d); };
 const lunes = d => { const x = new Date(d); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; };
+const fd0 = s => s ? s.slice(8, 10) + "/" + s.slice(5, 7) : "";
 const enR = (dia, a, b) => a && dia >= a && dia <= (b || a);
 const corto = (s, n = 14) => (s || "").length > n ? s.slice(0, n - 1) + "…" : (s || "");
 const cuando = t => t ? new Date(t).toLocaleString("es-ES", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" }) : "";
@@ -58,14 +63,25 @@ function fasesProyecto(p) {
   return out.map(([f, a, b]) => [f, a, b < a ? a : b]);
 }
 
-function cabecera(dias, fest) {
-  const meses = []; dias.forEach((d, i) => { const m0 = pd(d).toLocaleDateString("es-ES", { month: "long", year: "numeric" }); const m = m0[0].toUpperCase() + m0.slice(1); if (!meses.length || meses[meses.length - 1].m !== m) meses.push({ m, i, n: 1 }); else meses[meses.length - 1].n++; });
+function cabecera(dias, fest, etiqueta = "") {
+  const meses = []; dias.forEach((d, i) => { const m = pd(d).toLocaleDateString("es-ES", { month: "long", year: "numeric" }).toUpperCase(); if (!meses.length || meses[meses.length - 1].m !== m) meses.push({ m, i, n: 1 }); else meses[meses.length - 1].n++; });
   const hoy = iso(new Date());
-  return `<div class="gh gm"><div class="gn"></div>${meses.map(x => `<div class="gmes" style="grid-column:span ${x.n}">${x.m}</div>`).join("")}</div>
-  <div class="gh"><div class="gn"></div>${dias.map(d => { const w = pd(d).getDay(); const fe = fest.find(f => f.fecha === d); return `<div class="gd ${w === 0 || w === 6 ? "we" : ""} ${w === 6 ? "sat" : ""} ${fe ? "fe" : ""} ${d === hoy ? "hoy" : ""}" title="${fe ? fe.nombre : ""}"><span>${"DLMXJVS"[w]}</span><b>${pd(d).getDate()}</b></div>`; }).join("")}</div>`;
+  return `<div class="gh gm"><div class="gn"></div>${meses.map(x => `<div class="gmes" style="grid-column:span ${x.n}"><div><span>${x.m}</span></div></div>`).join("")}</div>
+  <div class="gh gdias"><div class="gn glab">${etiqueta}</div>${dias.map(d => { const w = pd(d).getDay(); const fe = fest.find(f => f.fecha === d); return `<div class="gd ${w === 0 || w === 6 || fe ? "we" : ""} ${d === hoy ? "hoy" : ""}" title="${fe ? esc0(fe.nombre) : ""}"><b>${"DLMXJVS"[w]}-${pd(d).getDate()}</b></div>`; }).join("")}</div>`;
 }
+const esc0 = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+// Fondo de cada fila: cuadrícula de días, findes/festivos en gris y el día de hoy resaltado
 function fondo(dias, fest) {
-  return dias.map((d, i) => { const w = pd(d).getDay(); const fe = fest.some(f => f.fecha === d); return (w === 0 || w === 6 || fe) ? `<div class="bg ${w === 6 ? "sat" : ""}" style="grid-column:${i + 2}"></div>` : ""; }).join("");
+  const hoy = iso(new Date());
+  return dias.map((d, i) => `<div class="bg ${esFestivo(d, fest) ? "we" : ""} ${d === hoy ? "hoy" : ""}" style="grid-column:${i + 2}"></div>`).join("");
+}
+// Píldora de un día: 1 o 2 colores, con abreviatura si cabe
+function pildora(cols, txt, w, extra = "", attrs = "") {
+  const bg = cols.length > 1 ? `linear-gradient(90deg,${cols[0]} 50%,${cols[1]} 50%)` : cols[0];
+  const fg = OSCURO.has(cols[0]) && (cols.length === 1 || OSCURO.has(cols[1])) ? "#131E29" : "#fff";
+  const dos = cols.length > 1, cw = dos ? 5.4 : 6.6;
+  const cabe = txt.length * cw + 6 <= Math.min(w - 4, 46);
+  return `<div class="pl ${dos ? "dos" : ""} ${extra}" style="background:${bg};color:${fg}" ${attrs}>${cabe ? txt : ""}</div>`;
 }
 const esFestivo = (d, fest) => { const w = pd(d).getDay(); return w === 0 || w === 6 || fest.some(f => f.fecha === d); };
 
@@ -107,6 +123,9 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
   const base = ini ? pd(ini) : (() => { const l = lunes(new Date()); if (NDIAS > 14) l.setDate(l.getDate() - 7); return l; })();
   const dias = Array.from({ length: NDIAS }, (_, i) => { const d = new Date(base); d.setDate(d.getDate() + i); return iso(d); });
   const d0 = dias[0], d1 = dias[NDIAS - 1];
+  const movil = ($app.clientWidth || 1000) < 600;
+  const NW = tv ? 300 : modo === "proyectos" ? (movil ? 130 : 300) : (movil ? 110 : 220);
+  const COLW = tv ? Math.floor((($app.clientWidth || 1600) - NW) / 28) : Math.max(ANCHO, Math.floor((($app.clientWidth || 1000) - NW - 2) / NDIAS));
   const scroll0 = opt.scroll;
   if (!opt.silencioso) $app.innerHTML = `<div class="loading">Cargando planificación…</div>`;
   let D; try { D = await cargaPlan(sb); } catch (e) { $app.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
@@ -146,17 +165,24 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
       <div class="row" style="gap:6px">${GRUPOS_COM.map(([g]) => `<button class="link" data-grp="${g}">${g}</button>`).join(" · ")}
       ${ocultosAqui.length ? ` · <button class="link" id="bocu">Ocultos (${ocultosAqui.length})</button>` : ""} · <button class="link" id="btodo">Ver todo</button></div>
     </div>`;
-    leyenda = ["Carga", "Montaje", "Evento", "Desmontaje", "Descarga"].map(f => `<span><i style="background:${COL[f]}"></i>${f}</span>`).join("") + `<span><i class="prev-i"></i>Sin confirmar</span><span>⚠ Aviso</span>`;
-    filas = ps.map(({ p, f }) => {
+    leyenda = `<div class="ley1">${["Carga", "Montaje", "Evento", "Desmontaje", "Descarga"].map(f => `<span><i style="background:${COL[f]}"></i>${f}</span>`).join("")}<span><i class="prev-i"></i>Sin confirmar</span><span><b class="warn-i">⚠</b>Aviso</span></div>
+      <div class="ley2"><span class="code">Movimientos al día:</span>${["0", "1", "2", "3 o más"].map((t, k) => `<span><i class="mvk m${k}"></i>${t}</span>`).join("")}</div>`;
+    // Movimientos al día = inicios de carga, montaje, desmontaje y descarga de los proyectos visibles
+    const mov = dias.map(d => ps.reduce((n, { p, f }) => n + (caido(p) ? 0 : f.filter(([fa, a]) => MOVS.includes(fa) && a === d).length), 0));
+    const filaMov = `<div class="gr gmov"><div class="gn glab">MOVIMIENTOS/DÍA</div>${fondo(dias, D.fest)}${mov.map((n, i) => `<div class="mv m${Math.min(n, 3)}" style="grid-column:${i + 2}">${n || "·"}</div>`).join("")}</div>`;
+    filas = filaMov + ps.map(({ p, f }) => {
       const est = estadoCom(p), rs = riesgos(p, nElem(p.id));
       const cls = caido(p) ? "caido" : !confirmado(p) ? "prev" : "";
-      const barras = f.filter(([, a, b]) => b >= d0 && a <= d1).map(([fa, a, b]) => {
-        const i = Math.max(0, dias.indexOf(a < d0 ? d0 : a)), j = dias.indexOf(b > d1 ? d1 : b);
-        const n = j - i + 1, cab = n * (ANCHO || 40) >= 60;
-        return `<div class="bar2 ${cls}" data-pid="${p.id}" style="grid-column:${i + 2}/${j + 3};--c:${COL[fa]}" title="${fa}: ${a}${a !== b ? " → " + b : ""} · ${est}">${cab ? fa : fa[0]}</div>`;
+      const pills = dias.map((d, i) => {
+        const hoyF = f.filter(([, a, b]) => enR(d, a, b));
+        if (!hoyF.length) return "";
+        const dos = hoyF.slice(0, 2);
+        const tit = hoyF.map(([fa, a, b]) => `${fa}: ${fd0(a)}${a !== b ? " → " + fd0(b) : ""}`).join("\n") + ` · ${est}`;
+        return `<div class="pc" style="grid-column:${i + 2}">${pildora(dos.map(x => COL[x[0]]), dos.map(x => ABR[x[0]]).join("/"), COLW, cls, `data-pid="${p.id}" title="${esc(p.nombre)}\n${esc(tit)}"`)}</div>`;
       }).join("");
+      const sub = [p.codigo, p.front_nombre, p.transporte_ida].filter(Boolean).map(esc).join(" · ");
       return `<div class="gr"><div class="gn pj ${rs.length && neon ? "neon" : ""}" data-pid="${p.id}" title="${esc(p.nombre)}${rs.length ? "\n⚠ " + esc(rs.join("\n⚠ ")) : ""}">
-        <b>${rs.length ? `<span class="warn-i">⚠</span>` : ""}${esc(corto(p.nombre, tv ? 22 : 16))}</b><span><i class="dot" style="background:${COL_COM[est]}"></i>${esc(p.codigo)} · ${esc((p.front_nombre || "").split(" ")[0])}</span></div>${fondo(dias, D.fest)}${barras}</div>`;
+        <b>${rs.length ? `<span class="warn-i">⚠</span>` : ""}${esc(p.nombre)}</b><span><i class="dot" style="background:${COL_COM[est]}"></i>${sub}</span></div>${fondo(dias, D.fest)}${pills}</div>`;
     }).join("") || `<div class="empty">No hay proyectos con estos filtros en estas fechas.</div>`;
   } else {
     const dia = motorDias(S, D);
@@ -180,16 +206,10 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
         const cel = info.map((x, i) => {
           if (!x) return "";
           if (["MO", "DM"].includes(x.cod)) n++;
-          const [lab, col] = COD[x.cod] || ["?", "#ccc"];
-          const prevX = info[i - 1];
-          const ini = i === 0 || !prevX || prevX.cod !== x.cod || (prevX.p && prevX.p.id) !== (x.p && x.p.id);
-          let span = 1; while (i + span < info.length && info[i + span] && info[i + span].cod === x.cod && (info[i + span].p && info[i + span].p.id) === (x.p && x.p.id)) span++;
+          const [lab, col, ab] = COD[x.cod] || ["?", "#ccc", "?"];
           const fz = ["MO", "DM"].includes(x.cod) && esFestivo(dias[i], D.fest);
           const tit = [lab + (x.p ? " · " + x.p.nombre : ""), x.src, x.nota, x.quien || x.cuando ? `${x.quien || "—"} · ${cuando(x.cuando)}` : ""].filter(Boolean).join("\n");
-          const txt = ini ? (x.p ? corto(x.p.nombre, Math.max(3, Math.floor(span * (ANCHO || 40) / 7))) : (span * (ANCHO || 40) >= 60 ? lab : x.cod)) : "";
-          const st = x.cod === "PV" ? `border:2px dashed ${col};color:var(--ink);background:var(--card)` : `background:${col};${["LB", "LIC", "FA"].includes(x.cod) ? "color:var(--ink)" : ""}`;
-          const nx = info[i + 1], ult = !nx || nx.cod !== x.cod || (nx.p && nx.p.id) !== (x.p && x.p.id);
-          return `<div class="cx ${fz ? "fz" : ""} ${ini ? "ini" : ""} ${ult ? "ult" : ""}" style="grid-column:${i + 2};${st}" title="${esc(tit)}">${esc(txt)}</div>`;
+          return `<div class="pc" style="grid-column:${i + 2}">${pildora([col], ab, COLW, (x.cod === "PV" ? "prev" : "") + (fz ? " fz" : ""), `title="${esc(tit)}"`)}</div>`;
         }).join("");
         const hits = marca && puedeFila(o) ? dias.map((d, i) => `<div class="hit" data-o="${o.id}" data-d="${d}" style="grid-column:${i + 2}"></div>`).join("") : "";
         return `<div class="gr" data-row="${o.id}"><div class="gn"><b>${esc(o.nombre)}</b><span>${esc(o.subgrupo === "Montaje" ? "Montaje" : o.puesto || "")}${n ? ` · ${n} d montaje` : ""}</span></div>${fondo(dias, D.fest)}${cel}${hits}</div>`;
@@ -199,16 +219,16 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
 
   const ajustes = "";
   if (!tv && ctx.cabNav) ctx.cabNav({ label: rotuloMeses(d0, d1), prev: `#/plan/${modo}/${suma(d0, -paso)}`, next: `#/plan/${modo}/${suma(d0, paso)}`, hoy: `#/plan/${modo}` });
-  const cols = tv ? "190px repeat(28,1fr)" : `150px repeat(${NDIAS},${Math.max(ANCHO, Math.floor((($app.clientWidth || 1000) - 152) / NDIAS))}px)`;
-  $app.innerHTML = `${tv ? `<div class="tvhead"><b>Planificación · ${modo === "proyectos" ? "Proyectos" : "Personal"}</b><span>${new Date().toLocaleString("es-ES", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}</span><a href="#/plan" class="btn sm ghost">Salir</a></div>` : `<h1>Planificación</h1>`}
+  const cols = tv ? `${NW}px repeat(28,1fr)` : `${NW}px repeat(${NDIAS},${COLW}px)`;
+  $app.innerHTML = `${tv ? `<div class="tvhead"><b>Planificación · ${modo === "proyectos" ? "Proyectos" : "Personal"}</b><span>${new Date().toLocaleString("es-ES", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}</span><a href="#/plan" class="btn sm ghost">Salir</a></div>` : ""}
   ${nav}${filtros}${ayuda}<div class="ley">${leyenda}${ajustes}</div>
-  <div class="gwrap"><div class="gantt z${tv ? 1 : S.zoom} ${marca ? "marcable" : ""}" style="--cols:${cols}">${cabecera(dias, D.fest)}${filas}</div></div>`;
+  <div class="gwrap"><div class="gantt z${tv ? 1 : S.zoom} ${marca ? "marcable" : ""}" style="--cols:${cols};--nw:${NW}px">${cabecera(dias, D.fest, modo === "proyectos" ? (NW < 200 ? "PROYECTO" : "PROYECTO · Front · TRANSPORTE") : "PERSONA")}${filas}</div></div>`;
 
   const $ = id => document.getElementById(id);
   const re = (o = {}) => vPlan(ctx, modo, d0, { ...opt, ...o });
   const w = $app.querySelector(".gwrap");
   if (scroll0 != null) w.scrollLeft = scroll0;
-  else { const h = $app.querySelector(".gd.hoy"); if (w && h && !tv) w.scrollLeft = Math.max(0, h.offsetLeft - 150 - (ANCHO * 3)); }
+  else { const h = $app.querySelector(".gd.hoy"); if (w && h && !tv && w.scrollWidth - w.clientWidth > COLW * 4) w.scrollLeft = Math.min(w.scrollWidth - w.clientWidth, Math.max(0, h.offsetLeft - NW - (COLW * 3))); }
   if (tv) return D;
 
   if (modo === "proyectos") {

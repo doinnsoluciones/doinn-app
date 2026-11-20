@@ -81,6 +81,7 @@ function menu() {
     ${nav ? `<div class="m-x m-nav"><a class="hd-ar" href="${nav.prev}">${ic.ant}</a><span>${nav.label}</span><a class="hd-ar" href="${nav.next}">${ic.sig}</a><a class="hd-hoy" href="${nav.hoy}">Hoy</a></div>` : ""}
     ${S.perfil ? `<div class="m-x m-user"><div><b>${esc(nom)}</b> <i class="rol">${ROL_TXT[S.perfil.rol] || S.perfil.rol}</i><div class="code">${esc(S.user.email || "")}</div></div>
       <div class="m-acts"><button class="m-btn" data-a="perfil">${ic.perfil} Mi perfil</button>${puede("superadmin") ? `<a class="m-btn" href="#/usuarios">Usuarios</a>` : ""}<button class="m-btn" data-a="salir">${ic.salir} Cerrar sesión</button></div></div>` : ""}
+    ${S.perfil && puede("superadmin") ? `<div class="m-x m-usu"><a href="#/usuarios">Gestión de usuarios ›</a></div>` : ""}
     <label class="m-row"><span>Tema oscuro</span><input type="checkbox" class="sw" data-a="tema" ${temaActual() === "oscuro" ? "checked" : ""}></label>
     <label class="m-row"><span>Avisos parpadeantes</span><input type="checkbox" class="sw" data-a="neon" ${neonOn() ? "checked" : ""}></label>
     <label class="m-row"><span>Auto-ocultar cabecera</span><input type="checkbox" class="sw" data-a="auto" ${document.body.classList.contains("autohide") ? "checked" : ""}></label>
