@@ -20,6 +20,7 @@ export async function vCartera(ctx) {
   const PAL = ["#2E7CF6", "#E8833A", "#8B5CF6", "#16A085", "#D9467A", "#C9A227", "#0EA5C6", "#7C9A2E"];
   const colF = new Map(fronts.slice().sort((a, b) => a.id - b.id).map((f, i) => [f.id, PAL[i % PAL.length]]));
   const cF = p => colF.get(p.front_id) || "#A0A8B0";
+  const corto = f => { const [n, a] = f.nombre.split(" "); return fronts.filter(x => x.nombre.split(" ")[0] === n).length > 1 && a ? `${n} ${a[0]}.` : n; };
   const yo = S.perfil.operario_id && fronts.find(f => f.id === S.perfil.operario_id);
   S.cart = S.cart || { anio: String(new Date().getFullYear()), front: yo ? String(yo.id) : "", est: ls.get("doinn_cart_est", ["Confirmado", "Pendiente"]), q: "", cli: "", meses: [], desde: "", hasta: "", ord: "fecha", dir: 1, pleg: ls.get("doinn_cart_pleg", []) };
   const st = S.cart;
@@ -103,7 +104,7 @@ export async function vCartera(ctx) {
       <label class="cdate">Hasta<input type="date" id="chas" value="${st.hasta}"></label>
       <input id="cq" class="cq" placeholder="Buscar proyecto, código o cliente…" value="${esc(st.q)}">
     </div>
-    <div class="cart-fil cleg">${fronts.map(f => `<button class="chip sm ${String(f.id) === st.front ? "on" : ""}" data-fr="${f.id}"><i style="background:${colF.get(f.id)}"></i>${esc(f.nombre.split(" ")[0])}</button>`).join("")}<button class="chip sm ${st.front === "otros" ? "on" : ""}" data-fr="otros"><i style="background:#A0A8B0"></i>Externos y antiguos</button></div>
+    <div class="cart-fil cleg">${fronts.map(f => `<button class="chip sm ${String(f.id) === st.front ? "on" : ""}" data-fr="${f.id}"><i style="background:${colF.get(f.id)}"></i>${esc(corto(f))}</button>`).join("")}<button class="chip sm ${st.front === "otros" ? "on" : ""}" data-fr="otros"><i style="background:#A0A8B0"></i>Externos y antiguos</button></div>
     <div class="cart-fil">
       ${FILTROS.map(([f]) => `<button class="chip sm ${st.est.includes(f) ? "on" : ""}" data-est="${f}">${f}</button>`).join("")}
       ${st.meses.length ? `<span class="cfm">Meses: ${st.meses.map(m => MESES[+m - 1].slice(0, 3)).join(", ")}</span>` : ""}
