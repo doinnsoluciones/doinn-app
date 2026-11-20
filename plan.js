@@ -240,13 +240,13 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
           return barra(i, span, [col], { abr: ab, full: conProy ? x.p.nombre : ab, hora: conProy ? (hora || "--:--") : "" }, COLW, "", `title="${esc(tit)}"`, !!conProy);
         }).join("");
         const hits = marca && puedeFila(o) ? dias.map((d, i) => `<div class="hit" data-o="${o.id}" data-d="${d}" style="grid-column:${i + 2}"></div>`).join("") : "";
-        return `<div class="gr" data-row="${o.id}"><div class="gn"><b>${esc(o.nombre)}</b><span>${esc(o.subgrupo === "Montaje" ? "Montaje" : o.puesto || "")}${n ? ` · ${n} d montaje` : ""}</span></div>${fondo(dias, D.fest)}${cel}${hits}</div>`;
+        return `<div class="gr" data-row="${o.id}"><div class="gn"><b>${esc(o.nombre)}</b><span>${esc(o.subgrupo === "Montaje" ? "Montaje" : o.puesto || "")}</span></div>${fondo(dias, D.fest)}${cel}${hits}</div>`;
       }).join(""));
     }).join("") || `<div class="empty">Nadie coincide con el filtro.</div>`;
   }
 
   const ajustes = "";
-  if (!tv && ctx.cabNav) ctx.cabNav({ label: rotuloMeses(d0, d1), prev: `#/plan/${modo}/${suma(d0, -paso)}`, next: `#/plan/${modo}/${suma(d0, paso)}`, hoy: `#/plan/${modo}` });
+  if (!tv && ctx.cabNav) ctx.cabNav({ label: rotuloMeses(d0, d1), prev: `#/plan/${modo}/${suma(d0, -paso)}`, next: `#/plan/${modo}/${suma(d0, paso)}`, hoy: `#/plan/${modo}`, zoom: true });
   const cols = tv ? `${NW}px repeat(28,1fr)` : `${NW}px repeat(${NDIAS},${COLW}px)`;
   $app.innerHTML = `${tv ? `<div class="tvhead"><b>Planificación · ${modo === "proyectos" ? "Proyectos" : "Personal"}</b><span>${new Date().toLocaleString("es-ES", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}</span><a href="#/plan" class="btn sm ghost">Salir</a></div>` : ""}
   ${nav}${filtros}${ayuda}<div class="ley">${leyenda}${ajustes}</div>
@@ -366,7 +366,7 @@ function panelProyecto(ctx, p, D, fin) {
     <div class="row" style="justify-content:space-between"><span class="code">${esc(p.codigo)}</span><button class="link" id="dx">Cerrar ✕</button></div>
     <h2 style="margin:4px 0 6px">${esc(p.nombre || "")}</h2>
     <span class="pill" style="background:${COL_COM[est]}26;color:var(--ink)"><i class="dot" style="background:${COL_COM[est]}"></i>${est}</span>
-    ${p.coordinacion_ok ? `<span class="pill ok">✓ Coordinado</span>` : `<span class="pill warn">Sin coordinar</span>`}
+    ${puede("admin") ? `<button class="pill ${p.coordinacion_ok ? "ok" : "warn"} pbtn" id="dcoord" title="Pulsa para ${p.coordinacion_ok ? "quitar" : "marcar"} la coordinación OK">${p.coordinacion_ok ? "✓ Coordinado" : "Sin coordinar · marcar OK"}</button>` : p.coordinacion_ok ? `<span class="pill ok">✓ Coordinado</span>` : `<span class="pill warn">Sin coordinar</span>`}
     ${rs.length ? `<div class="avisos">${rs.map(r => `<div>⚠ ${esc(r)}</div>`).join("")}</div>` : ""}
     <dl class="kv">
       <dt>Cliente</dt><dd>${esc(p.cliente || "—")}</dd>
@@ -388,6 +388,8 @@ function panelProyecto(ctx, p, D, fin) {
   m.onclick = e => { if (e.target === m) cierra(); };
   m.querySelector("#dx").onclick = cierra;
   m.querySelectorAll("a").forEach(a => a.addEventListener("click", cierra));
+  const dc = m.querySelector("#dcoord");
+  if (dc) dc.onclick = async () => { dc.disabled = true; if (await ctx.marcaCoordinacion(p, !p.coordinacion_ok)) { cierra(); fin(); panelProyecto(ctx, p, D, fin); } else dc.disabled = false; };
   m.querySelector("#doc").onclick = () => { S.ocultos = [...new Set([...(S.ocultos || []), p.id])]; lsSet("doinn_plan_ocultos", S.ocultos); cierra(); fin(); };
   const esc2 = e => { if (e.key === "Escape") { cierra(); document.removeEventListener("keydown", esc2); } };
   document.addEventListener("keydown", esc2);

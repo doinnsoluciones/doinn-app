@@ -63,7 +63,7 @@ async function autoArchivar() {
   const { error } = await sb.from("proyectos").update({ estado: "Cerrado" }).in("id", viejos.map(p => p.id));
   if (!error) viejos.forEach(p => p.estado = "Cerrado");
 }
-const ctx = () => ({ $app, S, sb, esc, toast, puede, recargar: cargar, stats, salud, fd, dias, cabNav: pintaNav });
+const ctx = () => ({ $app, S, sb, esc, toast, puede, recargar: cargar, stats, salud, fd, dias, cabNav: pintaNav, marcaCoordinacion });
 function stats(pid) {
   const els = S.elementos.filter(x => x.proyecto_id === pid);
   const n = els.length;
@@ -162,7 +162,7 @@ function vProyectos() {
   const nCerr = S.proyectos.filter(p => p.estado === "Cerrado").length;
   $app.innerHTML = `
   <p class="hint">Ordenados por fecha de carga. Pulsa uno para ver su ficha, sus elementos y la carga.</p>
-  <div class="search"><input id="q" placeholder="Buscar por código, proyecto, cliente o Front…" value="${esc(S.q)}">
+  <div class="search fija"><input id="q" placeholder="Buscar por código, proyecto, cliente o Front…" value="${esc(S.q)}">
   ${puede("admin") ? `<button class="btn lime" id="nuevo">+ Nuevo</button>` : ""}</div>
   <button class="link" id="vc">${S.verCerrados ? "Ocultar" : "Ver"} proyectos terminados (${nCerr}) ▾</button>
   ${ps.map(card).join("") || `<div class="empty">No hay proyectos que coincidan.</div>`}`;
@@ -194,6 +194,8 @@ function vProyecto(id, tab = "ficha") {
   else body = `<div class="card empty">Esta pestaña llega en los próximos días.</div>`;
   $app.innerHTML = `<a class="back" href="#/">‹ Proyectos</a><div class="code">${esc(p.codigo)}</div><h1>${esc(p.nombre || "")}</h1>
   <div class="seg">${tabs.map(([k, l]) => `<a href="#/p/${p.id}/${k}" class="${k === tab ? "on" : ""}">${l}</a>`).join("")}</div>${body}`;
+  const bc = document.getElementById("bcoord");
+  if (bc) bc.onclick = async () => { bc.disabled = true; if (await marcaCoordinacion(p, !p.coordinacion_ok)) vProyecto(id, tab); else bc.disabled = false; };
   if (tab === "elementos") { S.dirty = true; vElementos(ctx(), p, document.getElementById("tabc")); }
   if (tab === "despiece") vDespiece(ctx(), p, document.getElementById("tabc"));
   if (tab === "carga") vCarga(ctx(), p, document.getElementById("tabc"));
@@ -201,12 +203,21 @@ function vProyecto(id, tab = "ficha") {
   if (tab === "equipo") vEquipo(ctx(), p, document.getElementById("tabc"));
 }
 const opNom = id => (id && (S.operarios.find(o => o.id === id) || {}).nombre) || "—";
+// Coordinación OK (Front ↔ oficina técnica): quién y cuándo
+async function marcaCoordinacion(p, ok) {
+  const cambios = { coordinacion_ok: ok, fecha_coordinacion: ok ? new Date().toISOString() : null, coordinacion_por: ok ? ((S.perfil && S.perfil.nombre) || S.user.email) : null };
+  const { error } = await sb.from("proyectos").update(cambios).eq("id", p.id);
+  if (error) { toast("No se pudo guardar: " + error.message); return false; }
+  Object.assign(p, cambios); toast(ok ? "Coordinación marcada como OK" : "Coordinación desmarcada"); return true;
+}
 function fichaLectura(p) {
   const rs = riesgos(p, S.elementos.filter(e => e.proyecto_id === p.id).length);
   const fila = (on, l, a, b, h, ev) => on === false ? "" : `<tr class="${ev ? "ev" : ""}"><td>${l}</td><td>${fd(a)}${b && b !== a ? "–" + fd(b) : ""}</td><td>${esc(h || "—")}</td></tr>`;
   return `${rs.length ? `<div class="card avisos ${neonOn() ? "neon" : ""}">${rs.map(r => `<div>⚠ ${esc(r)}</div>`).join("")}</div>` : ""}<div class="card"><dl class="kv">
     <dt>Estado</dt><dd><span class="pill" style="background:${COL_COM[estadoCom(p)]}26;color:var(--ink)">${estadoCom(p)}</span></dd>
     <dt>Front</dt><dd>${esc(p.front_nombre || "—")}</dd>
+    <dt>Coordinación</dt><dd class="coord">${p.coordinacion_ok ? `<span class="pill ok">✓ Coordinado</span> <span class="code">${esc(p.coordinacion_por || "")}${p.fecha_coordinacion ? " · " + new Date(p.fecha_coordinacion).toLocaleString("es-ES", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : ""}</span>` : `<span class="pill warn">Sin coordinar</span>`}
+      ${puede("admin") ? `<button class="btn sm ${p.coordinacion_ok ? "ghost" : "lime"}" id="bcoord">${p.coordinacion_ok ? "Quitar coordinación OK" : "Marcar coordinación OK"}</button>` : ""}</dd>
     <dt>Cliente</dt><dd>${esc(p.cliente || "—")}</dd>
     <dt>Ubicación</dt><dd>${esc(p.ubicacion || "—")}</dd>
     <dt>Ida</dt><dd>${esc(p.transporte_ida || "—")}</dd>
