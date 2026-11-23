@@ -20,7 +20,9 @@ const CON_PROY = ["MO", "DM", "PV", "RE"];
 const COD_PROD = ["MO", "DM", "FA", "RE"], COD_OTROS = ["FO", "VA", "BA"];
 // Códigos retirados: la previsión se ve como montaje; licencia y libre no se muestran
 const normCod = c => c === "PV" ? "MO" : c === "LB" || c === "LIC" ? null : c;
-const ORDEN_PER = (a, b) => (a.grupo === "Taller" && b.grupo === "Taller" ? ((a.subgrupo === "Montaje") - (b.subgrupo === "Montaje")) : 0) || (a.grupo === "Subcontratas" && b.grupo === "Subcontratas" ? (a.puesto || "").localeCompare(b.puesto || "", "es") : 0) || a.nombre.localeCompare(b.nombre, "es", { numeric: true });
+// Subcontratas: primero CDF, luego DIMAS, después el resto
+const rSub = o => o.puesto === "CDF" ? 0 : o.puesto === "DIMAS" ? 1 : 2;
+const ORDEN_PER = (a, b) => (a.grupo === "Taller" && b.grupo === "Taller" ? ((a.subgrupo === "Montaje") - (b.subgrupo === "Montaje")) : 0) || (a.grupo === "Subcontratas" && b.grupo === "Subcontratas" ? (rSub(a) - rSub(b)) || (a.puesto || "").localeCompare(b.puesto || "", "es") : 0) || a.nombre.localeCompare(b.nombre, "es", { numeric: true });
 const AUS2COD = { Vacaciones: "VA", Baja: "BA", Curso: "FO", Otros: "LIC" };
 const FASE2COD = { Montaje: "MO", Desmontaje: "DM", "Fábrica": "FA" };
 
@@ -217,7 +219,7 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
     if (!tv) filtros = `<div class="pfil">
       <input id="perq" class="perq" placeholder="Buscar persona…" value="${esc(S.perQ)}">
       <div class="ests"><button class="chip sm ${!S.perGrupo ? "on" : ""}" data-pg="">Todos</button>${GRUPOS_PER.map(([g]) => `<button class="chip sm ${S.perGrupo === g ? "on" : ""}" data-pg="${g}">${g}</button>`).join("")}</div>
-      ${superA || admin ? `<button class="btn ghost sm" id="bsub">+ Subcontrata</button>` : ""}
+      ${superA || admin ? `<button class="chip sm" id="bsub">+ Subcontrata</button>` : ""}
     </div>`;
     const lg = cs => cs.map(k => `<span><i style="background:${COD[k][1]}"></i>${COD[k][0]}</span>`).join("");
     leyenda = `<div class="ley1"><span class="code">Producción:</span>${lg(COD_PROD)}</div><div class="ley2"><span class="code">Ausencias y formación:</span>${lg(COD_OTROS)}</div>`;
@@ -460,9 +462,10 @@ function formSubcontrata(ctx, fin) {
   const emps = [...new Set(subs.map(o => o.puesto).filter(Boolean))].sort();
   const m = document.createElement("div"); m.className = "modal";
   m.innerHTML = `<form class="card frm mbox"><h2>Nueva persona de subcontrata</h2>
-    <label>Nombre<input id="s_n" required placeholder="Ej.: JAVI CDF, DIMAS 9…" style="text-transform:uppercase"></label>
-    <div class="two"><label>Empresa<input id="s_e" list="s_el" required placeholder="CDF, NOVAC…" style="text-transform:uppercase"><datalist id="s_el">${emps.map(e => `<option value="${esc(e)}">`).join("")}</datalist></label>
-    <label>Oficio <small class="code">(opcional)</small><input id="s_o" placeholder="Carpintería, pintura…"></label></div>
+    <div class="two"><label>Empresa <small class="code">(si la hay)</small><input id="s_e" list="s_el" placeholder="CDF, DIMAS…" style="text-transform:uppercase"><datalist id="s_el">${emps.map(e => `<option value="${esc(e)}">`).join("")}</datalist></label>
+    <label>Nombre <small class="code">(vacío = siguiente número)</small><input id="s_n" placeholder="OSCAR" style="text-transform:uppercase"></label></div>
+    <label>Oficio <small class="code">(opcional)</small><input id="s_o" placeholder="Carpintería, pintura…"></label>
+    <div class="code" id="s_pv" style="margin:4px 0 8px"></div>
     <div class="acts"><button class="btn lime">Guardar</button><button type="button" class="btn ghost" id="s_x">Cerrar</button></div>
     ${subs.length ? `<div class="code" style="margin-top:12px">Personal de subcontratas (${subs.length})</div>${subs.map(o => `<div class="crow"><span>${esc(o.nombre)} · ${esc(o.puesto || "")}${o.activo === false ? " · <i>inactivo</i>" : ""}</span><button type="button" class="link" data-sact="${o.id}" data-v="${o.activo === false ? 1 : 0}">${o.activo === false ? "Reactivar" : "Desactivar"}</button></div>`).join("")}` : ""}
   </form>`;
@@ -475,9 +478,23 @@ function formSubcontrata(ctx, fin) {
     if (error) return toast(error.message);
     toast(b.dataset.v === "1" ? "Reactivado" : "Desactivado (se conserva su histórico)"); m.remove(); fin();
   });
+  // Formato: "EMPRESA - NOMBRE"; sin nombre o con número: "EMPRESA 01"; sin empresa: "NOMBRE"
+  const compone = () => {
+    const e = $("s_e").value.trim().replace(/\s+/g, " ").toUpperCase(), n = $("s_n").value.trim().replace(/\s+/g, " ").toUpperCase();
+    if (!e) return n;
+    if (!n || /^\d+$/.test(n)) {
+      let k = n ? +n : 1;
+      if (!n) { const usados = S.operarios.map(o => (o.nombre.toUpperCase().match(new RegExp("^" + e.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + " (\\d+)$")) || [])[1]).filter(Boolean).map(Number); k = usados.length ? Math.max(...usados) + 1 : 1; }
+      return `${e} ${String(k).padStart(2, "0")}`;
+    }
+    return `${e} - ${n}`;
+  };
+  const pv = () => { const c = compone(); $("s_pv").textContent = c ? "Se guardará como: " + c : ""; };
+  $("s_e").oninput = pv; $("s_n").oninput = pv;
   m.querySelector("form").onsubmit = async ev => {
     ev.preventDefault();
-    const nombre = $("s_n").value.trim().replace(/\s+/g, " ").toUpperCase(), puesto = $("s_e").value.trim().toUpperCase();
+    const nombre = compone(), puesto = $("s_e").value.trim().replace(/\s+/g, " ").toUpperCase() || null;
+    if (!nombre) return toast("Pon al menos la empresa o el nombre");
     if (S.operarios.some(o => o.nombre.toUpperCase() === nombre)) return toast("Ya existe una persona con ese nombre");
     const { error } = await sb.from("operarios").insert({ nombre, puesto, grupo: "Subcontratas", subgrupo: $("s_o").value.trim() || null, activo: true });
     if (error) return toast(error.message);
