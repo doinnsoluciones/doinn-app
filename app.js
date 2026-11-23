@@ -40,7 +40,9 @@ const DEF_PAG = {
 const ROLES = [["superadmin", "SuperAdmin · control total"], ["admin", "Admin · proyectos (Fronts y OT)"], ["taller", "Taller · estado de producción"], ["lectura", "Lectura · solo consulta"]];
 const pagsDe = (rol, pags) => rol === "superadmin" ? TODAS : (pags && pags.length ? pags : DEF_PAG[rol] || []);
 const verCartera = () => !!S.perfil && S.perfil.aprobado && (S.perfil.rol === "superadmin" || !!S.perfil.ve_cartera);
-const ver = pg => pg === "cartera" ? verCartera() : !!S.perfil && pagsDe(S.perfil.rol, S.perfil.paginas).includes(pg);
+// Despiece: solo Oficina Técnica (ficha del grupo OT) y SuperAdmin
+const verDespiece = () => !!S.perfil && S.perfil.aprobado && (S.perfil.rol === "superadmin" || (S.operarios || []).some(o => o.id === S.perfil.operario_id && o.grupo === "OT"));
+const ver = pg => pg === "cartera" ? verCartera() : pg === "despiece" ? verDespiece() : !!S.perfil && pagsDe(S.perfil.rol, S.perfil.paginas).includes(pg);
 // Proyectos en producción: confirmados o pre-confirmados (o con trabajo ya hecho); el resto solo se ve en Cartera y Planificación
 const enProduccion = p => ["Confirmado", "Pre-confirmado"].includes(p.estado_com || "Confirmado") || S.elementos.some(e => e.proyecto_id === p.id);
 
