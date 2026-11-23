@@ -1,6 +1,6 @@
 // Planificación (proyectos, personal con pincel, estadísticas, pantalla de taller), ausencias y pestaña Equipo
 const V = new URL(import.meta.url).search;
-const { ESTADOS_COM, COL_COM, GRUPOS_COM, estadoCom, confirmado, caido, riesgos, neonOn, setNeon } = await import("./estados.js" + V);
+const { ESTADOS_COM, COL_COM, GRUPOS_COM, estadoCom, confirmado, caido, riesgos, neonOn, setNeon, ordenProyectos } = await import("./estados.js" + V);
 
 const FASES = ["Montaje", "Desmontaje", "Carga", "Descarga", "Fábrica"];
 // Colores y abreviaturas del Gantt (los mismos que en Power Apps)
@@ -176,7 +176,7 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
       .filter(p => S.planEst.includes(estadoCom(p)))
       .map(p => ({ p, f: fasesProyecto(p) })).filter(x => x.f.some(([, a, b]) => b >= d0 && a <= d1));
     const ocultosAqui = visibles.filter(x => S.ocultos.includes(x.p.id));
-    const ps = visibles.filter(x => !S.ocultos.includes(x.p.id)).sort((a, b) => (a.f[0] ? a.f[0][1] : "").localeCompare(b.f[0] ? b.f[0][1] : ""));
+    const ps = visibles.filter(x => !S.ocultos.includes(x.p.id)).sort((a, b) => ordenProyectos(a.p, b.p));
     if (!tv) filtros = `<div class="pfil">
       <select id="pfront"><option value="">Todos los Fronts</option>${fronts.map(o => `<option ${o.nombre === S.planFront ? "selected" : ""}>${esc(o.nombre)}</option>`).join("")}</select>
       <div class="ests">${ESTADOS_COM.map(e => `<button class="chip sm ${S.planEst.includes(e) ? "on" : ""}" data-est="${e}"><i style="background:${COL_COM[e]}"></i>${e}</button>`).join("")}</div>
@@ -311,7 +311,7 @@ function activaMarcado(ctx, D, codigos, fin) {
     const ds = sel.map(h => h.dataset.d).sort();
     const nom = ops.length === 1 ? ((S.operarios.find(o => o.id === ops[0]) || {}).nombre || "") : `${ops.length} personas`;
     const fdc = s => s.split("-").reverse().slice(0, 2).join("/");
-    const proys = S.proyectos.filter(p => p.estado !== "Cerrado" && !p.archivado && !caido(p)).sort((a, b) => (a.fecha_carga || "9").localeCompare(b.fecha_carga || "9"));
+    const proys = S.proyectos.filter(p => p.estado !== "Cerrado" && !p.archivado && !caido(p)).sort(ordenProyectos);
     const m = document.createElement("div"); m.className = "mmenu";
     m.innerHTML = `<div class="mm-h"><b>${esc(nom)}</b><span>${ds.length === 1 || ds[0] === ds[ds.length - 1] ? fdc(ds[0]) : `${fdc(ds[0])} → ${fdc(ds[ds.length - 1])}`}</span></div>
       ${ops.length === 1 ? `<div class="mm-r"><label>Hasta <input type="date" id="mmh" value="${ds[ds.length - 1]}" min="${ds[0]}"></label></div>` : ""}

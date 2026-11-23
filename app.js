@@ -9,7 +9,7 @@ const { vPanel } = await import("./panel.js" + V);
 const { vDespiece, vElementoForm } = await import("./despiece.js" + V);
 const { vCarga, vRetorno, vMuelle } = await import("./carga.js" + V);
 const { vPlan, vEquipo, vTv } = await import("./plan.js" + V);
-const { COL_COM, estadoCom, confirmado, riesgos, neonOn } = await import("./estados.js" + V);
+const { COL_COM, estadoCom, confirmado, riesgos, neonOn, ordenProyectos } = await import("./estados.js" + V);
 const { iniciaCabecera, pintaUsuario, pintaNav } = await import("./cabecera.js" + V);
 const { vCartera } = await import("./cartera.js" + V);
 
@@ -163,9 +163,10 @@ function vProyectos() {
   const q = S.q.toLowerCase();
   let ps = S.verArch ? S.proyectos.filter(p => p.archivado) : S.proyectos.filter(p => !p.archivado && enProduccion(p) && (S.verCerrados || p.estado !== "Cerrado"));
   if (q) ps = ps.filter(p => [p.codigo, p.nombre, p.cliente, p.front_nombre].some(v => (v || "").toLowerCase().includes(q)));
+  ps = ps.slice().sort(ordenProyectos);
   const nCerr = S.proyectos.filter(p => p.estado === "Cerrado" && !p.archivado && enProduccion(p)).length, nArch = S.proyectos.filter(p => p.archivado).length;
   $app.innerHTML = `
-  <p class="hint">Ordenados por fecha de carga. Pulsa uno para ver su ficha, sus elementos y la carga.</p>
+  <p class="hint">Ordenados por fecha de carga (los que aún no la tienen, por código). Pulsa uno para ver su ficha, sus elementos y la carga.</p>
   <div class="search fija"><input id="q" placeholder="Buscar por código, proyecto, cliente o Front…" value="${esc(S.q)}">
   ${puede("admin") ? `<button class="btn lime" id="nuevo">+ Nuevo</button>` : ""}</div>
   <div class="row" style="gap:14px">${S.verArch ? "" : `<button class="link" id="vc">${S.verCerrados ? "Ocultar" : "Ver"} proyectos terminados (${nCerr}) ▾</button>`}

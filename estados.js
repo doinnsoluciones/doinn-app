@@ -5,6 +5,9 @@ export const GRUPOS_COM = [["En negociación", ["Presupuestado", "Pre-confirmado
 export const estadoCom = p => (p && p.estado_com) || "Confirmado";
 export const confirmado = p => estadoCom(p) === "Confirmado";
 export const caido = p => ["Pospuesto", "Cancelado"].includes(estadoCom(p));
+// Orden de los proyectos en toda la app: 1º fecha de carga (sin fecha, al final); 2º código de proyecto
+const claveCodigo = p => String(p.codigo || "").replace(/^[A-Z]+-/i, "");
+export const ordenProyectos = (a, b) => (a.fecha_carga || "9999").localeCompare(b.fecha_carga || "9999") || claveCodigo(a).localeCompare(claveCodigo(b), "es", { numeric: true });
 
 const hoyIso = () => new Date().toLocaleDateString("sv-SE");
 const difDias = (a, b) => Math.round((new Date(b + "T00:00:00") - new Date(a + "T00:00:00")) / 864e5);
