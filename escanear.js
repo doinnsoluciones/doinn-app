@@ -83,9 +83,7 @@ function resultado(ctx, ok, msg, det = "") {
   S.scan.log.unshift({ ok, m: msg, h }); S.scan.log = S.scan.log.slice(0, 15);
   const r = document.getElementById("res");
   if (r) {
-    const und = S.scan.undo && Date.now() - S.scan.undo.t < 5000;
-    r.innerHTML = `<div class="scanres ${ok ? "ok" : "ko"}"><b>${ok ? "✓" : "✕"} ${esc(msg)}</b>${det ? `<div>${esc(det)}</div>` : ""}${und ? `<button class="btn ghost sm" id="bund" type="button">↶ Deshacer</button>` : ""}</div>`;
-    const bu = document.getElementById("bund"); if (bu) bu.onclick = async () => { const m = await deshacer(ctx); r.innerHTML = `<div class="scanres ok"><b>↶ ${esc(m)}</b></div>`; };
+    r.innerHTML = `<div class="scanres ${ok ? "ok" : "ko"}"><b>${ok ? "✓" : "✕"} ${esc(msg)}</b>${det ? `<div>${esc(det)}</div>` : ""}</div>`;
     clearTimeout(resultado.t); resultado.t = setTimeout(() => { if (r) r.innerHTML = ""; }, 15000);
   }
   const lg = document.getElementById("log");
@@ -157,7 +155,7 @@ async function procesa(ctx, raw) {
     if (st.undo) st.undo.msg = msg;
     // En carga se escanean muchos bultos seguidos: se queda en el escáner y no repite el mismo código en 30 s
     if (paso === "carga") { ultimo = { c: txt, t: Date.now() + 27000 }; return resultado(ctx, ok, msg, det); }
-    resultado(ctx, ok, msg, det); parar(); st.vuelta = { id: z.elemento_id, ok, msg, det, t: Date.now(), undo: !!st.undo }; st.autoCam = true; setTimeout(() => { location.hash = `#/p/${z.proyecto_id || x.proyecto_id}/el/${z.elemento_id}`; }, ok ? 900 : 1600); };
+    resultado(ctx, ok, msg, det); parar(); st.vuelta = { id: z.elemento_id, zid: z.id, ok, msg, det, t: Date.now() }; st.autoCam = true; setTimeout(() => { location.hash = `#/p/${z.proyecto_id || x.proyecto_id}/el/${z.elemento_id}`; }, ok ? 900 : 1600); };
   const nom = `${x.elemento || x.referencia} · ${z.num_pieza}/${z.total_piezas}`;
   const quien = st.operario ? st.operario.nombre : (S.perfil.nombre || S.user.email.split("@")[0]);
   const now = new Date().toISOString();
@@ -168,9 +166,15 @@ async function procesa(ctx, raw) {
     if (x.estado_doc !== "Hecho") return vaFicha(false, "Esta pieza no se puede marcar como cortada · falta: documentación técnica", `${nom} · Oficina Técnica debe marcarla como hecha`);
     st.undo = foto();
     await sb.from("piezas").update({ cortada: true, fecha_corte: now, operario_corte: quien }).eq("id", z.id);
-    if (x.estado_fab === "Pendiente") await sb.from("elementos").update({ estado_fab: "En curso" }).eq("id", x.id);
+    const { data: todas } = await sb.from("piezas").select("id,cortada,fabricada").eq("elemento_id", x.id);
+    const nCort = (todas || []).filter(k => k.cortada || k.fabricada || k.id === z.id).length, tot = (todas || []).length;
+    const ce = {};
+    if (x.estado_fab === "Pendiente") ce.estado_fab = "En curso";
+    // Todas las unidades cortadas → la fase Corte del elemento queda hecha
+    if (nCort === tot && (x.fases || "").includes("|Corte|") && !(x.fases_hechas || "").includes("|Corte|")) ce.fases_hechas = (x.fases_hechas || "|") + "Corte|";
+    if (Object.keys(ce).length) await sb.from("elementos").update(ce).eq("id", x.id);
     S.dirty = true;
-    return vaFicha(true, "Cortada", nom);
+    return vaFicha(true, "Cortada", `${nom} · ${nCort}/${tot} unidades cortadas`);
   }
 
   if (paso === "fab") {

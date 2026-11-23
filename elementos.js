@@ -115,11 +115,20 @@ export async function vElemento(ctx, p, eid) {
     return `<div class="fz">${fs.map(f => { const on = tiene(obj.fases_hechas, f); return `<button class="fzb ${on ? "on" : ""}" data-t="${tipo}" data-id="${obj.id}" data-f="${f}" ${edita ? "" : "disabled"}>${on ? "✓ " : ""}${f}</button>`; }).join("")}</div>`;
   };
 
-  const piezasHtml = pzs.length ? `<div class="card"><div class="pj-top"><h2>Piezas y cajas</h2><span class="pill ${pzs.every(z => z.fabricada) ? "ok" : ""}">${pzs.filter(z => z.fabricada).length}/${pzs.length}</span></div>
-    <p class="hint">Cada unidad lleva su etiqueta QR. Se marca fabricada solo al escanearla en Escanear (cuando todas las fases están hechas) y cargada al escanearla en la carga.</p>
-    ${pzs.map(z => `<div class="pz"><span class="num">P${z.num_pieza}</span><div class="pzb"><b>${esc(z.desc_pieza || x.elemento)}</b><div class="code">${esc(z.referencia)} · ${z.num_pieza}/${z.total_piezas}</div></div>
-      <span class="pill ${z.fabricada ? "ok" : ""}" data-pz="${z.id}" title="Se marca al escanear su QR">${z.fabricada ? "✓ Fabricada" : "Escanear QR"}</span>
-      ${z.cargada ? `<span class="pill ok">Cargada</span>` : ""}</div>`).join("")}</div>` : "";
+  // Avance de piezas: cada unidad pasa por Sin cortar → Cortada → Fabricada → Cargada
+  const ETAPAS = ["Sin cortar", "Cortada", "Fabricada", "Cargada"];
+  const etapa = z => z.cargada ? 3 : z.fabricada ? 2 : z.cortada ? 1 : 0;
+  const cuenta = k => pzs.filter(z => etapa(z) >= k).length;
+  const deScan = S.scan && S.scan.vuelta && S.scan.vuelta.id === x.id && Date.now() - S.scan.vuelta.t < 10 * 60e3 ? S.scan.vuelta : null;
+  const barraAv = (t, k) => { const n = cuenta(k), tot = pzs.length; return `<div class="avb ${n === tot ? "full" : ""}"><div class="avt"><span>${t}</span><b>${n}/${tot}</b></div><div class="avl"><i style="width:${tot ? Math.round(n / tot * 100) : 0}%"></i></div></div>`; };
+  const piezasHtml = pzs.length ? `<div class="card" id="cpz"><div class="pj-top"><h2>Avance de piezas</h2><span class="code">${pzs.length} unidad${pzs.length > 1 ? "es" : ""}</span></div>
+    <div class="av3">${barraAv("Cortadas", 1)}${barraAv("Fabricadas", 2)}${barraAv("Cargadas", 3)}</div>
+    ${pzs.map(z => { const e = etapa(z); return `<div class="pz2 ${deScan && deScan.zid === z.id ? "hl" : ""}" data-pz="${z.id}">
+      <div class="pzh"><span class="num">P${z.num_pieza}</span><div class="pzb"><b>${esc(z.desc_pieza || x.elemento)}</b><div class="code">${esc(z.referencia)}</div></div><span class="pill ${e === 3 ? "ok" : e === 2 ? "ok" : e === 1 ? "warn" : ""}">${ETAPAS[e]}</span></div>
+      <div class="pzs">${ETAPAS.slice(1).map((t, k) => `<span class="pst ${e > k ? "on" : ""}"><i></i>${t}</span>`).join("")}</div>
+      ${edita ? `<div class="pza" hidden>${e > 0 ? `<button class="btn sm ghost" data-pzm="${z.id}" data-to="${e - 1}">↶ Volver a «${ETAPAS[e - 1]}»</button>` : ""}${e < 3 ? `<button class="btn sm lime" data-pzm="${z.id}" data-to="${e + 1}">Marcar «${ETAPAS[e + 1]}»</button>` : ""}</div>` : ""}
+    </div>`; }).join("")}
+    <p class="hint" style="margin-top:8px">Lo normal es avanzar escaneando la etiqueta en Escanear. ${edita ? "Toca una unidad para corregir su estado a mano." : ""}</p></div>` : "";
 
   const subsHtml = subs.length ? `<div class="card"><h2>Subelementos <small class="code">${subs.filter(s => s.terminado).length}/${subs.length} terminados</small></h2>
     ${subs.map(s => `<div class="sub"><div class="pj-top"><div><b>${esc(s.desc_sub || s.titulo)}</b><div class="code">${[`${s.cantidad || 1} pieza${(s.cantidad || 1) > 1 ? "s" : ""}`, origenTxt(s.origen), s.acabado].filter(Boolean).map(esc).join(" · ")} ${ralChips(s.ral, esc)}</div></div>${fasesDe(s).length ? `<span class="pill ${s.terminado ? "ok" : ""}">${s.terminado ? "✓ Terminado" : `${fasesDe(s).filter(f => tiene(s.fases_hechas, f)).length}/${fasesDe(s).length} fases`}</span>` : `<button class="fzb ${s.terminado ? "on" : ""}" data-term="${s.id}" ${edita ? "" : "disabled"}>${s.terminado ? "✓ Listo" : "Marcar listo"}</button>`}</div>
@@ -129,19 +138,18 @@ export async function vElemento(ctx, p, eid) {
     <p class="hint">Marca cada fase al terminarla. Toca otra vez para desmarcar.</p>${botonesFase(x, "e")}</div>` : "";
 
   const dato = (k, v) => `<dt>${k}</dt><dd>${v || "—"}</dd>`;
-  const deScan = S.scan && S.scan.vuelta && S.scan.vuelta.id === x.id && Date.now() - S.scan.vuelta.t < 10 * 60e3 ? S.scan.vuelta : null;
-  $app.innerHTML = `${deScan ? `<div class="scanres ${deScan.ok ? "ok" : "ko"} scanvuelta"><b>${deScan.ok ? "✓" : "✕"} ${esc(deScan.msg)}</b>${deScan.det ? `<div>${esc(deScan.det)}</div>` : ""}<a class="btn lime wide" href="#/escanear">📷 Escanear siguiente</a>${deScan.undo ? `<button class="btn ghost wide" id="bund" type="button" style="margin-top:6px">↶ Deshacer este escaneo</button>` : ""}</div>` : ""}<a class="back" href="#/p/${p.id}/elementos">‹ ${esc(p.nombre)}</a>
+  // Resultado del último escaneo (solo informativo; se muestra unos minutos)
+  const verScan = deScan && Date.now() - deScan.t < 3 * 60e3;
+  $app.innerHTML = `${verScan ? `<div class="scanres ${deScan.ok ? "ok" : "ko"} scanvuelta"><b>${deScan.ok ? "✓" : "✕"} ${esc(deScan.msg)}</b>${deScan.det ? `<div>${esc(deScan.det)}</div>` : ""}</div>` : ""}<a class="back" href="#/p/${p.id}/elementos">‹ ${esc(p.nombre)}</a>
   <div class="code">Ref. ${esc(x.referencia || "")}</div><h1>${esc(x.elemento || "")}</h1>
   <div class="code" style="margin:-8px 0 12px">${[medidasTxt(x) ? "Alto × ancho × fondo: " + medidasTxt(x) : "", x.acabado, origenTxt(x.origen)].filter(Boolean).map(esc).join(" · ")}</div>
-  ${pasos}${fabHtml}${subsHtml}${piezasHtml}
+  ${pasos}${piezasHtml}${fabHtml}${subsHtml}
   <div class="card"><dl class="kv">${dato("Unidades", x.cantidad)}${dato("Origen", esc(origenTxt(x.origen)))}${dato("Medidas (alto × ancho × fondo)", medidasTxt(x))}${dato("Acabado", esc(x.acabado))}${x.ral ? dato("Color RAL", ralChips(x.ral, esc)) : ""}${dato("Fases", esc(fasesDe(x).join(" · ")))}${x.es_extra ? dato("Extra", "Sí, pedido de última hora") : ""}${dato("Etiquetas", x.num_etiquetas)}${dato("Camión", esc(x.camion))}${dato("Orden de carga", x.orden_carga)}${dato("Ubicación nave", esc(x.ubicacion_nave))}${dato("Observaciones", esc(x.observaciones))}</dl></div>
   <div class="card"><div class="pj-top"><div><b>Incidencia</b><div class="code">${x.incidencia ? "Abierta" : "Sin incidencia"}</div></div>
     <label class="tg"><input type="checkbox" id="inc" ${x.incidencia ? "checked" : ""} ${edita ? "" : "disabled"}><span></span><b>${x.incidencia ? "Sí" : "No"}</b></label></div></div>
   ${x.hist_fases ? `<details class="card"><summary>Historial de fases</summary><pre class="hist">${esc(x.hist_fases)}</pre></details>` : ""}`;
 
   // acciones de pasos
-  const bu = document.getElementById("bund");
-  if (bu) bu.onclick = async () => { const { deshacer } = await import("./escanear.js" + V); const m = await deshacer(ctx); if (S.scan.vuelta) { S.scan.vuelta.ok = true; S.scan.vuelta.msg = m; S.scan.vuelta.det = ""; } recarga(); };
   $app.querySelectorAll("[data-a]").forEach(b => b.onclick = async () => {
     const now = new Date().toISOString(), a = b.dataset.a;
     const C = {
@@ -181,8 +189,30 @@ export async function vElemento(ctx, p, eid) {
     const s = subs.find(k => k.id === +b.dataset.term), t = !s.terminado;
     if (await upd("subelementos", s.id, { terminado: t, fecha_term: t ? new Date().toISOString() : null, operario_term: t ? yo : null })) recarga();
   });
-  // las unidades se marcan fabricadas solo al escanear su QR
-  $app.querySelectorAll("[data-pz]").forEach(b => b.onclick = () => toast(faltan.length ? "Falta: " + faltan.join(" · ") : "Se marca como fabricada al escanear su QR en Escanear."));
+  // Unidades: tocar abre las acciones para corregir su estado a mano
+  $app.querySelectorAll(".pz2").forEach(row => row.onclick = ev => { if (ev.target.closest("button")) return; const a = row.querySelector(".pza"); if (a) { a.hidden = !a.hidden; row.classList.toggle("abierta", !a.hidden); } });
+  $app.querySelectorAll("[data-pzm]").forEach(b => b.onclick = async () => {
+    const z = pzs.find(k => k.id === +b.dataset.pzm), to = +b.dataset.to, now = new Date().toISOString();
+    if (to >= 1 && x.estado_doc !== "Hecho") return toast("No se puede: falta la documentación técnica");
+    if (to === 2 && etapa(z) < 2 && faltan.length) return toast("No se puede marcar como fabricada · falta: " + faltan.join(" · "));
+    const c = {};
+    if (to >= 1 && !z.cortada) Object.assign(c, { cortada: true, fecha_corte: now, operario_corte: yo }); if (to < 1) Object.assign(c, { cortada: false, fecha_corte: null, operario_corte: null });
+    if (to >= 2 && !z.fabricada) Object.assign(c, { fabricada: true, fecha_fab: now, operario_fab: yo }); if (to < 2) Object.assign(c, { fabricada: false, fecha_fab: null, operario_fab: null });
+    if (to >= 3 && !z.cargada) Object.assign(c, { cargada: true, fecha_cargada: now, operario_carga: yo }); if (to < 3) Object.assign(c, { cargada: false, fecha_cargada: null, operario_carga: null });
+    if (!(await upd("piezas", z.id, c))) return;
+    // Recalcula el estado del elemento con todas sus unidades
+    Object.assign(z, c);
+    const nF = pzs.filter(k => etapa(k) >= 2).length, nC = pzs.filter(k => etapa(k) >= 3).length, alguna = pzs.some(k => etapa(k) >= 1);
+    const ce = {};
+    if (nF === pzs.length) { if (x.estado_fab !== "Hecho") Object.assign(ce, { estado_fab: "Hecho", fecha_fab: now, operario_fab: yo }); }
+    else if (x.estado_fab === "Hecho") Object.assign(ce, { estado_fab: "En curso", fecha_fab: null, operario_fab: null });
+    else if (alguna && x.estado_fab === "Pendiente") ce.estado_fab = "En curso";
+    if (nC === pzs.length) { if (x.estado_carga !== "Cargado") Object.assign(ce, { estado_carga: "Cargado", fecha_cargado: now, operario_carga: yo, piezas_cargadas: nC }); }
+    else Object.assign(ce, { estado_carga: nC ? "Parcial" : "Pendiente", piezas_cargadas: nC, fecha_cargado: null, operario_carga: null });
+    if (!subs.length && tiene(x.fases, "Corte") && !tiene(x.fases_hechas, "Corte") && pzs.every(k => etapa(k) >= 1)) ce.fases_hechas = (x.fases_hechas || "|") + "Corte|";
+    if (Object.keys(ce).length) await upd("elementos", x.id, ce);
+    S.dirty = true; toast(`P${z.num_pieza}: ${ETAPAS[to]}`); recarga();
+  });
   const inc = document.getElementById("inc");
   inc.onchange = async () => { if (await upd("elementos", x.id, { incidencia: inc.checked }, inc.checked ? "Incidencia abierta" : "Incidencia cerrada")) recarga(); };
 }

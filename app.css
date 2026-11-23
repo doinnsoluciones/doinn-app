@@ -678,3 +678,39 @@ table.cart [data-f]:disabled:not(.cfr):not(.cest){background:transparent;border-
 .stats thead{position:sticky;top:0;z-index:3}
 .stats thead th{background:var(--card)}
 .stats thead th:first-child{z-index:4}
+
+/* Móvil: respeta la barra de estado (hora, batería) y la barra de gestos del iPhone */
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+.top{height:calc(52px + env(safe-area-inset-top));padding-top:env(safe-area-inset-top);padding-left:calc(16px + env(safe-area-inset-left));padding-right:calc(10px + env(safe-area-inset-right))}
+.search.fija{top:calc(52px + env(safe-area-inset-top))}
+.tabs a{min-width:0}
+.tabs a .tc{display:none}
+@media (max-width:480px){
+  .tabs{padding-top:5px}
+  .tabs a{font-size:10px;gap:1px;letter-spacing:-.01em}
+  .tabs a .ic{width:20px;height:20px}
+  .tabs a .tl{display:none}
+  .tabs a .tc{display:inline}
+}
+@media (max-width:360px){.tabs a{font-size:9.5px}}
+
+/* Avance de piezas */
+.av3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:6px 0 10px}
+.avt{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;color:var(--muted2)}
+.avt b{font-size:15px;color:var(--ink)}
+.avl{height:8px;border-radius:4px;background:var(--line);overflow:hidden;margin-top:4px}
+.avl i{display:block;height:100%;background:var(--amber-bg);background:#E8A33A;border-radius:4px}
+.avb.full .avl i{background:var(--lime)}
+.pz2{border-top:1px solid var(--line);padding:10px 0;cursor:pointer}
+.pz2.hl{background:var(--lime-bg);margin:0 -12px;padding:10px 12px;border-radius:10px;border-top-color:transparent}
+.pzh{display:flex;align-items:center;gap:10px}
+.pzs{display:flex;gap:6px;margin:8px 0 0 38px}
+.pst{flex:1;display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--muted);padding:5px 8px;border-radius:999px;background:var(--bg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pst i{flex:none;width:9px;height:9px;border-radius:50%;border:2px solid var(--muted)}
+.pst.on{background:var(--lime-bg);color:var(--lime-d);font-weight:600}
+.pst.on i{background:var(--lime);border-color:var(--lime)}
+.pza[hidden]{display:none}
+.pza{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 0 38px}
+.pz2.abierta .pzh .pill{outline:2px solid var(--line)}
+@media (max-width:480px){.av3{gap:8px}.avt{font-size:11px}.pzs{margin-left:0}.pza{margin-left:0}.pst{font-size:11px;padding:5px 6px}}
+[data-theme=dark] .avl i{background:#E8A33A}
