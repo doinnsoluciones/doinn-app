@@ -138,8 +138,13 @@ export async function vCartera(ctx) {
       const mm = String(i + 1).padStart(2, "0"), clave = `${st.anio}-${mm}`;
       const ps = base.filter(p => (p.evento_inicio || "").startsWith(clave) && p.estado_com === "Confirmado");
       const re = ps.filter(p => p.evento_inicio <= hoy).length, prev = ps.length - re;
+      // Meses futuros: resumen de confirmados y pendientes
+      const nPend = base.filter(p => (p.evento_inicio || "").startsWith(clave) && p.estado_com === "Pendiente").length;
+      const resumen = clave > mesHoy
+        ? (ps.length || nPend ? `<small>Confirmados: <b class="cn">${ps.length}</b></small><small>Pendientes: <b class="cn">${nPend}</b></small>` : `<small>sin eventos</small>`)
+        : `<small>${re ? `${re} realizado${re > 1 ? "s" : ""}` : ""}${re && prev ? " · " : ""}${prev ? `${prev} previsto${prev > 1 ? "s" : ""}` : ""}${!ps.length ? "sin eventos" : ""}</small>`;
       return `<button class="cm ${st.meses.includes(mm) ? "on" : ""} ${clave === mesHoy ? "hoy" : ""} ${clave > mesHoy ? "fut" : ""}" data-mes="${mm}" title="Filtrar ${n}">
-        <span>${n.slice(0, 3)}</span><b>${ps.length ? eur(suma(ps, v)) : "—"}</b><small>${re ? `${re} realizado${re > 1 ? "s" : ""}` : ""}${re && prev ? " · " : ""}${prev ? `${prev} previsto${prev > 1 ? "s" : ""}` : ""}${!ps.length ? "sin eventos" : ""}</small></button>`;
+        <span>${n.slice(0, 3)}</span><b>${ps.length ? eur(suma(ps, v)) : "—"}</b>${resumen}</button>`;
     }).join("")}</div>`;
     const selFront = p => `<select data-f="front" data-id="${p.id}" class="cfr" style="--c:${cF(p)}"><option value="">${p.front_id ? "—" : esc(p.front_nombre || "—")}</option>${fronts.map(f => `<option value="${f.id}" ${p.front_id === f.id ? "selected" : ""}>${esc(f.nombre)}</option>`).join("")}</select>`;
     const fila = p => {
@@ -167,7 +172,7 @@ export async function vCartera(ctx) {
     <div class="kpis">
       <div class="kpi"><span>Venta confirmada</span><b>${eur(suma(conf, v))}</b><small>${conf.length} proyectos</small></div>
       <div class="kpi"><span>Eventos realizados</span><b>${real.length}</b><small>${eur(suma(real, v))} · ${conf.length - real.length} previstos</small></div>
-      <div class="kpi"><span>Cartera pendiente</span><b>${eur(suma(pend, v))}</b><small>${pend.length} presupuestos abiertos</small></div>
+      <div class="kpi"><span>Cartera pendiente</span><b>${eur(suma(pend, v))}</b><small>${pend.length} proyecto${pend.length === 1 ? "" : "s"} pendiente${pend.length === 1 ? "" : "s"}</small></div>
       <div class="kpi"><span>Cancelado</span><b>${eur(suma(canc, v))}</b><small>${canc.length} proyectos</small></div>
       <div class="kpi"><span>Tasa de éxito</span><b>${decididos ? pct(conf.length / decididos) : "—"}</b><small>confirmados / decididos</small></div>
       <div class="kpi"><span>Margen medio</span><b>${margen != null ? pct(margen) : "—"}</b><small>${conCoste.length ? `${conCoste.length} con coste estimado` : "falta el coste estimado"}</small></div>

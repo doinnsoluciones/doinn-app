@@ -747,3 +747,4 @@ html{touch-action:manipulation}
   .pnav{margin-bottom:6px}
 }
 body.tv .gg{font-size:15px;padding:10px 0}
+.cm small b.cn{font-size:inherit;font-weight:700;color:var(--ink)}
