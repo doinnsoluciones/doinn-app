@@ -663,3 +663,11 @@ table.cart td.nr{font-variant-numeric:tabular-nums}
 table.cart [data-f]:disabled{opacity:1;color:var(--ink);cursor:default;-webkit-text-fill-color:var(--ink)}
 table.cart select[data-f]:disabled{appearance:none;-webkit-appearance:none}
 table.cart [data-f]:disabled:not(.cfr):not(.cest){background:transparent;border-color:transparent}
+.scanov{position:absolute;left:10px;right:10px;bottom:10px;display:none;flex-direction:column;gap:2px;padding:10px 14px;border-radius:12px;background:rgba(19,30,41,.78);color:#fff;font-size:14px;text-align:center;z-index:3}
+.cam.on .scanov{display:flex}
+.scanov b{font-size:18px;font-weight:800}.scanov small{font-size:13px;opacity:.95}
+.scanov .sov-idle{opacity:.85}
+.scanov.lee{background:rgba(242,194,48,.95);color:#131E29}
+.scanov.ok{background:rgba(147,213,0,.96);color:#131E29}
+.scanov.ko{background:rgba(217,52,43,.95);color:#fff}
+.cam .aim.lee{border-color:#F2C230}.cam .aim.ok{border-color:#93D500;box-shadow:0 0 0 999px rgba(147,213,0,.25)}.cam .aim.ko{border-color:#D9342B;box-shadow:0 0 0 999px rgba(217,52,43,.25)}

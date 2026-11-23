@@ -28,7 +28,8 @@ export function vEscanear(ctx) {
   </div>
   <div class="cam card" id="camc">
     <video id="vid" playsinline muted></video><canvas id="cv" hidden></canvas>
-    <div class="aim"></div>
+    <div class="aim" id="aim"></div>
+    <div class="scanov" id="sov"><span class="sov-idle">Buscando código… centra el QR en el recuadro</span></div>
     <button class="camtap" id="bcam" type="button"><span class="cmark"><i></i></span><span class="ctxt">Toca aquí para abrir la cámara</span></button>
   </div>
   <form id="fman" class="search"><input id="man" placeholder="Pistola o código a mano (ej. 261123.01-001-P1)" autocomplete="off"><button class="btn">OK</button></form>
@@ -86,7 +87,28 @@ function resultado(ctx, ok, msg, det = "") {
   if (r) { r.innerHTML = `<div class="scanres ${ok ? "ok" : "ko"}"><b>${ok ? "✓" : "✕"} ${esc(msg)}</b>${det ? `<div>${esc(det)}</div>` : ""}</div>`; clearTimeout(resultado.t); resultado.t = setTimeout(() => { if (r) r.innerHTML = ""; }, 8000); }
   const lg = document.getElementById("log");
   if (lg) lg.innerHTML = S.scan.log.map(l => `<div class="lg ${l.ok ? "ok" : "ko"}"><span>${l.h}</span> ${esc(l.m)}</div>`).join("");
-  try { navigator.vibrate && navigator.vibrate(ok ? 60 : [80, 60, 80]); } catch { }
+  try { navigator.vibrate && navigator.vibrate(ok ? 120 : [120, 80, 120]); } catch { }
+  pita(ok);
+  aviso(ok ? "ok" : "ko", (ok ? "✓ " : "✕ ") + msg, det);
+}
+
+// Aviso grande encima de la cámara: se ve aunque el resultado quede fuera de pantalla
+function aviso(tipo, msg, det = "") {
+  const o = document.getElementById("sov"), aim = document.getElementById("aim"); if (!o) return;
+  const e = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+  o.className = "scanov " + tipo; o.innerHTML = `<b>${e(msg)}</b>${det ? `<small>${e(det)}</small>` : ""}`;
+  if (aim) aim.className = "aim " + tipo;
+  clearTimeout(aviso.t);
+  if (tipo !== "lee") aviso.t = setTimeout(() => { o.className = "scanov"; o.innerHTML = `<span class="sov-idle">Buscando código… centra el QR en el recuadro</span>`; if (aim) aim.className = "aim"; }, 3500);
+}
+// Pitido corto (agudo = bien, grave doble = error)
+let actx = null;
+function pita(ok) {
+  try {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    const tono = (f, t0, d) => { const o = actx.createOscillator(), g = actx.createGain(); o.frequency.value = f; o.type = "square"; g.gain.value = 0.06; o.connect(g); g.connect(actx.destination); o.start(actx.currentTime + t0); o.stop(actx.currentTime + t0 + d); };
+    if (ok) tono(1320, 0, 0.12); else { tono(330, 0, 0.15); tono(330, 0.22, 0.15); }
+  } catch { }
 }
 
 async function procesa(ctx, raw) {
@@ -94,6 +116,7 @@ async function procesa(ctx, raw) {
   const txt = raw.trim();
   if (txt === ultimo.c && Date.now() - ultimo.t < 3000) return;
   ultimo = { c: txt, t: Date.now() };
+  aviso("lee", "QR leído · comprobando…");
   const st = S.scan;
 
   // Tarjeta de operario
