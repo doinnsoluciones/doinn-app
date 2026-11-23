@@ -130,7 +130,7 @@ export async function vElemento(ctx, p, eid) {
 
   const dato = (k, v) => `<dt>${k}</dt><dd>${v || "—"}</dd>`;
   const deScan = S.scan && S.scan.vuelta && S.scan.vuelta.id === x.id && Date.now() - S.scan.vuelta.t < 10 * 60e3 ? S.scan.vuelta : null;
-  $app.innerHTML = `${deScan ? `<div class="scanres ${deScan.ok ? "ok" : "ko"} scanvuelta"><b>${deScan.ok ? "✓" : "✕"} ${esc(deScan.msg)}</b>${deScan.det ? `<div>${esc(deScan.det)}</div>` : ""}<a class="btn lime wide" href="#/escanear">📷 Escanear siguiente</a></div>` : ""}<a class="back" href="#/p/${p.id}/elementos">‹ ${esc(p.nombre)}</a>
+  $app.innerHTML = `${deScan ? `<div class="scanres ${deScan.ok ? "ok" : "ko"} scanvuelta"><b>${deScan.ok ? "✓" : "✕"} ${esc(deScan.msg)}</b>${deScan.det ? `<div>${esc(deScan.det)}</div>` : ""}<a class="btn lime wide" href="#/escanear">📷 Escanear siguiente</a>${deScan.undo ? `<button class="btn ghost wide" id="bund" type="button" style="margin-top:6px">↶ Deshacer este escaneo</button>` : ""}</div>` : ""}<a class="back" href="#/p/${p.id}/elementos">‹ ${esc(p.nombre)}</a>
   <div class="code">Ref. ${esc(x.referencia || "")}</div><h1>${esc(x.elemento || "")}</h1>
   <div class="code" style="margin:-8px 0 12px">${[medidasTxt(x) ? "Alto × ancho × fondo: " + medidasTxt(x) : "", x.acabado, origenTxt(x.origen)].filter(Boolean).map(esc).join(" · ")}</div>
   ${pasos}${fabHtml}${subsHtml}${piezasHtml}
@@ -140,6 +140,8 @@ export async function vElemento(ctx, p, eid) {
   ${x.hist_fases ? `<details class="card"><summary>Historial de fases</summary><pre class="hist">${esc(x.hist_fases)}</pre></details>` : ""}`;
 
   // acciones de pasos
+  const bu = document.getElementById("bund");
+  if (bu) bu.onclick = async () => { const { deshacer } = await import("./escanear.js" + V); const m = await deshacer(ctx); if (S.scan.vuelta) { S.scan.vuelta.ok = true; S.scan.vuelta.msg = m; S.scan.vuelta.det = ""; } recarga(); };
   $app.querySelectorAll("[data-a]").forEach(b => b.onclick = async () => {
     const now = new Date().toISOString(), a = b.dataset.a;
     const C = {
