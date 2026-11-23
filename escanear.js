@@ -47,22 +47,26 @@ export function vEscanear(ctx) {
 async function abrirCamara(ctx) {
   const vid = document.getElementById("vid"), cv = document.getElementById("cv"), b = document.getElementById("bcam");
   try {
-    if (!stream) stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
+    // Pedimos resolución alta: el QR de la etiqueta (25 × 54 mm) es pequeño y a baja resolución no se lee
+    if (!stream) stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
+    try { const tr = stream.getVideoTracks()[0], cap = tr.getCapabilities ? tr.getCapabilities() : {}; if (cap.focusMode && cap.focusMode.includes("continuous")) await tr.applyConstraints({ advanced: [{ focusMode: "continuous" }] }); } catch { }
     vid.srcObject = stream; await vid.play();
     document.getElementById("camc").classList.add("on"); b.style.display = "none";
-    if ("BarcodeDetector" in window) { try { detector = new window.BarcodeDetector({ formats: ["qr_code"] }); } catch { detector = null; } }
-    if (!detector) await cargaLibQR();
+    if ("BarcodeDetector" in window) { try { const f = await window.BarcodeDetector.getSupportedFormats(); detector = f.includes("qr_code") ? new window.BarcodeDetector({ formats: ["qr_code"] }) : null; } catch { detector = null; } }
+    await cargaLibQR().catch(() => { });
     const g = cv.getContext("2d", { willReadFrequently: true });
+    let fallosDet = 0, n = 0;
     const tick = async () => {
       if (!stream || !document.getElementById("vid")) return parar();
-      if (vid.readyState >= 2) {
+      if (vid.readyState >= 2 && vid.videoWidth) {
         let txt = null;
-        if (detector) { try { const r = await detector.detect(vid); if (r[0]) txt = r[0].rawValue; } catch { } }
-        else {
-          const w = 480, h = Math.round(480 * vid.videoHeight / vid.videoWidth) || 360;
-          cv.width = w; cv.height = h; g.drawImage(vid, 0, 0, w, h);
-          const r = window.jsQR(g.getImageData(0, 0, w, h).data, w, h, { inversionAttempts: "dontInvert" });
-          if (r) txt = r.data;
+        if (detector && fallosDet < 30) { try { const r = await detector.detect(vid); if (r[0]) txt = r[0].rawValue; } catch { fallosDet++; } }
+        // jsQR sobre el centro de la imagen a buena resolución (cada 2 fotogramas, o siempre si no hay detector nativo)
+        if (!txt && window.jsQR && (!detector || fallosDet >= 30 || ++n % 2 === 0)) {
+          const vw = vid.videoWidth, vh = vid.videoHeight, lado = Math.min(vw, vh) * 0.8, sx = (vw - lado) / 2, sy = (vh - lado) / 2, w = Math.min(800, Math.round(lado));
+          cv.width = w; cv.height = w; g.drawImage(vid, sx, sy, lado, lado, 0, 0, w, w);
+          const r = window.jsQR(g.getImageData(0, 0, w, w).data, w, w, { inversionAttempts: "attemptBoth" });
+          if (r && r.data) txt = r.data;
         }
         if (txt) procesa(ctx, txt);
       }
@@ -129,7 +133,7 @@ async function procesa(ctx, raw) {
   }
 
   if (st.modo === "fab") {
-    if (x.estado_doc !== "Hecho") return resultado(ctx, false, "Falta la documentación técnica", nom);
+    if (x.estado_doc !== "Hecho") return resultado(ctx, false, "Falta la documentación técnica", `${nom} · Oficina Técnica debe marcar la documentación como hecha`);
     if (z.fabricada) return resultado(ctx, true, "Ya estaba fabricada", nom);
     const { data: subs } = await sb.from("subelementos").select("id,num_sub,desc_sub,fases,fases_hechas,terminado").eq("elemento_id", x.id).order("num_sub");
     const falta = faltanFases(x, subs || []);
