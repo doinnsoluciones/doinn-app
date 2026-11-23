@@ -428,10 +428,14 @@ async function vStats(ctx, anio) {
     $app.innerHTML = `<div class="pnav"><div class="seg2"><a href="#/plan/proyectos">Proyectos</a><a href="#/plan/personal">Personal</a><a class="on">Estadísticas</a></div>
     <div class="row"><button class="btn sm ghost" id="bcsv">Descargar CSV</button></div></div>
   <p class="hint">Días por persona en ${y}${y === new Date().getFullYear() ? ` (incluye lo planificado después de hoy, ${hoy.split("-").reverse().join("/")})` : ""}. Cuenta asignaciones, ausencias y lo marcado en Personal.</p>
-  <div class="gwrap"><table class="stats"><thead><tr><th class="sth-g"></th><th colspan="${COD_PROD.length}" class="sth-g">Producción</th><th colspan="${COD_OTROS.length}" class="sth-g sep">Ausencias y formación</th></tr>
+  <div class="gwrap swrap" id="swrap"><table class="stats"><thead><tr><th class="sth-g"></th><th colspan="${COD_PROD.length}" class="sth-g">Producción</th><th colspan="${COD_OTROS.length}" class="sth-g sep">Ausencias y formación</th></tr>
   <tr><th>Persona</th>${COLS.map(([k, l, c], i) => `<th class="${i === COD_PROD.length ? "sep" : ""}"><i class="sw2" style="background:${c}"></i>${l}</th>`).join("")}</tr></thead>
   <tbody>${grupos.map(({ g, filas }) => { const cerr = S.statCerr[g], st = suma0(filas); return `<tr class="sgr" data-sg="${g}"><td>${cerr ? "▸" : "▾"} ${g} <small class="code">${filas.length}</small></td>${celdas(st)}</tr>` + (cerr ? "" : filas.map(f => `<tr><td class="spn">${esc(f.o.nombre)}</td>${celdas(f.c)}</tr>`).join("")); }).join("") || `<tr><td colspan="${COLS.length + 1}" class="code">Sin datos en ${y}.</td></tr>`}</tbody>
   <tfoot><tr><td>Total</td>${celdas(tot)}</tr></tfoot></table></div>`;
+    // Cabecera fija: la tabla hace scroll dentro de su caja, que ocupa el alto disponible
+    const sw = document.getElementById("swrap"), alto = () => { const tb = document.getElementById("tabs"); sw.style.maxHeight = Math.max(260, innerHeight - sw.getBoundingClientRect().top - (tb ? tb.offsetHeight : 0) - 10) + "px"; };
+    alto(); if (!window.__altoStats) { window.__altoStats = 1; addEventListener("resize", () => { const w = document.getElementById("swrap"); if (w) w.dispatchEvent(new Event("alto")); }); }
+    sw.addEventListener("alto", alto);
     $app.querySelectorAll("[data-sg]").forEach(tr => tr.onclick = () => { S.statCerr[tr.dataset.sg] = !S.statCerr[tr.dataset.sg]; pinta(); });
     document.getElementById("bcsv").onclick = () => {
       const csv = ["Grupo;Persona;" + COLS.map(c => c[1]).join(";"), ...grupos.flatMap(({ g, filas }) => filas.map(f => [g, f.o.nombre, ...COLS.map(([k]) => f.c[k])].join(";")))].join("\n");
