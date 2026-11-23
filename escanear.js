@@ -3,7 +3,7 @@
 const V = new URL(import.meta.url).search;
 const { faltanFases } = await import("./despiece.js" + V);
 const MODOS = [["fab", "Fabricar"], ["corte", "Cortar"], ["carga", "Cargar"]];
-let stream = null, loopId = null, detector = null, ultimo = { c: "", t: 0 };
+let stream = null, loopId = null, detector = null, ultimo = { c: "", t: 0 }, ocupado = false;
 
 function parar() {
   if (loopId) cancelAnimationFrame(loopId), loopId = null;
@@ -42,7 +42,7 @@ export function vEscanear(ctx) {
   $("fman").onsubmit = ev => { ev.preventDefault(); const v = $("man").value.trim(); $("man").value = ""; if (v) procesa(ctx, v); };
   $("man").focus();
   $("bcam").onclick = () => abrirCamara(ctx);
-  if (stream) abrirCamara(ctx);
+  if (stream || st.autoCam) { st.autoCam = false; abrirCamara(ctx); }
 }
 
 async function abrirCamara(ctx) {
@@ -69,7 +69,7 @@ async function abrirCamara(ctx) {
           const r = window.jsQR(g.getImageData(0, 0, w, w).data, w, w, { inversionAttempts: "attemptBoth" });
           if (r && r.data) txt = r.data;
         }
-        if (txt) procesa(ctx, txt);
+        if (txt && !ocupado) { ocupado = true; try { await procesa(ctx, txt); } finally { ocupado = false; } if (!stream) return; }
       }
       loopId = requestAnimationFrame(tick);
     };
@@ -114,7 +114,7 @@ function pita(ok) {
 async function procesa(ctx, raw) {
   const { S, sb } = ctx;
   const txt = raw.trim();
-  if (txt === ultimo.c && Date.now() - ultimo.t < 3000) return;
+  if (txt === ultimo.c && Date.now() - ultimo.t < 10000) return;
   ultimo = { c: txt, t: Date.now() };
   aviso("lee", "QR leído · comprobando…");
   const st = S.scan;
@@ -142,41 +142,46 @@ async function procesa(ctx, raw) {
   if (error) return resultado(ctx, false, "Error al leer", error.message);
   if (!z) return resultado(ctx, false, "Unidad no encontrada", ref);
   const { data: x } = await sb.from("elementos").select("*").eq("id", z.elemento_id).single();
+  // Tras cada lectura: se para la cámara y se abre la ficha del elemento con el resultado (evita lecturas repetidas)
+  const vaFicha = (ok, msg, det) => {
+    // En carga se escanean muchos bultos seguidos: se queda en el escáner y no repite el mismo código en 30 s
+    if (st.modo === "carga") { ultimo = { c: txt, t: Date.now() + 27000 }; return resultado(ctx, ok, msg, det); }
+    resultado(ctx, ok, msg, det); parar(); st.vuelta = { id: z.elemento_id, ok, msg, det, t: Date.now() }; st.autoCam = true; setTimeout(() => { location.hash = `#/p/${z.proyecto_id || x.proyecto_id}/el/${z.elemento_id}`; }, ok ? 900 : 1600); };
   const nom = `${x.elemento || x.referencia} · ${z.num_pieza}/${z.total_piezas}`;
   const quien = st.operario ? st.operario.nombre : (S.perfil.nombre || S.user.email.split("@")[0]);
   const now = new Date().toISOString();
 
   if (st.modo === "corte") {
-    if (x.estado_doc !== "Hecho") return resultado(ctx, false, "Falta la documentación técnica", nom);
-    if (z.cortada) return resultado(ctx, true, "Ya estaba cortada", nom);
+    if (x.estado_doc !== "Hecho") return vaFicha(false, "Falta la documentación técnica", nom);
+    if (z.cortada) return vaFicha(true, "Ya estaba cortada", nom);
     await sb.from("piezas").update({ cortada: true, fecha_corte: now, operario_corte: quien }).eq("id", z.id);
     if (x.estado_fab === "Pendiente") await sb.from("elementos").update({ estado_fab: "En curso" }).eq("id", x.id);
     S.dirty = true;
-    return resultado(ctx, true, "Cortada", nom);
+    return vaFicha(true, "Cortada", nom);
   }
 
   if (st.modo === "fab") {
-    if (x.estado_doc !== "Hecho") return resultado(ctx, false, "Falta la documentación técnica", `${nom} · Oficina Técnica debe marcar la documentación como hecha`);
-    if (z.fabricada) return resultado(ctx, true, "Ya estaba fabricada", nom);
+    if (x.estado_doc !== "Hecho") return vaFicha(false, "Falta la documentación técnica", `${nom} · Oficina Técnica debe marcar la documentación como hecha`);
+    if (z.fabricada) return vaFicha(true, "Ya estaba fabricada", nom);
     const { data: subs } = await sb.from("subelementos").select("id,num_sub,desc_sub,fases,fases_hechas,terminado").eq("elemento_id", x.id).order("num_sub");
     const falta = faltanFases(x, subs || []);
-    if (falta.length) return resultado(ctx, false, "Faltan fases por terminar", `Falta: ${falta.join(" · ")} · ${nom}`);
+    if (falta.length) return vaFicha(false, "Faltan fases por terminar", `Falta: ${falta.join(" · ")} · ${nom}`);
     await sb.from("piezas").update({ fabricada: true, fecha_fab: now, operario_fab: quien, cortada: true }).eq("id", z.id);
     const { data: todas } = await sb.from("piezas").select("id,fabricada").eq("elemento_id", x.id);
     const listas = todas.filter(k => k.fabricada || k.id === z.id).length;
     if (listas === todas.length) await sb.from("elementos").update({ estado_fab: "Hecho", fecha_fab: now, operario_fab: quien }).eq("id", x.id);
     else if (x.estado_fab === "Pendiente") await sb.from("elementos").update({ estado_fab: "En curso" }).eq("id", x.id);
     S.dirty = true;
-    return resultado(ctx, true, listas === todas.length ? "Fabricada · elemento listo para carga" : "Fabricada", `${nom} · ${listas}/${todas.length} unidades`);
+    return vaFicha(true, listas === todas.length ? "Fabricada · elemento listo para carga" : "Fabricada", `${nom} · ${listas}/${todas.length} unidades`);
   }
 
   // carga
-  if (!z.fabricada && x.estado_fab !== "Hecho") return resultado(ctx, false, "Aún no está fabricada", nom);
-  if (z.cargada) return resultado(ctx, true, "Ya estaba cargada", nom);
+  if (!z.fabricada && x.estado_fab !== "Hecho") return vaFicha(false, "Aún no está fabricada", nom);
+  if (z.cargada) return vaFicha(true, "Ya estaba cargada", nom);
   await sb.from("piezas").update({ cargada: true, fecha_cargada: now, operario_carga: quien }).eq("id", z.id);
   const { data: todas } = await sb.from("piezas").select("id,cargada").eq("elemento_id", x.id);
   const n = todas.filter(k => k.cargada || k.id === z.id).length;
   await sb.from("elementos").update(n === todas.length ? { estado_carga: "Cargado", fecha_cargado: now, operario_carga: quien, piezas_cargadas: n } : { estado_carga: "Parcial", piezas_cargadas: n }).eq("id", x.id);
   S.dirty = true;
-  return resultado(ctx, true, n === todas.length ? "Cargada · elemento completo" : "Cargada", `${nom} · ${n}/${todas.length} unidades`);
+  return vaFicha(true, n === todas.length ? "Cargada · elemento completo" : "Cargada", `${nom} · ${n}/${todas.length} unidades`);
 }

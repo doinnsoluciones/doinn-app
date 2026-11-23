@@ -129,7 +129,8 @@ export async function vElemento(ctx, p, eid) {
     <p class="hint">Marca cada fase al terminarla. Toca otra vez para desmarcar.</p>${botonesFase(x, "e")}</div>` : "";
 
   const dato = (k, v) => `<dt>${k}</dt><dd>${v || "—"}</dd>`;
-  $app.innerHTML = `<a class="back" href="#/p/${p.id}/elementos">‹ ${esc(p.nombre)}</a>
+  const deScan = S.scan && S.scan.vuelta && S.scan.vuelta.id === x.id && Date.now() - S.scan.vuelta.t < 10 * 60e3 ? S.scan.vuelta : null;
+  $app.innerHTML = `${deScan ? `<div class="scanres ${deScan.ok ? "ok" : "ko"} scanvuelta"><b>${deScan.ok ? "✓" : "✕"} ${esc(deScan.msg)}</b>${deScan.det ? `<div>${esc(deScan.det)}</div>` : ""}<a class="btn lime wide" href="#/escanear">📷 Escanear siguiente</a></div>` : ""}<a class="back" href="#/p/${p.id}/elementos">‹ ${esc(p.nombre)}</a>
   <div class="code">Ref. ${esc(x.referencia || "")}</div><h1>${esc(x.elemento || "")}</h1>
   <div class="code" style="margin:-8px 0 12px">${[medidasTxt(x) ? "Alto × ancho × fondo: " + medidasTxt(x) : "", x.acabado, origenTxt(x.origen)].filter(Boolean).map(esc).join(" · ")}</div>
   ${pasos}${fabHtml}${subsHtml}${piezasHtml}
