@@ -44,38 +44,70 @@ export async function vCartera(ctx) {
   const ORD = { fecha: p => p.evento_inicio || "9999", nombre: p => p.nombre || "", cliente: p => p.cliente || "", front: p => p.front_nombre || "", estado: p => ESTADOS.indexOf(p.estado_com), venta: p => v(p) ?? -1, coste: p => k(p) ?? -1, margen: p => v(p) != null && k(p) != null ? v(p) - k(p) : -1e12, pct: p => v(p) && k(p) != null ? (v(p) - k(p)) / v(p) : -1e12 };
 
   const cuando = t => { if (!t) return ""; const d = new Date(t), h = d.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" }); const dd = d.toDateString() === new Date().toDateString() ? "hoy" : d.toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit" }); return `${dd} ${h}`; };
+  const graphOk = L.some(l => l.ok && !String(l.quien || "").endsWith("(archivo)")); // ya hay conexión directa con SharePoint
   const barraSync = () => {
     const r = ult && ult.resumen || {};
-    const est = !ult ? `<b>Excel:</b> sincronización pendiente de activar`
+    const est = !ult ? `<b>Excel:</b> sin sincronizar todavía`
       : !ult.ok ? `<b class="neg">Excel: la última sincronización falló</b> (${cuando(ult.inicio)})`
-      : `<b>Excel</b> · ${ult.modo === "prueba" ? "prueba" : "sincronizado"} ${cuando(ult.fin)}${ult.modo === "auto" ? "" : ult.modo === "manual" ? " (manual)" : ""} · ${r.nuevas || 0} nuevos · ${r.cambios || 0} cambios${(ult.avisos || []).length ? ` · <b class="warn">${ult.avisos.length} aviso${ult.avisos.length > 1 ? "s" : ""}</b>` : ""}`;
+      : `<b>Excel</b> · ${ult.modo === "prueba" ? "prueba" : "actualizado"} ${cuando(ult.fin)}${ult.modo === "auto" ? "" : String(ult.quien || "").endsWith("(archivo)") ? " (archivo)" : " (manual)"} · ${r.nuevas || 0} nuevos · ${r.cambios || 0} cambios${(ult.avisos || []).length ? ` · <b class="warn">${ult.avisos.length} aviso${ult.avisos.length > 1 ? "s" : ""}</b>` : ""}`;
     return `<div class="csync">${est}${ult ? ` <button class="link" id="csdet">Ver detalle</button>` : ""}
-      <button class="btn sm ghost" id="csnow" title="${vivo ? "Lee ahora el Excel y actualiza la app" : "Calcula lo que cambiaría, sin tocar nada"}">${vivo ? "⟳ Sincronizar ahora" : "Probar sincronización"}</button>
-      ${!vivo && S.perfil.rol === "superadmin" && ult && ult.modo === "prueba" && ult.ok ? `<button class="btn sm lime" id="csact">Activar sincronización</button>` : ""}</div>`;
+      <button class="btn sm lime" id="csxl" title="Elige el archivo «Planificación proyectos 2026.xlsx» de tu carpeta de SharePoint">📄 Cargar Excel</button><input type="file" id="csfile" accept=".xlsx,.xlsm" hidden>
+      ${graphOk ? `<button class="btn sm ghost" id="csnow" title="Lee ahora el Excel de SharePoint y actualiza la app">⟳ Sincronizar ahora</button>` : S.perfil.rol === "superadmin" ? `<button class="link" id="csnow" title="Comprueba la conexión directa con SharePoint (necesita los permisos de IT). No cambia nada.">Probar SharePoint</button>` : ""}
+      ${!vivo && graphOk && ult && ult.modo === "prueba" && S.perfil.rol === "superadmin" ? `<button class="btn sm lime" id="csact">Activar sincronización</button>` : ""}</div>`;
   };
-  const detalleSync = () => {
-    if (!ult) return;
+  const detalleSync = (l = ult, aplicar = null) => {
+    if (!l) return;
     const m = document.createElement("div"); m.className = "modal";
     const lista = (t, arr, f) => arr && arr.length ? `<h3>${t} (${arr.length})</h3><ul class="slist">${arr.slice(0, 300).map(f).join("")}</ul>` : "";
     const camp = c => Object.entries({ ...(c.proyecto || {}), ...(c.comercial || {}) }).map(([k, v]) => `${({ evento_inicio: "fecha", evento_fin: "fin", estado_com: "estado", coste_est: "coste", front_id: "", front_nombre: "Front" })[k] ?? k}${k === "front_id" ? "" : ": " + esc(k === "venta" || k === "coste_est" ? eur(v) || "—" : v ?? "—")}`).filter(x => x).join(" · ");
-    m.innerHTML = `<div class="card mbox"><div class="row" style="justify-content:space-between"><h2 style="margin:0">Sincronización con el Excel</h2><button class="link" id="sx">Cerrar</button></div>
-      <p class="hint">${ult.modo === "prueba" ? "Prueba (no se cambió nada)" : "Sincronización " + (ult.modo === "auto" ? "programada" : "manual de " + esc(ult.quien || ""))} · ${cuando(ult.inicio)}${ult.excel ? ` · <a href="${esc(ult.excel)}" target="_blank" rel="noopener">Abrir el Excel</a>` : ""}</p>
-      ${ult.error ? `<p class="neg">${esc(ult.error)}</p>` : ""}
-      ${lista("Avisos", ult.avisos, a => `<li class="warn">${esc(a.texto)}</li>`)}
-      ${lista(ult.modo === "prueba" ? "Proyectos que se crearían" : "Proyectos nuevos", ult.nuevos, n => `<li><b>${esc(n.codigo)}</b> ${esc(n.nombre)} · ${esc(n.fecha || "")} · ${esc(n.estado_com || "")}</li>`)}
-      ${lista(ult.modo === "prueba" ? "Cambios que se harían" : "Cambios", ult.cambios, c => `<li><b>${esc(c.codigo)}</b> ${esc(c.nombre || "")} — ${camp(c)}</li>`)}
-      ${!ult.error && !(ult.avisos || []).length && !(ult.nuevos || []).length && !(ult.cambios || []).length ? `<p>Todo coincide: no hubo cambios.</p>` : ""}
-      <p class="hint">${(ult.resumen || {}).filas ?? 0} filas leídas · ${(ult.resumen || {}).sinCambios ?? 0} sin cambios${(ult.resumen || {}).codigosEscritos ? ` · ${ult.resumen.codigosEscritos} códigos escritos en el Excel` : ""}</p></div>`;
+    const prueba = l.modo === "prueba";
+    m.innerHTML = `<div class="card mbox"><div class="row" style="justify-content:space-between"><h2 style="margin:0">${aplicar ? "Revisa antes de aplicar" : "Actualización desde el Excel"}</h2><button class="link" id="sx">${aplicar ? "Cancelar" : "Cerrar"}</button></div>
+      <p class="hint">${aplicar ? "Esto es lo que cambiaría en la app. Todavía no se ha tocado nada." : (prueba ? "Prueba (no se cambió nada)" : (l.modo === "auto" ? "Sincronización programada" : "Actualización de " + esc(l.quien || ""))) + " · " + cuando(l.inicio)}${l.excel ? ` · <a href="${esc(l.excel)}" target="_blank" rel="noopener">Abrir el Excel</a>` : ""}</p>
+      ${l.error ? `<p class="neg">${esc(l.error)}</p>` : ""}
+      ${lista("Avisos", l.avisos, a => `<li class="warn">${esc(a.texto)}</li>`)}
+      ${lista(prueba ? "Proyectos que se crearían" : "Proyectos nuevos", l.nuevos, n => `<li><b>${esc(n.codigo)}</b> ${esc(n.nombre)} · ${esc(n.fecha || "")} · ${esc(n.estado_com || "")}</li>`)}
+      ${lista(prueba ? "Cambios que se harían" : "Cambios", l.cambios, c => `<li><b>${esc(c.codigo)}</b> ${esc(c.nombre || "")} — ${camp(c)}</li>`)}
+      ${!l.error && !(l.avisos || []).length && !(l.nuevos || []).length && !(l.cambios || []).length ? `<p>Todo coincide: no hay cambios.</p>` : ""}
+      <p class="hint">${(l.resumen || {}).filas ?? 0} filas leídas · ${(l.resumen || {}).sinCambios ?? 0} sin cambios${(l.resumen || {}).codigosEscritos ? ` · ${l.resumen.codigosEscritos} códigos escritos en el Excel` : ""}</p>
+      ${aplicar && !l.error ? `${!vivo ? `<p class="hint"><b>Primera vez:</b> a partir de ahora el Excel manda. Fecha, cliente, Front, estado, venta y coste se editan solo en el Excel y en Cartera quedan de solo lectura.</p>` : ""}<button class="btn lime wide" id="sap">Aplicar ${((l.nuevos || []).length + (l.cambios || []).length) || ""} cambios</button>` : ""}</div>`;
     document.body.appendChild(m);
     m.querySelector("#sx").onclick = () => m.remove(); m.onclick = e => { if (e.target === m) m.remove(); };
+    if (aplicar && m.querySelector("#sap")) m.querySelector("#sap").onclick = async () => { const b = m.querySelector("#sap"); b.disabled = true; b.textContent = "Aplicando…"; await aplicar(); m.remove(); };
   };
+  const llama = async body => {
+    const { data, error } = await sb.functions.invoke("sync-excel", { body });
+    if (error) { let t = error.message; try { const j = await error.context.json(); t = j.error || t; } catch { } return { ok: false, error: t }; }
+    return data || { ok: false, error: "sin respuesta" };
+  };
+  const recarga = async () => { const { data: ps } = await sb.from("proyectos").select("*"); if (ps) S.proyectos = ps; vCartera(ctx); };
   const lanza = async modo => {
     const b = document.getElementById("csnow"); if (b) { b.disabled = true; b.textContent = "Leyendo el Excel…"; }
-    const { data, error } = await sb.functions.invoke("sync-excel", { body: { modo } });
-    if (error || !data) { toast("No se pudo sincronizar: " + (error?.message || "sin respuesta")); if (b) { b.disabled = false; b.textContent = vivo ? "⟳ Sincronizar ahora" : "Probar sincronización"; } return; }
+    const data = await llama({ modo });
     if (!data.ok) toast("La sincronización falló: " + data.error); else toast(modo === "prueba" ? "Prueba hecha: revisa el detalle" : `Sincronizado: ${data.resumen.nuevas} nuevos, ${data.resumen.cambios} cambios`);
-    if (modo !== "prueba" && data.ok) { const { data: ps } = await sb.from("proyectos").select("*"); if (ps) S.proyectos = ps; }
-    S.cartAbreDetalle = true; vCartera(ctx);
+    S.cartAbreDetalle = true; modo !== "prueba" && data.ok ? recarga() : vCartera(ctx);
+  };
+  // Puente sin permisos de IT: el usuario elige el .xlsx y la app lo lee en el navegador
+  const cargaArchivo = async file => {
+    const b = document.getElementById("csxl"); if (b) { b.disabled = true; b.textContent = "Leyendo…"; }
+    const fin = () => { if (b) { b.disabled = false; b.textContent = "📄 Cargar Excel"; } };
+    try {
+      const XLSX = await import("https://cdn.jsdelivr.net/npm/xlsx@0.18.5/+esm");
+      const wb = XLSX.read(await file.arrayBuffer(), { type: "array" });
+      const nom = wb.SheetNames.find(n => n.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() === "planificacion");
+      if (!nom) { fin(); return toast("El archivo no tiene la pestaña «Planificación». ¿Es el Excel de planificación de proyectos?"); }
+      const ws = wb.Sheets[nom]; const rg = XLSX.utils.decode_range(ws["!ref"] || "A1"); rg.s = { r: 0, c: 0 };
+      let valores = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: "", blankrows: true, range: rg });
+      while (valores.length > 1 && valores[valores.length - 1].every(x => x === "" || x == null)) valores.pop();
+      const pre = await llama({ modo: "prueba", valores });
+      fin();
+      if (!pre.ok) return toast("No se pudo leer: " + pre.error);
+      detalleSync({ ...pre, modo: "prueba", inicio: new Date().toISOString() }, async () => {
+        const r = await llama({ modo: "manual", valores });
+        if (!r.ok) return toast("No se pudo aplicar: " + r.error);
+        toast(`Cartera actualizada desde el Excel: ${r.resumen.nuevas} nuevos, ${r.resumen.cambios} cambios`);
+        await recarga();
+      });
+    } catch (e) { fin(); toast("No se pudo leer el archivo: " + (e.message || e)); }
   };
   const pinta = () => {
     const scroll = document.querySelector(".cart-wrap")?.scrollTop || 0;
@@ -178,10 +210,12 @@ export async function vCartera(ctx) {
     if ($("cpleg")) $("cpleg").onclick = () => { st.pleg = todosPleg ? st.pleg.filter(m => !grupos.some(g => g.m === m)) : [...new Set([...st.pleg, ...grupos.map(g => g.m)])]; ls.set("doinn_cart_pleg", st.pleg); pinta(); };
     $("climp").onclick = () => { Object.assign(st, { anio: anioHoy, front: "", est: ["Confirmado", "Pendiente"], meses: [], desde: "", hasta: "", q: "", cli: "" }); ls.set("doinn_cart_est", st.est); pinta(); };
     let tq; $("cq").oninput = e => { clearTimeout(tq); tq = setTimeout(() => { st.q = e.target.value; pinta(); const i = $("cq"); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }, 300); };
-    if ($("csdet")) $("csdet").onclick = detalleSync;
-    $("csnow").onclick = () => lanza(vivo ? "manual" : "prueba");
+    if ($("csdet")) $("csdet").onclick = () => detalleSync();
+    if ($("csnow")) $("csnow").onclick = () => lanza(graphOk && vivo ? "manual" : "prueba");
+    $("csxl").onclick = () => $("csfile").click();
+    $("csfile").onchange = e => { const f = e.target.files[0]; e.target.value = ""; if (f) cargaArchivo(f); };
     if ($("csact")) $("csact").onclick = () => { if (confirm("A partir de ahora el Excel manda: fecha, cliente, Front, estado, venta y coste solo se editan en el Excel y la app se actualiza a las 12:00 y a las 00:00. ¿Activar y hacer la primera sincronización ahora?")) lanza("manual"); };
-    if (vivo) $app.querySelectorAll("[data-f]").forEach(el => { el.disabled = true; el.title = "Se edita en el Excel; la app se actualiza a las 12:00 y a las 00:00"; });
+    if (vivo) $app.querySelectorAll("[data-f]").forEach(el => { el.disabled = true; el.title = "Se edita en el Excel y se trae a la app con «Cargar Excel» o la sincronización"; });
     $("ccsv").onclick = () => csv(vis, v, k);
     if ($("cnew")) $("cnew").onclick = () => nueva(ctx, fronts, yo, C, pinta);
     // edición en la tabla
