@@ -131,7 +131,10 @@ const GRUPOS_PER = [["Fronts", o => o.grupo === "Fronts"], ["Oficina técnica", 
 
 export async function vPlan(ctx, modo, ini, opt = {}) {
   const { $app, S, sb, esc, puede, toast } = ctx;
+  // Estadísticas: por defecto solo SuperAdmin
+  const verStats = S.perfil && S.perfil.rol === "superadmin";
   modo = ["personal", "stats"].includes(modo) ? modo : "proyectos";
+  if (modo === "stats" && !verStats) modo = "proyectos";
   if (modo === "stats") return vStats(ctx, ini);
   const tv = !!opt.tv;
   $app.classList.add("ancho"); // la planificación usa todo el ancho de la pantalla
@@ -164,7 +167,7 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
   const largo = ANCHO >= 40 ? 18 : ANCHO >= 30 ? 12 : 6;
 
   const nav = tv ? "" : `<div class="pnav">
-    <div class="seg2"><a href="#/plan/proyectos/${d0}" class="${modo === "proyectos" ? "on" : ""}">Proyectos</a><a href="#/plan/personal/${d0}" class="${modo === "personal" ? "on" : ""}">Personal</a>${admin ? `<a href="#/plan/stats">Estadísticas</a>` : ""}</div>
+    <div class="seg2"><a href="#/plan/proyectos/${d0}" class="${modo === "proyectos" ? "on" : ""}">Proyectos</a><a href="#/plan/personal/${d0}" class="${modo === "personal" ? "on" : ""}">Personal</a>${verStats ? `<a href="#/plan/stats">Estadísticas</a>` : ""}</div>
     <div class="row">
       <a class="btn sm ghost" href="#/tv" title="Pantalla de taller: a pantalla completa y se actualiza sola">📺</a></div>
   </div>`;
