@@ -448,14 +448,14 @@ async function vStats(ctx, anio) {
 // ---------- Pantalla de taller (TV) ----------
 export function vTv(ctx) {
   document.body.classList.add("tv");
-  let modo = "proyectos", t = 0;
+  // Pantalla del taller: siempre la planificación de Personal, con datos frescos cada ~5 min
+  const modo = "personal"; let t = 0;
   const pinta = () => vPlan(ctx, modo, "", { tv: true, silencioso: t > 0 });
   pinta();
   const id = setInterval(async () => {
     if (location.hash !== "#/tv") { clearInterval(id); document.body.classList.remove("tv"); return; }
     t++;
-    if (t % 10 === 0) { try { await ctx.recargar(); } catch { } } // datos frescos cada ~5 min
-    modo = modo === "proyectos" ? "personal" : "proyectos";
+    if (t % 10 === 0) { try { await ctx.recargar(); } catch { } }
     pinta();
   }, 30000);
   const sal = () => { if (location.hash !== "#/tv") { clearInterval(id); document.body.classList.remove("tv"); window.removeEventListener("hashchange", sal); } };
