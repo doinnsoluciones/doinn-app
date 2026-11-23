@@ -184,7 +184,8 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
     const visibles = S.proyectos.filter(p => !p.archivado).filter(p => p.estado !== "Cerrado" || (p.fecha_descarga && p.fecha_descarga >= d0))
       .filter(p => { if (!S.planFront) return true; const f = fronts.find(o => o.nombre === S.planFront); return f ? p.front_id === f.id : p.front_nombre === S.planFront; })
       .filter(p => S.planEst.includes(estadoCom(p)))
-      .map(p => ({ p, f: fasesProyecto(p) })).filter(x => x.f.some(([, a, b]) => b >= d0 && a <= d1));
+      // Se listan todos los proyectos que no han terminado antes del periodo visible, aunque no tengan fases en estas fechas
+      .map(p => ({ p, f: fasesProyecto(p) })).filter(x => !x.f.length || x.f.some(([, , b]) => b >= d0));
     const ocultosAqui = visibles.filter(x => S.ocultos.includes(x.p.id));
     const ps = visibles.filter(x => !S.ocultos.includes(x.p.id)).sort((a, b) => ordenProyectos(a.p, b.p));
     if (!tv) filtros = `<div class="pfil">
