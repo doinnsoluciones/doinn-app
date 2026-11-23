@@ -21,7 +21,7 @@ const COD_PROD = ["MO", "DM", "FA", "RE"], COD_OTROS = ["FO", "VA", "BA"];
 // Códigos retirados: la previsión se ve como montaje; licencia y libre no se muestran
 const normCod = c => c === "PV" ? "MO" : c === "LB" || c === "LIC" ? null : c;
 // Subcontratas: primero CDF, luego DIMAS, después el resto
-const rSub = o => o.puesto === "CDF" ? 0 : o.puesto === "DIMAS" ? 1 : 2;
+const rSub = o => { const e = (o.puesto || "").toUpperCase(); return e === "CDF" ? 0 : e === "DIMAS" ? 1 : 2; };
 const ORDEN_PER = (a, b) => (a.grupo === "Taller" && b.grupo === "Taller" ? ((a.subgrupo === "Montaje") - (b.subgrupo === "Montaje")) : 0) || (a.grupo === "Subcontratas" && b.grupo === "Subcontratas" ? (rSub(a) - rSub(b)) || (a.puesto || "").localeCompare(b.puesto || "", "es") : 0) || a.nombre.localeCompare(b.nombre, "es", { numeric: true });
 const AUS2COD = { Vacaciones: "VA", Baja: "BA", Curso: "FO", Otros: "LIC" };
 const FASE2COD = { Montaje: "MO", Desmontaje: "DM", "Fábrica": "FA" };
@@ -87,8 +87,9 @@ function barra(i, span, cols, txt, w, extra = "", attrs = "", izq = false) {
   const bg = cols.length > 1 ? `linear-gradient(90deg,${cols[0]} 50%,${cols[1]} 50%)` : cols[0];
   const fg = OSCURO.has(cols[0]) && (cols.length === 1 || OSCURO.has(cols[1])) ? "#131E29" : "#fff";
   const ancho = span * w - 6, cw = cols.length > 1 ? 5.4 : 6.2;
-  const t = izq ? (ancho >= 44 ? txt.full : txt.abr) : txt.abr;
-  const cabe = t.length * cw + (izq ? 16 : 6) <= ancho || izq && ancho >= 44;
+  // Con proyecto: siempre su nombre (recortado con "…" si no cabe), nunca la abreviatura
+  const t = izq ? txt.full : txt.abr;
+  const cabe = izq || t.length * cw + 6 <= ancho;
   // Con hora: siempre en dos líneas (la hora se ve aunque la barra sea corta)
   if (txt.hora) return `<div class="pc pcs" style="grid-column:${i + 2}/span ${span}"><div class="pl larga l2 ${ancho >= 44 ? "izq" : ""} ${extra}" style="background:${bg};color:${fg}" ${attrs}><span>${t}</span><small>${txt.hora}</small></div></div>`;
   return `<div class="pc pcs" style="grid-column:${i + 2}/span ${span}"><div class="pl larga ${izq && ancho >= 44 ? "izq" : ""} ${cols.length > 1 ? "dos" : ""} ${extra}" style="background:${bg};color:${fg}" ${attrs}>${cabe ? t : ""}</div></div>`;
@@ -243,7 +244,9 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
           const conProy = ["MO", "DM"].includes(x.cod) && x.p;
           const hora = conProy ? (x.cod === "MO" ? x.p.hora_montaje : x.p.hora_desmontaje) : "";
           const tit = [lab + (x.p ? " · " + x.p.nombre : "") + (hora ? " · inicio " + hora : ""), x.src, x.nota, x.quien || x.cuando ? `${x.quien || "—"} · ${cuando(x.cuando)}` : ""].filter(Boolean).join("\n");
-          return barra(i, span, [col], { abr: ab, full: conProy ? x.p.nombre : ab, hora: conProy ? (hora || "--:--") : "" }, COLW, "", `title="${esc(tit)}"`, !!conProy);
+          // Sin proyecto vinculado, el montaje/desmontaje muestra el texto del Excel en lugar de "M"/"DS"
+          const conNota = !conProy && ["MO", "DM"].includes(x.cod) && x.nota;
+          return barra(i, span, [col], { abr: ab, full: esc(conProy ? x.p.nombre : conNota ? x.nota : ab), hora: conProy ? (hora || "--:--") : "" }, COLW, "", `title="${esc(tit)}"`, !!(conProy || conNota));
         }).join("");
         const hits = marca && puedeFila(o) ? dias.map((d, i) => `<div class="hit" data-o="${o.id}" data-d="${d}" style="grid-column:${i + 2}"></div>`).join("") : "";
         return `<div class="gr" data-row="${o.id}"><div class="gn"><b>${esc(o.nombre)}</b><span>${esc(o.subgrupo === "Montaje" ? "Montaje" : o.puesto || "")}</span></div>${fondo(dias, D.fest)}${cel}${hits}</div>`;
@@ -462,8 +465,8 @@ function formSubcontrata(ctx, fin) {
   const emps = [...new Set(subs.map(o => o.puesto).filter(Boolean))].sort();
   const m = document.createElement("div"); m.className = "modal";
   m.innerHTML = `<form class="card frm mbox"><h2>Nueva persona de subcontrata</h2>
-    <div class="two"><label>Empresa <small class="code">(si la hay)</small><input id="s_e" list="s_el" placeholder="CDF, DIMAS…" style="text-transform:uppercase"><datalist id="s_el">${emps.map(e => `<option value="${esc(e)}">`).join("")}</datalist></label>
-    <label>Nombre <small class="code">(vacío = siguiente número)</small><input id="s_n" placeholder="OSCAR" style="text-transform:uppercase"></label></div>
+    <div class="two"><label>Empresa <small class="code">(si la hay)</small><input id="s_e" list="s_el" placeholder="CDF, Dimas…"><datalist id="s_el">${emps.map(e => `<option value="${esc(e)}">`).join("")}</datalist></label>
+    <label>Nombre <small class="code">(vacío = siguiente número)</small><input id="s_n" placeholder="Oscar"></label></div>
     <label>Oficio <small class="code">(opcional)</small><input id="s_o" placeholder="Carpintería, pintura…"></label>
     <div class="code" id="s_pv" style="margin:4px 0 8px"></div>
     <div class="acts"><button class="btn lime">Guardar</button><button type="button" class="btn ghost" id="s_x">Cerrar</button></div>
@@ -479,12 +482,14 @@ function formSubcontrata(ctx, fin) {
     toast(b.dataset.v === "1" ? "Reactivado" : "Desactivado (se conserva su histórico)"); m.remove(); fin();
   });
   // Formato: "EMPRESA - NOMBRE"; sin nombre o con número: "EMPRESA 01"; sin empresa: "NOMBRE"
+  // Primera letra en mayúscula y resto en minúscula; las siglas cortas escritas en mayúsculas (CDF, BCN) se respetan
+  const tc = v => v.trim().replace(/\s+/g, " ").split(" ").map(w => /^[A-ZÁÉÍÓÚÑ]{2,3}$/.test(w.replace(/[()]/g, "")) ? w : w.toLowerCase().replace(/(^|[(\-\/])(\p{L})/gu, (m, a, b) => a + b.toUpperCase())).join(" ");
   const compone = () => {
-    const e = $("s_e").value.trim().replace(/\s+/g, " ").toUpperCase(), n = $("s_n").value.trim().replace(/\s+/g, " ").toUpperCase();
+    const e = tc($("s_e").value), n = tc($("s_n").value);
     if (!e) return n;
     if (!n || /^\d+$/.test(n)) {
       let k = n ? +n : 1;
-      if (!n) { const usados = S.operarios.map(o => (o.nombre.toUpperCase().match(new RegExp("^" + e.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + " (\\d+)$")) || [])[1]).filter(Boolean).map(Number); k = usados.length ? Math.max(...usados) + 1 : 1; }
+      if (!n) { const usados = S.operarios.map(o => (o.nombre.toUpperCase().match(new RegExp("^" + e.toUpperCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + " (\\d+)$")) || [])[1]).filter(Boolean).map(Number); k = usados.length ? Math.max(...usados) + 1 : 1; }
       return `${e} ${String(k).padStart(2, "0")}`;
     }
     return `${e} - ${n}`;
@@ -493,7 +498,7 @@ function formSubcontrata(ctx, fin) {
   $("s_e").oninput = pv; $("s_n").oninput = pv;
   m.querySelector("form").onsubmit = async ev => {
     ev.preventDefault();
-    const nombre = compone(), puesto = $("s_e").value.trim().replace(/\s+/g, " ").toUpperCase() || null;
+    const nombre = compone(), puesto = tc($("s_e").value) || null;
     if (!nombre) return toast("Pon al menos la empresa o el nombre");
     if (S.operarios.some(o => o.nombre.toUpperCase() === nombre)) return toast("Ya existe una persona con ese nombre");
     const { error } = await sb.from("operarios").insert({ nombre, puesto, grupo: "Subcontratas", subgrupo: $("s_o").value.trim() || null, activo: true });
