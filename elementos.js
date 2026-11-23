@@ -83,12 +83,17 @@ export async function vElemento(ctx, p, eid) {
   };
 
   // pasos Doc → Fab → Carga
-  const paso = (titulo, estado, hecho, bloqueado, botones, nota) => `
+  // Un paso bloqueado (la fase anterior no está hecha) se pinta siempre en gris, aunque tuviera avance
+  const paso = (titulo, estado, hecho, bloqueado, botones, nota) => {
+    const pausa = bloqueado && (hecho || estado === "En curso");
+    if (bloqueado) { hecho = false; estado = ""; }
+    return `
     <div class="step ${hecho ? "done" : estado === "En curso" ? "run" : ""} ${bloqueado ? "lock" : ""}">
       <div class="dot">${hecho ? "✓" : estado === "En curso" ? "…" : ""}</div>
-      <div class="sb"><div class="pj-top"><b>${titulo}</b><span class="pill ${hecho ? "ok" : estado === "En curso" ? "warn" : ""}">${hecho ? "✓ Hecho" : estado || "Pendiente"}</span></div>
-      ${bloqueado ? `<div class="code">🔒 Se desbloquea cuando la fase anterior esté hecha</div>` : edita ? `<div class="row">${botones}</div>` : ""}${nota ? `<div class="code">${nota}</div>` : ""}</div>
+      <div class="sb"><div class="pj-top"><b>${titulo}</b><span class="pill ${hecho ? "ok" : estado === "En curso" ? "warn" : ""}">${hecho ? "✓ Hecho" : pausa ? "En pausa" : estado || "Pendiente"}</span></div>
+      ${bloqueado ? `<div class="code">🔒 ${pausa ? "En pausa: se reanuda cuando la fase anterior vuelva a estar hecha. El avance se conserva." : "Se desbloquea cuando la fase anterior esté hecha"}</div>` : edita ? `<div class="row">${botones}</div>` : ""}${nota && !bloqueado ? `<div class="code">${nota}</div>` : ""}</div>
     </div>`;
+  };
   const faltan = faltanFases(x, subs);
   const docH = x.estado_doc === "Hecho", fabH = x.estado_fab === "Hecho", carH = x.estado_carga === "Cargado";
   const pasos = `<div class="card steps"><div class="code">${esc(x.revision ? "Rev. " + x.revision : "")}</div>
