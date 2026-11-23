@@ -1,7 +1,7 @@
 // Alta y edición de la ficha de proyecto (cuadrícula de fechas)
 const HORAS = ["—", ...Array.from({ length: 48 }, (_, i) => `${String(Math.floor(i / 2)).padStart(2, "0")}:${i % 2 ? "30" : "00"}`)];
 const ESTADOS = ["En preparación", "En taller", "Cargado", "Cerrado"];
-const ESTADOS_COM = ["Presupuestado", "Pre-confirmado", "Confirmado", "Pospuesto", "Cancelado"];
+const ESTADOS_COM = ["Pendiente", "Confirmado", "Cancelado"];
 const MAY = s => (s ?? "").trim().toUpperCase();
 const sumaDias = (s, n) => { if (!s) return null; const d = new Date(s + "T00:00:00"); d.setDate(d.getDate() + n); return d.toLocaleDateString("sv-SE"); };
 

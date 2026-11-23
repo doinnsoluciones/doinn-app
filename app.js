@@ -44,7 +44,7 @@ const verCartera = () => !!S.perfil && S.perfil.aprobado && (S.perfil.rol === "s
 const verDespiece = () => !!S.perfil && S.perfil.aprobado && (S.perfil.rol === "superadmin" || (S.operarios || []).some(o => o.id === S.perfil.operario_id && o.grupo === "OT"));
 const ver = pg => pg === "cartera" ? verCartera() : pg === "despiece" ? verDespiece() : !!S.perfil && pagsDe(S.perfil.rol, S.perfil.paginas).includes(pg);
 // Proyectos en producción: confirmados o pre-confirmados (o con trabajo ya hecho); el resto solo se ve en Cartera y Planificación
-const enProduccion = p => ["Confirmado", "Pre-confirmado"].includes(p.estado_com || "Confirmado") || S.elementos.some(e => e.proyecto_id === p.id);
+const enProduccion = p => (p.estado_com || "Confirmado") === "Confirmado" || (p.estado_com === "Pendiente" && !!p.fecha_carga) || S.elementos.some(e => e.proyecto_id === p.id);
 
 // ---------- datos ----------
 async function cargar() {

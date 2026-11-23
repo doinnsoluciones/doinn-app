@@ -4,8 +4,8 @@ const V = new URL(import.meta.url).search;
 const { COL_COM } = await import("./estados.js" + V);
 
 const MESES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
-const ESTADOS = ["Presupuestado", "Pre-confirmado", "Confirmado", "Pospuesto", "Cancelado"];
-const FILTROS = [["Confirmado", ["Confirmado"]], ["Pendiente", ["Presupuestado", "Pre-confirmado"]], ["Pospuesto", ["Pospuesto"]], ["Cancelado", ["Cancelado"]]];
+const ESTADOS = ["Pendiente", "Confirmado", "Cancelado"];
+const FILTROS = [["Confirmado", ["Confirmado"]], ["Pendiente", ["Pendiente"]], ["Cancelado", ["Cancelado"]]];
 // importes siempre en formato español: 1.234.567,89 (punto de miles, coma decimal, dos decimales)
 const num = n => { if (n == null || n === "" || isNaN(n)) return ""; const [e, d] = Math.abs(Number(n)).toFixed(2).split("."); return (Number(n) < 0 ? "-" : "") + e.replace(/\B(?=(\d{3})+(?!\d))/g, ".") + "," + d; };
 const eur = n => { const t = num(n); return t ? t + " €" : ""; };
@@ -121,7 +121,7 @@ export async function vCartera(ctx) {
     const filas = base.filter(p => !st.meses.length || (p.evento_inicio && st.meses.includes(p.evento_inicio.slice(5, 7))))
       .filter(p => !st.desde || (p.evento_inicio && p.evento_inicio >= st.desde))
       .filter(p => !st.hasta || (p.evento_inicio && p.evento_inicio <= st.hasta));
-    const conf = filas.filter(p => p.estado_com === "Confirmado"), pend = filas.filter(p => ["Presupuestado", "Pre-confirmado"].includes(p.estado_com)), canc = filas.filter(p => p.estado_com === "Cancelado");
+    const conf = filas.filter(p => p.estado_com === "Confirmado"), pend = filas.filter(p => p.estado_com === "Pendiente"), canc = filas.filter(p => p.estado_com === "Cancelado");
     const real = conf.filter(p => p.evento_inicio && p.evento_inicio <= hoy);
     const conCoste = conf.filter(p => k(p) != null && v(p));
     const margen = conCoste.length ? (suma(conCoste, v) - suma(conCoste, k)) / suma(conCoste, v) : null;
@@ -261,7 +261,7 @@ function nueva(ctx, fronts, yo, C, pinta) {
     <label>Proyecto<input id="o_nom" required placeholder="Nombre del proyecto"></label>
     <div class="two"><label>Cliente<input id="o_cli"></label><label>Fecha del evento<input id="o_fec" type="date"></label></div>
     <div class="two"><label>Front<select id="o_fr">${fronts.map(f => `<option value="${f.id}" ${yo && yo.id === f.id ? "selected" : ""}>${esc(f.nombre)}</option>`).join("")}</select></label>
-    <label>Estado<select id="o_est">${ESTADOS.map(e => `<option ${e === "Presupuestado" ? "selected" : ""}>${e}</option>`).join("")}</select></label></div>
+    <label>Estado<select id="o_est">${ESTADOS.map(e => `<option ${e === "Pendiente" ? "selected" : ""}>${e}</option>`).join("")}</select></label></div>
     <div class="two"><label>Venta (€)<input id="o_ven" inputmode="decimal" placeholder="0,00"></label><label>Coste estimado (€)<input id="o_cos" inputmode="decimal" placeholder="0,00"></label></div>
     <p class="hint">Se crea con un código provisional (OP-…). Cuando se confirme, pon el código definitivo en la ficha del proyecto.</p>
     <button class="btn lime wide">Crear oportunidad</button></form>`;

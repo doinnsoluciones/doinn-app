@@ -1,10 +1,14 @@
 // Estados comerciales del proyecto y avisos de riesgo (compartido por varias pantallas)
-export const ESTADOS_COM = ["Presupuestado", "Pre-confirmado", "Confirmado", "Pospuesto", "Cancelado"];
-export const COL_COM = { Presupuestado: "#E9BA4B", "Pre-confirmado": "#D37B3E", Confirmado: "#93D500", Pospuesto: "#8E9C9C", Cancelado: "#E62643" };
-export const GRUPOS_COM = [["En negociación", ["Presupuestado", "Pre-confirmado"]], ["En marcha", ["Confirmado"]], ["Caídos", ["Pospuesto", "Cancelado"]]];
-export const estadoCom = p => (p && p.estado_com) || "Confirmado";
+// Solo tres estados, los mismos que la columna «ESTADO PROYECTO» del Excel de planificación
+export const ESTADOS_COM = ["Pendiente", "Confirmado", "Cancelado"];
+export const COL_COM = { Pendiente: "#E9BA4B", Confirmado: "#93D500", Cancelado: "#E62643" };
+export const GRUPOS_COM = [["Activos", ["Pendiente", "Confirmado"]]];
+const VIEJOS = { Presupuestado: "Pendiente", "Pre-confirmado": "Pendiente", Pospuesto: "Pendiente" };
+export const estadoCom = p => { const e = (p && p.estado_com) || "Confirmado"; return VIEJOS[e] || e; };
 export const confirmado = p => estadoCom(p) === "Confirmado";
-export const caido = p => ["Pospuesto", "Cancelado"].includes(estadoCom(p));
+export const caido = p => estadoCom(p) === "Cancelado";
+// Proyectos que cuentan en producción (Muelle, Panel): confirmados, o pendientes que ya tienen fecha de carga
+export const enMarcha = p => confirmado(p) || (estadoCom(p) === "Pendiente" && !!p.fecha_carga);
 // Orden de los proyectos en toda la app: 1º fecha de carga (sin fecha, al final); 2º código de proyecto
 const claveCodigo = p => String(p.codigo || "").replace(/^[A-Z]+-/i, "");
 export const ordenProyectos = (a, b) => (a.fecha_carga || "9999").localeCompare(b.fecha_carga || "9999") || claveCodigo(a).localeCompare(claveCodigo(b), "es", { numeric: true });

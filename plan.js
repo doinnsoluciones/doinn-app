@@ -155,7 +155,8 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
   if (!opt.silencioso) $app.innerHTML = `<div class="loading">Cargando planificación…</div>`;
   let D; try { D = await cargaPlan(sb); } catch (e) { $app.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
   S.planFront = S.planFront || "";
-  S.planEst = S.planEst || lsGet("doinn_plan_estados", ["Presupuestado", "Pre-confirmado", "Confirmado"]);
+  S.planEst = S.planEst || lsGet("doinn_plan_estados", ["Pendiente", "Confirmado"]).filter(e => ESTADOS_COM.includes(e));
+  if (!S.planEst.length) S.planEst = ["Pendiente", "Confirmado"];
   S.planCerr = S.planCerr || {};
   // La pantalla de taller recuerda sus propios grupos plegados (por defecto solo se ven Taller y montaje y Externos)
   const CERR = tv ? (S.planCerrTv = S.planCerrTv || { Fronts: true, "Oficina técnica": true, Subcontratas: true }) : S.planCerr;

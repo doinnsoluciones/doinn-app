@@ -3,7 +3,7 @@ const V = new URL(import.meta.url).search;
 const { ordenProyectos } = await import("./estados.js" + V);
 export function vPanel(ctx, h) {
   const { $app, S, esc, stats, salud, fd, dias } = ctx;
-  const act = S.proyectos.filter(p => p.estado !== "Cerrado" && !p.archivado && ["Confirmado", "Pre-confirmado"].includes(p.estado_com || "Confirmado")).sort(ordenProyectos);
+  const act = S.proyectos.filter(p => p.estado !== "Cerrado" && !p.archivado && ((p.estado_com || "Confirmado") === "Confirmado" || (p.estado_com === "Pendiente" && p.fecha_carga))).sort(ordenProyectos);
   const ids = new Set(act.map(p => p.id));
   const els = S.elementos.filter(e => ids.has(e.proyecto_id));
   const grupos = {
