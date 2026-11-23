@@ -20,7 +20,7 @@ const CON_PROY = ["MO", "DM", "PV", "RE"];
 const COD_PROD = ["MO", "DM", "FA", "RE"], COD_OTROS = ["FO", "VA", "BA"];
 // Códigos retirados: la previsión se ve como montaje; licencia y libre no se muestran
 const normCod = c => c === "PV" ? "MO" : c === "LB" || c === "LIC" ? null : c;
-const ORDEN_PER = (a, b) => (a.grupo === "Taller" && b.grupo === "Taller" ? ((a.subgrupo === "Montaje") - (b.subgrupo === "Montaje")) : 0) || a.nombre.localeCompare(b.nombre);
+const ORDEN_PER = (a, b) => (a.grupo === "Taller" && b.grupo === "Taller" ? ((a.subgrupo === "Montaje") - (b.subgrupo === "Montaje")) : 0) || (a.grupo === "Subcontratas" && b.grupo === "Subcontratas" ? (a.puesto || "").localeCompare(b.puesto || "", "es") : 0) || a.nombre.localeCompare(b.nombre, "es", { numeric: true });
 const AUS2COD = { Vacaciones: "VA", Baja: "BA", Curso: "FO", Otros: "LIC" };
 const FASE2COD = { Montaje: "MO", Desmontaje: "DM", "Fábrica": "FA" };
 
@@ -127,7 +127,7 @@ const ZOOM = [[14, 64], [28, 44], [42, 30], [84, 17]];
 // Qué códigos puede marcar cada rol (el resto, solo SuperAdmin)
 const COD_TRABAJO = [...COD_PROD, "FO"];
 const COD_AUSENCIA = ["VA", "BA"];
-const GRUPOS_PER = [["Fronts", o => o.grupo === "Fronts"], ["Oficina técnica", o => o.grupo === "OT"], ["Taller y montaje", o => o.grupo === "Taller"], ["Externos", o => o.grupo === "Externos"]];
+const GRUPOS_PER = [["Fronts", o => o.grupo === "Fronts"], ["Oficina técnica", o => o.grupo === "OT"], ["Taller y montaje", o => o.grupo === "Taller"], ["Externos", o => o.grupo === "Externos"], ["Subcontratas", o => o.grupo === "Subcontratas"]];
 
 export async function vPlan(ctx, modo, ini, opt = {}) {
   const { $app, S, sb, esc, puede, toast } = ctx;
@@ -162,7 +162,7 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
   // Permisos de marcado en Personal
   const yo = S.perfil && S.perfil.operario_id, gestor = !!(S.perfil && S.perfil.gestiona_taller);
   const misCodigos = superA || admin || gestor ? [...COD_PROD, ...COD_OTROS] : taller && yo ? COD_AUSENCIA : [];
-  const puedeFila = o => superA || ((admin || gestor) && (o.grupo === "Taller" || o.grupo === "Externos" || o.id === yo)) || (taller && o.id === yo);
+  const puedeFila = o => superA || ((admin || gestor) && (o.grupo === "Taller" || o.grupo === "Externos" || o.grupo === "Subcontratas" || o.id === yo)) || (taller && o.id === yo);
   const marca = !tv && modo === "personal" && misCodigos.length > 0;
   const largo = ANCHO >= 40 ? 18 : ANCHO >= 30 ? 12 : 6;
 
@@ -217,6 +217,7 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
     if (!tv) filtros = `<div class="pfil">
       <input id="perq" class="perq" placeholder="Buscar persona…" value="${esc(S.perQ)}">
       <div class="ests"><button class="chip sm ${!S.perGrupo ? "on" : ""}" data-pg="">Todos</button>${GRUPOS_PER.map(([g]) => `<button class="chip sm ${S.perGrupo === g ? "on" : ""}" data-pg="${g}">${g}</button>`).join("")}</div>
+      ${superA || admin ? `<button class="btn ghost sm" id="bsub">+ Subcontrata</button>` : ""}
     </div>`;
     const lg = cs => cs.map(k => `<span><i style="background:${COD[k][1]}"></i>${COD[k][0]}</span>`).join("");
     leyenda = `<div class="ley1"><span class="code">Producción:</span>${lg(COD_PROD)}</div><div class="ley2"><span class="code">Ausencias y formación:</span>${lg(COD_OTROS)}</div>`;
@@ -277,6 +278,7 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
     $app.querySelectorAll("[data-pg]").forEach(b => b.onclick = () => { S.perGrupo = b.dataset.pg; re({ scroll: w.scrollLeft, silencioso: true }); });
     let tq; $("perq").oninput = e => { clearTimeout(tq); tq = setTimeout(() => { S.perQ = e.target.value; re({ scroll: w.scrollLeft, silencioso: true }).then(() => { const i = $("perq"); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }); }, 250); };
     if (marca) activaMarcado(ctx, D, misCodigos, () => re({ scroll: w.scrollLeft, silencioso: true }));
+    const bs = $("bsub"); if (bs) bs.onclick = () => formSubcontrata(ctx, async () => { await ctx.recargar(); re({ scroll: w.scrollLeft, silencioso: true }); });
   }
   return D;
 }
@@ -451,6 +453,38 @@ export function vTv(ctx) {
   window.addEventListener("hashchange", sal);
 }
 
+// Alta y baja de personal de subcontratas (equipos externos que no son los autónomos de "Externos")
+function formSubcontrata(ctx, fin) {
+  const { S, sb, esc, toast } = ctx;
+  const subs = S.operarios.filter(o => o.grupo === "Subcontratas").sort(ORDEN_PER);
+  const emps = [...new Set(subs.map(o => o.puesto).filter(Boolean))].sort();
+  const m = document.createElement("div"); m.className = "modal";
+  m.innerHTML = `<form class="card frm mbox"><h2>Nueva persona de subcontrata</h2>
+    <label>Nombre<input id="s_n" required placeholder="Ej.: JAVI CDF, DIMAS 9…" style="text-transform:uppercase"></label>
+    <div class="two"><label>Empresa<input id="s_e" list="s_el" required placeholder="CDF, NOVAC…" style="text-transform:uppercase"><datalist id="s_el">${emps.map(e => `<option value="${esc(e)}">`).join("")}</datalist></label>
+    <label>Oficio <small class="code">(opcional)</small><input id="s_o" placeholder="Carpintería, pintura…"></label></div>
+    <div class="acts"><button class="btn lime">Guardar</button><button type="button" class="btn ghost" id="s_x">Cerrar</button></div>
+    ${subs.length ? `<div class="code" style="margin-top:12px">Personal de subcontratas (${subs.length})</div>${subs.map(o => `<div class="crow"><span>${esc(o.nombre)} · ${esc(o.puesto || "")}${o.activo === false ? " · <i>inactivo</i>" : ""}</span><button type="button" class="link" data-sact="${o.id}" data-v="${o.activo === false ? 1 : 0}">${o.activo === false ? "Reactivar" : "Desactivar"}</button></div>`).join("")}` : ""}
+  </form>`;
+  document.body.appendChild(m);
+  const $ = id => m.querySelector("#" + id);
+  $("s_x").onclick = () => m.remove();
+  m.onclick = e => { if (e.target === m) m.remove(); };
+  m.querySelectorAll("[data-sact]").forEach(b => b.onclick = async () => {
+    const { error } = await sb.from("operarios").update({ activo: b.dataset.v === "1" }).eq("id", +b.dataset.sact);
+    if (error) return toast(error.message);
+    toast(b.dataset.v === "1" ? "Reactivado" : "Desactivado (se conserva su histórico)"); m.remove(); fin();
+  });
+  m.querySelector("form").onsubmit = async ev => {
+    ev.preventDefault();
+    const nombre = $("s_n").value.trim().replace(/\s+/g, " ").toUpperCase(), puesto = $("s_e").value.trim().toUpperCase();
+    if (S.operarios.some(o => o.nombre.toUpperCase() === nombre)) return toast("Ya existe una persona con ese nombre");
+    const { error } = await sb.from("operarios").insert({ nombre, puesto, grupo: "Subcontratas", subgrupo: $("s_o").value.trim() || null, activo: true });
+    if (error) return toast(error.message);
+    toast("Añadido a Subcontratas"); m.remove(); fin();
+  };
+}
+
 function formAusencia(ctx, fin, D) {
   const { S, sb, esc, toast } = ctx;
   const ops = S.operarios.filter(o => o.activo !== false).sort((a, b) => a.nombre.localeCompare(b.nombre));
@@ -493,7 +527,7 @@ export async function vEquipo(ctx, p, cont) {
     if (fase === "Descarga") return [p.fecha_descarga, p.fecha_descarga_fin || p.fecha_descarga];
     return [hoy, p.fecha_carga ? suma(p.fecha_carga, -1) : hoy];
   };
-  const rango = o => o.grupo === "Taller" ? (o.subgrupo === "Montaje" ? 0 : 1) : o.grupo === "Externos" ? 2 : 3;
+  const rango = o => o.grupo === "Taller" ? (o.subgrupo === "Montaje" ? 0 : 1) : o.grupo === "Externos" ? 2 : o.grupo === "Subcontratas" ? 3 : 4;
   const taller = S.operarios.filter(o => o.activo !== false).sort((a, b) => rango(a) - rango(b) || a.nombre.localeCompare(b.nombre));
   const choque = a => D.asig.filter(x => x.id !== a.id && x.operario_id === a.operario_id && x.proyecto_id !== p.id && x.fecha_inicio && a.fecha_inicio && x.fecha_inicio <= (a.fecha_fin || a.fecha_inicio) && (x.fecha_fin || x.fecha_inicio) >= a.fecha_inicio)
     .map(x => (S.proyectos.find(q => q.id === x.proyecto_id) || {}).nombre).filter(Boolean);
@@ -505,7 +539,7 @@ export async function vEquipo(ctx, p, cont) {
       ${edita ? `<button class="link" data-qdel="${a.id}">Quitar</button>` : ""}</div>`; }).join("") || `<div class="code">Nadie asignado todavía.</div>`}
   </div>
   ${edita ? `<form id="fa" class="card frm"><h2>+ Asignar personal</h2>
-    <div class="two"><label>Persona<select id="q_op">${taller.map(o => `<option value="${o.id}">${esc(o.nombre)}${o.subgrupo === "Montaje" ? " (montaje)" : o.grupo === "Externos" ? " (externo)" : ""}</option>`).join("")}</select></label>
+    <div class="two"><label>Persona<select id="q_op">${taller.map(o => `<option value="${o.id}">${esc(o.nombre)}${o.subgrupo === "Montaje" ? " (montaje)" : o.grupo === "Externos" ? " (externo)" : o.grupo === "Subcontratas" ? ` (subcontrata${o.puesto ? " · " + esc(o.puesto) : ""})` : ""}</option>`).join("")}</select></label>
     <label>Fase<select id="q_f">${FASES.map(f => `<option>${f}</option>`).join("")}</select></label></div>
     <div class="two"><label>Desde<input type="date" id="q_d" value="${f0[0] || ""}"></label><label>Hasta<input type="date" id="q_h" value="${f0[1] || ""}"></label></div>
     <div id="q_av" class="code"></div>
