@@ -165,7 +165,7 @@ async function procesa(ctx, raw) {
   if (paso === "hecho") return vaFicha(true, "Ya estaba cargada", nom);
 
   if (paso === "corte") {
-    if (x.estado_doc !== "Hecho") return vaFicha(false, "Falta la documentación técnica", nom);
+    if (x.estado_doc !== "Hecho") return vaFicha(false, "Esta pieza no se puede marcar como cortada · falta: documentación técnica", `${nom} · Oficina Técnica debe marcarla como hecha`);
     st.undo = foto();
     await sb.from("piezas").update({ cortada: true, fecha_corte: now, operario_corte: quien }).eq("id", z.id);
     if (x.estado_fab === "Pendiente") await sb.from("elementos").update({ estado_fab: "En curso" }).eq("id", x.id);
@@ -174,10 +174,10 @@ async function procesa(ctx, raw) {
   }
 
   if (paso === "fab") {
-    if (x.estado_doc !== "Hecho") return vaFicha(false, "Falta la documentación técnica", `${nom} · Oficina Técnica debe marcar la documentación como hecha`);
+    if (x.estado_doc !== "Hecho") return vaFicha(false, "Esta pieza no se puede marcar como fabricada · falta: documentación técnica", `${nom} · Oficina Técnica debe marcarla como hecha`);
     const { data: subs } = await sb.from("subelementos").select("id,num_sub,desc_sub,fases,fases_hechas,terminado").eq("elemento_id", x.id).order("num_sub");
     const falta = faltanFases(x, subs || []);
-    if (falta.length) return vaFicha(false, "Faltan fases por terminar", `Falta: ${falta.join(" · ")} · ${nom}`);
+    if (falta.length) return vaFicha(false, `Esta pieza no se puede marcar como fabricada · falta: ${falta.join(" · ")}`, nom);
     st.undo = foto();
     await sb.from("piezas").update({ fabricada: true, fecha_fab: now, operario_fab: quien, cortada: true }).eq("id", z.id);
     const { data: todas } = await sb.from("piezas").select("id,fabricada").eq("elemento_id", x.id);
