@@ -671,3 +671,4 @@ table.cart [data-f]:disabled:not(.cfr):not(.cest){background:transparent;border-
 .scanov.ok{background:rgba(147,213,0,.96);color:#131E29}
 .scanov.ko{background:rgba(217,52,43,.95);color:#fff}
 .cam .aim.lee{border-color:#F2C230}.cam .aim.ok{border-color:#93D500;box-shadow:0 0 0 999px rgba(147,213,0,.25)}.cam .aim.ko{border-color:#D9342B;box-shadow:0 0 0 999px rgba(217,52,43,.25)}
+.borr{background:var(--lime-bg);color:var(--lime-d);border-radius:12px;padding:10px 14px;margin:0 0 12px;font-size:14px}.borr .link{margin-left:8px}

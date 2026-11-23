@@ -383,6 +383,6 @@ async function arrancar(session) {
 sb.auth.onAuthStateChange((ev, session) => {
   if (S.recuperando) return;
   // Al volver a la pestaña, Supabase repite «SIGNED_IN» con la misma sesión: no volvemos a pintar (se perdería lo que se esté rellenando)
-  if (ev === "SIGNED_IN" && S.user && S.perfil && session?.user?.id === S.user.id) { S.user = session.user; return; }
+  if (ev !== "SIGNED_OUT" && S.user && S.perfil && session?.user?.id === S.user.id) { S.user = session.user; return; }
   if (ev === "SIGNED_IN" || ev === "SIGNED_OUT" || ev === "INITIAL_SESSION") setTimeout(() => arrancar(session), 0);
 });

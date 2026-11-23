@@ -18,6 +18,22 @@ export function limpiaCarpeta(u) {
   } catch { return u; }
 }
 
+// Borrador automático: lo que se va escribiendo se guarda en el navegador y se recupera si la página se recarga
+const BKEY = p => "doinn_borrador_ficha_" + (p && p.id ? p.id : "nuevo");
+const lsB = { get: k => { try { return JSON.parse(localStorage.getItem(k) || "null"); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { } }, del: k => { try { localStorage.removeItem(k); } catch { } } };
+function borrador(form, key, avisoEl) {
+  const campos = () => [...form.querySelectorAll("input[id],select[id],textarea[id]")];
+  const guarda = () => { const d = {}; campos().forEach(el => d[el.id] = el.type === "checkbox" ? el.checked : el.value); lsB.set(key, { t: Date.now(), d }); };
+  const b = lsB.get(key);
+  if (b && b.d && Date.now() - b.t < 7 * 864e5) {
+    campos().forEach(el => { if (!(el.id in b.d)) return; if (el.type === "checkbox") el.checked = b.d[el.id]; else el.value = b.d[el.id]; });
+    campos().filter(el => el.type === "checkbox").forEach(el => el.dispatchEvent(new Event("change")));
+    if (avisoEl) { avisoEl.hidden = false; avisoEl.querySelector("button").onclick = () => { lsB.del(key); location.reload(); }; }
+  }
+  form.addEventListener("input", guarda); form.addEventListener("change", guarda);
+  return () => lsB.del(key);
+}
+
 const FASES = [
   // clave, etiqueta, hay, desde, hasta, hora, transporte
   ["carga", "Carga", "hay_carga", "fecha_carga", "fecha_carga_fin", "hora_carga", "transporte_ida"],
@@ -47,7 +63,8 @@ export function vFicha(ctx, p) {
   $app.innerHTML = `
   <a class="back" href="${nuevo ? "#/" : `#/p/${p.id}`}">‹ ${nuevo ? "Proyectos" : "Ficha"}</a>
   <h1>${nuevo ? "Nuevo proyecto" : "Ficha " + esc(p.codigo)}</h1>
-  <p class="hint">Los campos con * son obligatorios. El resto puedes completarlo más adelante.</p>
+  <p class="hint">Los campos con * son obligatorios. El resto puedes completarlo más adelante. Lo que escribas se guarda como borrador hasta que pulses Guardar.</p>
+  <div class="borr" id="borr" hidden>Hemos recuperado lo que tenías sin guardar. <button type="button" class="link">Descartar borrador</button></div>
   <form id="ff" autocomplete="off">
   <div class="card frm">
     <h2>1 · Proyecto</h2>
@@ -97,6 +114,7 @@ export function vFicha(ctx, p) {
     pon("fecha_desmontaje", $("evento_fin").value);
     pon("fecha_descarga", sumaDias($("fecha_desmontaje").value, 1));
   };
+  const limpiaBorrador = borrador($("ff"), BKEY(nuevo ? null : p), $("borr"));
   $("evento_inicio").onchange = () => { if (!$("evento_fin").value || $("evento_fin").value < $("evento_inicio").value) $("evento_fin").value = $("evento_inicio").value; };
 
   $("ff").onsubmit = async ev => {
@@ -129,6 +147,7 @@ export function vFicha(ctx, p) {
     const r = nuevo ? await sb.from("proyectos").insert(row).select().single() : await sb.from("proyectos").update(row).eq("id", p.id).select().single();
     $("bsave").disabled = false;
     if (r.error) return toast("No se pudo guardar: " + r.error.message);
+    limpiaBorrador();
     toast("Proyecto guardado");
     await recargar();
     location.hash = `#/p/${r.data.id}`;

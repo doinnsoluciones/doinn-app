@@ -145,7 +145,9 @@ export async function vElemento(ctx, p, eid) {
       "car-ok": { estado_carga: "Cargado", fecha_cargado: now, operario_carga: yo },
       "car-undo": { estado_carga: "Pendiente", fecha_cargado: null, operario_carga: null },
     }[a];
-    if (a === "doc-undo" && x.estado_fab !== "Pendiente") return toast("Primero deshaz la fabricación.");
+    // Oficina Técnica puede reabrir la documentación aunque el taller ya haya empezado (solo se bloquea si ya está cargado)
+    if (a === "doc-undo" && x.estado_carga === "Cargado") return toast("El elemento ya está cargado: primero deshaz la carga.");
+    if (a === "doc-undo" && x.estado_fab !== "Pendiente" && !confirm("El taller ya ha empezado este elemento. Si reabres la documentación, no se podrá seguir escaneando como fabricado hasta que la vuelvas a marcar como hecha. Las fases y piezas ya hechas se conservan. ¿Reabrir?")) return;
     if (a === "fab-undo" && x.estado_carga === "Cargado") return toast("Primero deshaz la carga.");
     if (await upd("elementos", x.id, C)) recarga();
   });
