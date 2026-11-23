@@ -656,3 +656,10 @@ table.cart tr.canc select.cfr{background:transparent;font-weight:400}
 table.cart td.nr{font-variant-numeric:tabular-nums}
 .cart-fil .cbor{height:28px}
 .cart-fil .cbor:disabled{opacity:.4;cursor:default}
+.csync{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;color:var(--muted2);background:var(--card);border-radius:999px;padding:4px 6px 4px 14px}
+.csync b{color:var(--ink);font-weight:700}.csync .neg{color:#D9342B}.csync .warn{color:#B7791F}
+.cart-top{gap:10px;margin-bottom:10px}
+.slist{margin:4px 0 12px;padding-left:18px;font-size:13px;line-height:1.5;max-height:34vh;overflow:auto}.slist li.warn{color:#9A5B00}
+table.cart [data-f]:disabled{opacity:1;color:var(--ink);cursor:default;-webkit-text-fill-color:var(--ink)}
+table.cart select[data-f]:disabled{appearance:none;-webkit-appearance:none}
+table.cart [data-f]:disabled:not(.cfr):not(.cest){background:transparent;border-color:transparent}
