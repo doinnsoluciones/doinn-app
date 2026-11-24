@@ -134,11 +134,12 @@ export async function vCartera(ctx) {
       const filasF = [...g.entries()].map(([id, x]) => ({ id, ...x, f: fronts.find(f => f.id === id) })).sort((a, b) => b.c - a.c || b.pe - a.pe);
       if (!filasF.length) return "";
       const max = Math.max(...filasF.map(x => x.c + x.pe), 1);
-      return `<details class="card vfront" id="vfront" ${st.verFront ? "open" : ""}><summary class="pj-top"><h2>Venta por Front</h2><span class="code">confirmado · pendiente</span></summary>
+      return `<div class="card vfront"><div class="pj-top"><h2>Venta por Front</h2><span class="code">confirmado · pendiente</span></div>
         ${filasF.map(x => `<div class="vfr"><span class="vfn"><i style="background:${x.f ? colF.get(x.f.id) : "#A0A8B0"}"></i>${esc(x.f ? corto(x.f) : "Externos y antiguos")}</span>
           <div class="vfb"><i class="c" style="width:${(x.c / max * 100).toFixed(1)}%"></i><i class="p" style="width:${(x.pe / max * 100).toFixed(1)}%"></i></div>
-          <span class="vfv"><b>${eur(x.c)}</b> · ${eur(x.pe)}</span></div>`).join("")}</details>`;
+          <span class="vfv"><b>${eur(x.c)}</b> · ${eur(x.pe)}</span></div>`).join("")}</div>`;
     })();
+    const extras = [porFront].filter(Boolean);
     const estSel = FILTROS.filter(f => st.est.includes(f[0])).flatMap(f => f[1]);
     const of = ORD[st.ord] || ORD.fecha;
     const vis = filas.filter(p => estSel.includes(p.estado_com)).sort((a, b) => { const x = of(a), y = of(b); return (x < y ? -1 : x > y ? 1 : (a.evento_inicio || "").localeCompare(b.evento_inicio || "")) * st.dir; });
@@ -187,7 +188,7 @@ export async function vCartera(ctx) {
       <div class="kpi"><span>Eventos realizados</span><b>${real.length}</b><small>${eur(suma(real, v))} · ${conf.length - real.length} previstos</small></div>
       <div class="kpi"><span>Cartera pendiente</span><b>${eur(suma(pend, v))}</b><small>${pend.length} proyecto${pend.length === 1 ? "" : "s"} pendiente${pend.length === 1 ? "" : "s"}</small></div>
     </div>
-    ${porFront}
+    ${extras.length ? `<div class="kmas"><button class="kdots ${st.verFront ? "on" : ""}" id="bkmas" type="button" title="Más indicadores">•••</button></div><div id="kextra" ${st.verFront ? "" : "hidden"}>${extras.join("")}</div>` : ""}
     ${tira}
     <div class="cart-fil">
       <select id="canio">${anios.map(a => `<option ${a === st.anio ? "selected" : ""}>${a}</option>`).join("")}<option value="todos" ${st.anio === "todos" ? "selected" : ""}>Todos los años</option></select>
@@ -221,8 +222,8 @@ export async function vCartera(ctx) {
     $("chas").onchange = e => { st.hasta = e.target.value; pinta(); };
     $app.querySelectorAll("[data-mes]").forEach(b => b.onclick = () => { const m = b.dataset.mes; st.meses = st.meses.includes(m) ? st.meses.filter(x => x !== m) : [...st.meses, m].sort(); pinta(); });
     $app.querySelectorAll("[data-est]").forEach(b => b.onclick = () => { const e = b.dataset.est; st.est = st.est.includes(e) ? st.est.filter(x => x !== e) : [...st.est, e]; ls.set("doinn_cart_est", st.est); pinta(); });
-    // Venta por Front: plegada por defecto; se recuerda si la abres
-    const vf = document.getElementById("vfront"); if (vf) vf.ontoggle = () => { st.verFront = vf.open; ls.set("doinn_cart_vfront", vf.open); };
+    // Indicadores extra (Venta por Front y los que vengan): ocultos tras los tres puntos; se recuerda si los abres
+    const bk = document.getElementById("bkmas"); if (bk) bk.onclick = () => { st.verFront = !st.verFront; ls.set("doinn_cart_vfront", st.verFront); bk.classList.toggle("on", st.verFront); document.getElementById("kextra").hidden = !st.verFront; };
     $app.querySelectorAll("[data-ord]").forEach(h => h.onclick = () => { const c = h.dataset.ord; if (st.ord === c) st.dir = -st.dir; else { st.ord = c; st.dir = ["venta", "coste", "margen", "pct"].includes(c) ? -1 : 1; } pinta(); });
     $app.querySelectorAll("tr.mes").forEach(r => r.onclick = () => { const g = r.dataset.g; st.pleg = st.pleg.includes(g) ? st.pleg.filter(x => x !== g) : [...st.pleg, g]; ls.set("doinn_cart_pleg", st.pleg); pinta(); });
     if ($("cpleg")) $("cpleg").onclick = () => { st.pleg = todosPleg ? st.pleg.filter(m => !grupos.some(g => g.m === m)) : [...new Set([...st.pleg, ...grupos.map(g => g.m)])]; ls.set("doinn_cart_pleg", st.pleg); pinta(); };
