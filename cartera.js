@@ -34,6 +34,7 @@ export async function vCartera(ctx) {
   const yo = S.perfil.operario_id && fronts.find(f => f.id === S.perfil.operario_id);
   S.cart = S.cart || { anio: String(new Date().getFullYear()), front: yo ? String(yo.id) : "", est: ls.get("doinn_cart_est", ["Confirmado", "Pendiente"]), q: "", cli: "", meses: [], desde: "", hasta: "", ord: "fecha", dir: 1, pleg: ls.get("doinn_cart_pleg", []) };
   const st = S.cart;
+  if (st.verFront == null) st.verFront = ls.get("doinn_cart_vfront", false);
   const anios = [...new Set(S.proyectos.filter(p => C.has(p.id) && p.evento_inicio).map(p => p.evento_inicio.slice(0, 4)))].sort();
   if (!anios.includes(st.anio)) anios.push(st.anio);
   const hoy = new Date().toISOString().slice(0, 10);
@@ -133,10 +134,10 @@ export async function vCartera(ctx) {
       const filasF = [...g.entries()].map(([id, x]) => ({ id, ...x, f: fronts.find(f => f.id === id) })).sort((a, b) => b.c - a.c || b.pe - a.pe);
       if (!filasF.length) return "";
       const max = Math.max(...filasF.map(x => x.c + x.pe), 1);
-      return `<div class="card vfront"><div class="pj-top"><h2>Venta por Front</h2><span class="code">confirmado · pendiente</span></div>
+      return `<details class="card vfront" id="vfront" ${st.verFront ? "open" : ""}><summary class="pj-top"><h2>Venta por Front</h2><span class="code">confirmado · pendiente</span></summary>
         ${filasF.map(x => `<div class="vfr"><span class="vfn"><i style="background:${x.f ? colF.get(x.f.id) : "#A0A8B0"}"></i>${esc(x.f ? corto(x.f) : "Externos y antiguos")}</span>
           <div class="vfb"><i class="c" style="width:${(x.c / max * 100).toFixed(1)}%"></i><i class="p" style="width:${(x.pe / max * 100).toFixed(1)}%"></i></div>
-          <span class="vfv"><b>${eur(x.c)}</b> · ${eur(x.pe)}</span></div>`).join("")}</div>`;
+          <span class="vfv"><b>${eur(x.c)}</b> · ${eur(x.pe)}</span></div>`).join("")}</details>`;
     })();
     const estSel = FILTROS.filter(f => st.est.includes(f[0])).flatMap(f => f[1]);
     const of = ORD[st.ord] || ORD.fecha;
@@ -220,6 +221,8 @@ export async function vCartera(ctx) {
     $("chas").onchange = e => { st.hasta = e.target.value; pinta(); };
     $app.querySelectorAll("[data-mes]").forEach(b => b.onclick = () => { const m = b.dataset.mes; st.meses = st.meses.includes(m) ? st.meses.filter(x => x !== m) : [...st.meses, m].sort(); pinta(); });
     $app.querySelectorAll("[data-est]").forEach(b => b.onclick = () => { const e = b.dataset.est; st.est = st.est.includes(e) ? st.est.filter(x => x !== e) : [...st.est, e]; ls.set("doinn_cart_est", st.est); pinta(); });
+    // Venta por Front: plegada por defecto; se recuerda si la abres
+    const vf = document.getElementById("vfront"); if (vf) vf.ontoggle = () => { st.verFront = vf.open; ls.set("doinn_cart_vfront", vf.open); };
     $app.querySelectorAll("[data-ord]").forEach(h => h.onclick = () => { const c = h.dataset.ord; if (st.ord === c) st.dir = -st.dir; else { st.ord = c; st.dir = ["venta", "coste", "margen", "pct"].includes(c) ? -1 : 1; } pinta(); });
     $app.querySelectorAll("tr.mes").forEach(r => r.onclick = () => { const g = r.dataset.g; st.pleg = st.pleg.includes(g) ? st.pleg.filter(x => x !== g) : [...st.pleg, g]; ls.set("doinn_cart_pleg", st.pleg); pinta(); });
     if ($("cpleg")) $("cpleg").onclick = () => { st.pleg = todosPleg ? st.pleg.filter(m => !grupos.some(g => g.m === m)) : [...new Set([...st.pleg, ...grupos.map(g => g.m)])]; ls.set("doinn_cart_pleg", st.pleg); pinta(); };
