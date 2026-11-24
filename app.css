@@ -748,3 +748,12 @@ html{touch-action:manipulation}
 }
 body.tv .gg{font-size:15px;padding:10px 0}
 .cm small b.cn{font-size:inherit;font-weight:700;color:var(--ink)}
+/* Cartera: venta por Front (solo superadmin) */
+.vfront{margin:0 0 12px}
+.vfr{display:grid;grid-template-columns:150px 1fr 230px;align-items:center;gap:12px;padding:5px 0;font-size:13px}
+.vfn{display:flex;align-items:center;gap:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vfn i{width:10px;height:10px;border-radius:50%;flex:none}
+.vfb{display:flex;height:10px;border-radius:5px;background:var(--line);overflow:hidden}
+.vfb .c{background:var(--lime)}.vfb .p{background:#E9BA4B}
+.vfv{text-align:right;color:var(--muted2);white-space:nowrap}.vfv b{color:var(--ink)}
+@media(max-width:640px){.vfr{grid-template-columns:90px 1fr;}.vfv{grid-column:1/-1;text-align:left;font-size:12px}}

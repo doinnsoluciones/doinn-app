@@ -126,6 +126,18 @@ export async function vCartera(ctx) {
     const conCoste = conf.filter(p => k(p) != null && v(p));
     const margen = conCoste.length ? (suma(conCoste, v) - suma(conCoste, k)) / suma(conCoste, v) : null;
     const decididos = conf.length + canc.length;
+    // Venta por Front (solo superadmin): confirmado y pendiente de cada Front con los filtros actuales
+    const porFront = S.perfil.rol !== "superadmin" ? "" : (() => {
+      const g = new Map();
+      for (const p of [...conf, ...pend]) { const key = p.front_id || 0; if (!g.has(key)) g.set(key, { c: 0, pe: 0, n: 0 }); const x = g.get(key); x[p.estado_com === "Confirmado" ? "c" : "pe"] += v(p) || 0; x.n++; }
+      const filasF = [...g.entries()].map(([id, x]) => ({ id, ...x, f: fronts.find(f => f.id === id) })).sort((a, b) => b.c - a.c || b.pe - a.pe);
+      if (!filasF.length) return "";
+      const max = Math.max(...filasF.map(x => x.c + x.pe), 1);
+      return `<div class="card vfront"><div class="pj-top"><h2>Venta por Front</h2><span class="code">confirmado · pendiente</span></div>
+        ${filasF.map(x => `<div class="vfr"><span class="vfn"><i style="background:${x.f ? colF.get(x.f.id) : "#A0A8B0"}"></i>${esc(x.f ? corto(x.f) : "Externos y antiguos")}</span>
+          <div class="vfb"><i class="c" style="width:${(x.c / max * 100).toFixed(1)}%"></i><i class="p" style="width:${(x.pe / max * 100).toFixed(1)}%"></i></div>
+          <span class="vfv"><b>${eur(x.c)}</b> · ${eur(x.pe)}</span></div>`).join("")}</div>`;
+    })();
     const estSel = FILTROS.filter(f => st.est.includes(f[0])).flatMap(f => f[1]);
     const of = ORD[st.ord] || ORD.fecha;
     const vis = filas.filter(p => estSel.includes(p.estado_com)).sort((a, b) => { const x = of(a), y = of(b); return (x < y ? -1 : x > y ? 1 : (a.evento_inicio || "").localeCompare(b.evento_inicio || "")) * st.dir; });
@@ -174,6 +186,7 @@ export async function vCartera(ctx) {
       <div class="kpi"><span>Eventos realizados</span><b>${real.length}</b><small>${eur(suma(real, v))} · ${conf.length - real.length} previstos</small></div>
       <div class="kpi"><span>Cartera pendiente</span><b>${eur(suma(pend, v))}</b><small>${pend.length} proyecto${pend.length === 1 ? "" : "s"} pendiente${pend.length === 1 ? "" : "s"}</small></div>
     </div>
+    ${porFront}
     ${tira}
     <div class="cart-fil">
       <select id="canio">${anios.map(a => `<option ${a === st.anio ? "selected" : ""}>${a}</option>`).join("")}<option value="todos" ${st.anio === "todos" ? "selected" : ""}>Todos los años</option></select>
