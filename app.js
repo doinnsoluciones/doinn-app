@@ -215,7 +215,7 @@ function vProyecto(id, tab = "ficha") {
   else if (["elementos", "despiece", "carga", "retorno", "equipo"].includes(tab)) body = `<div id="tabc"></div>`;
   else body = `<div class="card empty">Esta pestaña llega en los próximos días.</div>`;
   $app.innerHTML = `<a class="back" href="#/">‹ Proyectos</a><div class="code">${esc(p.codigo)}${p.archivado ? ` · <b>ARCHIVADO</b>` : ""}</div><h1>${esc(p.nombre || "")}</h1>
-  <div class="seg">${tabs.map(([k, l]) => `<a href="#/p/${p.id}/${k}" class="${k === tab ? "on" : ""}">${l}</a>`).join("")}</div>${body}`;
+  <div class="ftw"><div class="ftabs">${tabs.map(([k, l]) => `<a href="#/p/${p.id}/${k}" class="ftab ${k === tab ? "on" : ""}">${l}</a>`).join("")}</div><div class="fpanel">${body}</div></div>`;
   const ba = document.getElementById("barch");
   if (ba) ba.onclick = async () => {
     const ok = !p.archivado;

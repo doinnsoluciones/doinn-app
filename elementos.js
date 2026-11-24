@@ -110,7 +110,7 @@ export async function vElemento(ctx, p, eid) {
       const attr = editF ? `data-ef="${f}" data-t="${tipo}" data-id="${obj.id}"` : act ? `data-f="${f}" data-t="${tipo}" data-id="${obj.id}"` : "";
       const dis = editF ? "" : !act || !edita || lock ? "disabled" : "";
       const tit = editF ? (act ? "Quitar de este elemento" : "Añadir a este elemento") : !act ? "No aplica" : on ? "Hecho" : cur ? "En curso" : "Pendiente";
-      return `<button class="sf ${cls} ${editF ? "ed" : ""}" ${attr} ${dis} title="${tit}"><i>${editF ? (act ? "−" : "+") : on ? "✓" : ""}</i><span>${LBL(f)}</span></button>`;
+      return `<button class="sf ${cls} ${editF ? "ed" : ""}" ${attr} ${dis} title="${tit}"><i>${editF ? (act ? "−" : "+") : on ? "✓" : ""}</i><span><b>${LBL(f)}</b><small>${tit}</small></span></button>`;
     }).join("")}</div>`;
   };
   let det = "";
@@ -126,7 +126,7 @@ export async function vElemento(ctx, p, eid) {
   }
   if (sel === "car") det = !fabH ? `<div class="f3s lk">🔒 Se desbloquea cuando esté fabricado</div>` : `<div class="f3s">${carH ? `✓ Cargado${x.operario_carga ? " · " + esc(x.operario_carga) : ""}` : x.estado_carga === "Parcial" ? `Carga parcial · ${x.piezas_cargadas || 0}/${pzs.length || x.cantidad || 1} unidades` : "Pendiente de cargar"}${x.camion ? ` · Camión ${esc(x.camion)}` : ""}</div>
       ${edita ? `<div class="row">${carH ? `<button class="btn sm ghost" data-a="car-undo">Deshacer</button>` : `<button class="btn sm lime" data-a="car-ok">Marcar cargado</button>`}</div>` : ""}`;
-  const pasos = `<div class="f3w s${iSel}"><div class="f3">${FASES3.map(f => `<button class="f3b ${f.e} ${sel === f.k ? "sel" : ""}" data-tab="${f.k}" title="${f.t}: ${TXT[f.e]}"><i>${f.e === "done" ? "✓" : ""}</i><span><span class="tl">${f.t}</span><span class="tc">${f.c}</span></span></button>`).join("")}</div><div class="f3p">${det}</div></div>`;
+  const pasos = `<div class="ftw big"><div class="ftabs">${FASES3.map(f => `<button class="ftab ${f.e} ${sel === f.k ? "on" : ""}" data-tab="${f.k}" title="${f.t}: ${TXT[f.e]}"><i class="dot">${f.e === "done" ? "✓" : ""}</i><span><b><span class="tl">${f.t}</span><span class="tc">${f.c}</span></b><small>${f.lock ? "🔒 " : ""}${TXT[f.e]}</small></span></button>`).join("")}</div><div class="fpanel">${det}</div></div>`;
 
   // Avance de piezas: cada unidad pasa por Sin cortar → Cortada → Fabricada → Cargada
   const ETAPAS = ["Sin cortar", "Cortada", "Fabricada", "Cargada"];

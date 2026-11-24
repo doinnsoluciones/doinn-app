@@ -155,7 +155,8 @@ export async function vInventario(ctx, vista = "lista", a1, a2) {
 }
 
 const cab = (act, edita) => `<div class="pj-top"><h1>Inventario_</h1>${edita ? `<a class="btn lime" href="#/inv/nuevo">+ Nuevo elemento</a>` : ""}</div>
-  <div class="itabs">${[["lista", "Elementos", "#/inventario"], ["reservas", "Reservas", "#/inventario/reservas"], ["movimientos", "Movimientos", "#/inventario/movimientos"]].map(([k, t, h]) => `<a href="${h}" class="${act === k ? "on" : ""}">${t}</a>`).join("")}</div>`;
+  <div class="ftw"><div class="ftabs">${[["lista", "Elementos", "#/inventario"], ["reservas", "Reservas", "#/inventario/reservas"], ["movimientos", "Movimientos", "#/inventario/movimientos"]].map(([k, t, h]) => `<a href="${h}" class="ftab ${act === k ? "on" : ""}">${t}</a>`).join("")}</div><div class="fpanel">`;
+const finCab = `</div></div>`;
 
 function vLista(ctx, d) {
   const { $app, S, esc, puede } = ctx;
@@ -186,7 +187,7 @@ function vLista(ctx, d) {
   <div class="row invf"><input id="invq" class="inp" placeholder="Buscar elemento o código (MOS-0001)…" value="${esc(F.q)}">
     <select id="invc"><option value="">Todas las categorías</option>${CATS.map(([c]) => `<option ${F.cat === c ? "selected" : ""}>${c}</option>`).join("")}</select>
     <select id="inve"><option value="">Todos</option><option value="fuera" ${F.est === "fuera" ? "selected" : ""}>Con unidades fuera</option><option value="reservado" ${F.est === "reservado" ? "selected" : ""}>Con reservas</option><option value="danado" ${F.est === "danado" ? "selected" : ""}>Con dañadas</option></select></div>
-  <div id="invl"></div>`;
+  <div id="invl"></div>${finCab}`;
   pinta();
   const $ = id => document.getElementById(id);
   $("invq").oninput = () => { F.q = $("invq").value; pinta(); };
@@ -413,12 +414,12 @@ function vReservas(ctx, d) {
   $app.innerHTML = `${cab("reservas", puede("admin", "taller"))}
   ${grupos.length ? grupos.map(g => `<div class="card"><div class="pj-top"><div><b>${esc(g.p ? g.p.nombre : "Proyecto")}</b><div class="code">${g.p && ini(g.p) ? "Carga " + fdc(ini(g.p)) : ""}${g.p && fin(g.p) ? " · vuelta " + fdc(fin(g.p)) : ""}</div></div></div>
     ${g.l.map(r => { const m = d.mods.find(k => k.id === r.modelo_id) || {}; const ya = d.uds.filter(u => u.modelo_id === r.modelo_id && u.estado === "Fuera" && u.proyecto_id === r.proyecto_id).length; return `<a class="ires" href="#/inv/m/${m.id}"><div><b>${esc(m.nombre || "?")}</b><div class="code">${r.cantidad} ud · ${fdc(r.desde)} → ${fdc(r.hasta)}${r.nota ? " · " + esc(r.nota) : ""}</div></div><span class="pill ${ya >= r.cantidad ? "ok" : ya ? "warn" : "info"}">${ya}/${r.cantidad} servidas</span></a>`; }).join("")}</div>`).join("")
-    : `<div class="empty">No hay reservas próximas. Se reserva desde la ficha de cada elemento.</div>`}`;
+    : `<div class="empty">No hay reservas próximas. Se reserva desde la ficha de cada elemento.</div>`}${finCab}`;
 }
 
 async function vMovs(ctx, d) {
   const { $app, esc, puede, sb } = ctx;
-  $app.innerHTML = `${cab("movimientos", puede("admin", "taller"))}<div class="card" id="imv"><div class="code">Cargando…</div></div>`;
+  $app.innerHTML = `${cab("movimientos", puede("admin", "taller"))}<div class="card" id="imv"><div class="code">Cargando…</div></div>${finCab}`;
   const { data, error } = await sb.from("inv_movimientos").select("*").order("fecha", { ascending: false }).limit(300);
   const el = document.getElementById("imv"); if (!el) return;
   el.innerHTML = error ? esc(error.message) : (data || []).map(v => movFila(ctx, d, v)).join("") || `<div class="code">Aún no hay movimientos.</div>`;
