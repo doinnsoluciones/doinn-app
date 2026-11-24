@@ -76,15 +76,19 @@ function stats(pid) {
   const doc = els.filter(x => x.estado_doc === "Hecho").length;
   const fab = els.filter(x => x.estado_fab === "Hecho").length;
   const car = els.filter(x => x.estado_carga === "Cargado").length;
-  return { n, doc: pct(doc, n), fab: pct(fab, n), car: pct(car, n), av: n ? Math.round((pct(doc, n) + pct(fab, n) + pct(car, n)) / 3) : 0, inc: els.some(x => x.incidencia) };
+  return { n, faltaFab: n - fab, faltaCar: n - car, doc: pct(doc, n), fab: pct(fab, n), car: pct(car, n), av: n ? Math.round((pct(doc, n) + pct(fab, n) + pct(car, n)) / 3) : 0, inc: els.some(x => x.incidencia) };
 }
+// Regla única de riesgo (etiqueta, aviso y Panel):
+//  · Sin despiece y la carga en 7 días o menos → riesgo
+//  · Faltan elementos por fabricar y la carga en 3 días o menos → riesgo
+//  · Carga ya pasada: no es riesgo, se dice qué falta registrar
 function salud(p, st) {
   if (p.estado === "Cerrado") return ["Cerrado", ""];
   const d = dias(p.fecha_carga);
   if (st.n && st.av === 100) return ["Listo", "ok"];
-  if (d !== null && d < 0) return ["Retrasado", "bad"];
-  if (!st.n) return d !== null && d <= 7 ? ["Sin despiece", "warn"] : ["Sin datos", ""];
-  if (d !== null && d <= 3) return ["En riesgo", "bad"];
+  if (d !== null && d < 0) return st.n && st.faltaCar ? [`Carga pasada · ${st.faltaCar} sin registrar`, "warn"] : st.n ? ["Cargado", "ok"] : ["Carga pasada", ""];
+  if (!st.n) return d !== null && d <= 7 ? ["En riesgo · sin despiece", "bad"] : ["Sin despiece", ""];
+  if (d !== null && d <= 3 && st.faltaFab) return [`En riesgo · faltan ${st.faltaFab} por fabricar`, "bad"];
   return [p.estado || "En preparación", "info"];
 }
 

@@ -74,6 +74,8 @@ export async function vElemento(ctx, p, eid) {
   const pzs = d.pz.filter(z => z.elemento_id === x.id), subs = d.sub.filter(s => s.elemento_id === x.id);
   const yo = (S.perfil && S.perfil.nombre) || (S.user.email || "").split("@")[0];
   const edita = puede("admin", "taller");
+  // La documentación técnica solo la cambian Oficina Técnica y administración (el taller la ve en solo lectura)
+  const editaDoc = puede("admin") || (S.operarios || []).some(o => o.id === (S.perfil && S.perfil.operario_id) && o.grupo === "OT");
   const recarga = () => vElemento(ctx, p, eid);
   const upd = async (tabla, id, cambios, msg) => {
     const { error } = await sb.from(tabla).update(cambios).eq("id", id);
@@ -91,14 +93,14 @@ export async function vElemento(ctx, p, eid) {
     <div class="step ${hecho ? "done" : estado === "En curso" ? "run" : ""} ${bloqueado ? "lock" : ""}">
       <div class="dot">${hecho ? "✓" : estado === "En curso" ? "…" : ""}</div>
       <div class="sb"><div class="pj-top"><b>${titulo}</b><span class="pill ${hecho ? "ok" : estado === "En curso" ? "warn" : ""}">${hecho ? "✓ Hecho" : pausa ? "En pausa" : estado || "Pendiente"}</span></div>
-      ${bloqueado ? `<div class="code">🔒 ${pausa ? "En pausa: se reanuda cuando la fase anterior vuelva a estar hecha. El avance se conserva." : "Se desbloquea cuando la fase anterior esté hecha"}</div>` : edita ? `<div class="row">${botones}</div>` : ""}${nota && !bloqueado ? `<div class="code">${nota}</div>` : ""}</div>
+      ${bloqueado ? `<div class="code">🔒 ${pausa ? "En pausa: se reanuda cuando la fase anterior vuelva a estar hecha. El avance se conserva." : "Se desbloquea cuando la fase anterior esté hecha"}</div>` : edita && botones ? `<div class="row">${botones}</div>` : ""}${nota && !bloqueado ? `<div class="code">${nota}</div>` : ""}</div>
     </div>`;
   };
   const faltan = faltanFases(x, subs);
   const docH = x.estado_doc === "Hecho", fabH = x.estado_fab === "Hecho", carH = x.estado_carga === "Cargado";
   const pasos = `<div class="card steps"><div class="code">${esc(x.revision ? "Rev. " + x.revision : "")}</div>
     ${paso("Documentación técnica", x.estado_doc, docH, false,
-      docH ? `<button class="btn sm ghost" data-a="doc-undo">Deshacer</button>` : `${x.estado_doc !== "En curso" ? `<button class="btn sm ghost" data-a="doc-start">Empezar</button>` : ""}<button class="btn sm lime" data-a="doc-ok">Marcar hecho</button>`,
+      !editaDoc ? "" : docH ? `<button class="btn sm ghost" data-a="doc-undo">Deshacer</button>` : `${x.estado_doc !== "En curso" ? `<button class="btn sm ghost" data-a="doc-start">Empezar</button>` : ""}<button class="btn sm lime" data-a="doc-ok">Marcar hecho</button>`,
       x.fecha_doc && docH ? `Hecho ${new Date(x.fecha_doc).toLocaleDateString("es-ES")}${x.por_doc ? " · " + esc(x.por_doc) : ""}` : "")}
     ${paso("Fabricación", x.estado_fab, fabH, !docH,
       fabH && puede("admin") ? `<button class="btn sm ghost" data-a="fab-undo">Deshacer</button>` : "",

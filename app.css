@@ -760,3 +760,9 @@ body.tv .gg{font-size:15px;padding:10px 0}
 .kmas{display:flex;justify-content:flex-end;margin:-8px 0 4px}
 .kdots{border:0;background:transparent;color:var(--muted);font-size:14px;letter-spacing:2px;padding:2px 10px;border-radius:999px;cursor:pointer;line-height:1}
 .kdots:hover,.kdots.on{background:var(--card);color:var(--ink)}
+/* Móvil: el buscador encoge para que «+ Nuevo» quepa; las fechas de la ficha no se salen de su tarjeta */
+.search input{min-width:0}
+.search .btn{flex:none}
+.g-row input,.g-row select{min-width:0}
+@media (max-width:640px){.g-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
+@media (max-width:400px){.g-row{grid-template-areas:"l t" "d1 d1" "d2 d2" "h tr"}}
