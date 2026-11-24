@@ -82,6 +82,7 @@ export function pintaUsuario() {
   const nom = S.perfil.nombre || (S.user.email || "").split("@")[0];
   me.innerHTML = `<button class="hd-user" id="hperfil" title="Mi perfil"><span class="av">${esc((nom[0] || "?").toUpperCase())}</span>
       <span class="hd-un"><b>${esc(nom)}</b><i class="rol">${ROL_TXT[S.perfil.rol] || S.perfil.rol}</i></span></button>
+    ${api?.verHerr?.() ? `<a class="hd-lnk" href="#/melamina" title="Calculadora de melamina">▦ Melamina</a>` : ""}
     ${puede("superadmin") ? `<a class="hd-lnk" href="#/usuarios">Usuarios</a>` : ""}
     <button class="hd-out" id="hout" title="Cerrar sesión">${ic.salir}<span>Cerrar sesión</span></button>`;
   $("hperfil").onclick = miPerfil;
