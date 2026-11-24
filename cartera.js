@@ -173,9 +173,6 @@ export async function vCartera(ctx) {
       <div class="kpi"><span>Venta confirmada</span><b>${eur(suma(conf, v))}</b><small>${conf.length} proyectos</small></div>
       <div class="kpi"><span>Eventos realizados</span><b>${real.length}</b><small>${eur(suma(real, v))} · ${conf.length - real.length} previstos</small></div>
       <div class="kpi"><span>Cartera pendiente</span><b>${eur(suma(pend, v))}</b><small>${pend.length} proyecto${pend.length === 1 ? "" : "s"} pendiente${pend.length === 1 ? "" : "s"}</small></div>
-      <div class="kpi"><span>Cancelado</span><b>${eur(suma(canc, v))}</b><small>${canc.length} proyectos</small></div>
-      <div class="kpi"><span>Tasa de éxito</span><b>${decididos ? pct(conf.length / decididos) : "—"}</b><small>confirmados / decididos</small></div>
-      <div class="kpi"><span>Margen medio</span><b>${margen != null ? pct(margen) : "—"}</b><small>${conCoste.length ? `${conCoste.length} con coste estimado` : "falta el coste estimado"}</small></div>
     </div>
     ${tira}
     <div class="cart-fil">
