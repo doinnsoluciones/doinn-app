@@ -84,38 +84,47 @@ export async function vElemento(ctx, p, eid) {
     return true;
   };
 
-  // pasos Doc → Fab → Carga
-  // Un paso bloqueado (la fase anterior no está hecha) se pinta siempre en gris, aunque tuviera avance
-  const paso = (titulo, estado, hecho, bloqueado, botones, nota) => {
-    const pausa = bloqueado && (hecho || estado === "En curso");
-    if (bloqueado) { hecho = false; estado = ""; }
-    return `
-    <div class="step ${hecho ? "done" : estado === "En curso" ? "run" : ""} ${bloqueado ? "lock" : ""}">
-      <div class="dot">${hecho ? "✓" : estado === "En curso" ? "…" : ""}</div>
-      <div class="sb"><div class="pj-top"><b>${titulo}</b><span class="pill ${hecho ? "ok" : estado === "En curso" ? "warn" : ""}">${hecho ? "✓ Hecho" : pausa ? "En pausa" : estado || "Pendiente"}</span></div>
-      ${bloqueado ? `<div class="code">🔒 ${pausa ? "En pausa: se reanuda cuando la fase anterior vuelva a estar hecha. El avance se conserva." : "Se desbloquea cuando la fase anterior esté hecha"}</div>` : edita && botones ? `<div class="row">${botones}</div>` : ""}${nota && !bloqueado ? `<div class="code">${nota}</div>` : ""}</div>
-    </div>`;
-  };
+  // Estado en 3 fases horizontales (Doc → Fab → Carga). Gris = pendiente, naranja = en curso, verde = hecho.
   const faltan = faltanFases(x, subs);
   const docH = x.estado_doc === "Hecho", fabH = x.estado_fab === "Hecho", carH = x.estado_carga === "Cargado";
-  const pasos = `<div class="card steps"><div class="code">${esc(x.revision ? "Rev. " + x.revision : "")}</div>
-    ${paso("Documentación técnica", x.estado_doc, docH, false,
-      !editaDoc ? "" : docH ? `<button class="btn sm ghost" data-a="doc-undo">Deshacer</button>` : `${x.estado_doc !== "En curso" ? `<button class="btn sm ghost" data-a="doc-start">Empezar</button>` : ""}<button class="btn sm lime" data-a="doc-ok">Marcar hecho</button>`,
-      x.fecha_doc && docH ? `Hecho ${new Date(x.fecha_doc).toLocaleDateString("es-ES")}${x.por_doc ? " · " + esc(x.por_doc) : ""}` : "")}
-    ${paso("Fabricación", x.estado_fab, fabH, !docH,
-      fabH && puede("admin") ? `<button class="btn sm ghost" data-a="fab-undo">Deshacer</button>` : "",
-      fabH ? (x.operario_fab ? "Fabricado (QR escaneado) · " + esc(x.operario_fab) : "Fabricado (QR escaneado)")
-        : faltan.length ? `<span class="falta">Falta: ${faltan.map(esc).join(" · ")}</span>` : `<span class="ok-t">✓ Todas las fases terminadas. Se marca como fabricado al escanear el QR de cada unidad.</span>`)}
-    ${paso("Carga", x.estado_carga, carH, !fabH,
-      carH ? `<button class="btn sm ghost" data-a="car-undo">Deshacer</button>` : `<button class="btn sm lime" data-a="car-ok">Marcar cargado</button>`, "")}
-  </div>`;
-
-  // botones de fase (elemento o subelemento)
-  const botonesFase = (obj, tipo) => {
+  const est = (hecho, estado, lock) => hecho && !lock ? "done" : !lock && (estado === "En curso" || estado === "Parcial") ? "run" : "pend";
+  const FASES3 = [
+    { k: "doc", t: "Documentación", e: est(docH, x.estado_doc, false), lock: false },
+    { k: "fab", t: "Fabricación", e: est(fabH, x.estado_fab, !docH), lock: !docH },
+    { k: "car", t: "Carga", e: est(carH, x.estado_carga, !fabH), lock: !fabH },
+  ];
+  S.elTab = S.elTab || {};
+  const sel = S.elTab[x.id] || (FASES3.find(f => f.e !== "done") || FASES3[2]).k;
+  const TXT = { done: "Hecho", run: "En curso", pend: "Pendiente" };
+  const LBL = f => f === "Cerrajería" ? "Calderería" : f;
+  const editF = !!S.elEditF && edita;
+  // Subfases de fabricación: salen las 4; solo las del elemento están activas
+  const subfases = (obj, tipo, lock) => {
     const fs = fasesDe(obj);
-    if (!fs.length) return "";
-    return `<div class="fz">${fs.map(f => { const on = tiene(obj.fases_hechas, f); return `<button class="fzb ${on ? "on" : ""}" data-t="${tipo}" data-id="${obj.id}" data-f="${f}" ${edita ? "" : "disabled"}>${on ? "✓ " : ""}${f}</button>`; }).join("")}</div>`;
+    return `<div class="sf4">${ORD.map(f => {
+      const act = fs.includes(f), on = act && tiene(obj.fases_hechas, f);
+      const cls = !act ? "na" : on ? "done" : "pend";
+      const attr = editF ? `data-ef="${f}" data-t="${tipo}" data-id="${obj.id}"` : act ? `data-f="${f}" data-t="${tipo}" data-id="${obj.id}"` : "";
+      const dis = editF ? "" : !act || !edita || lock ? "disabled" : "";
+      return `<button class="sf ${cls} ${editF ? "ed" : ""}" ${attr} ${dis}><i>${editF ? (act ? "−" : "+") : on ? "✓" : act ? "" : "–"}</i><span>${LBL(f)}</span><small>${editF ? (act ? "Quitar" : "Añadir") : !act ? "No aplica" : on ? "Hecho" : "Pendiente"}</small></button>`;
+    }).join("")}</div>`;
   };
+  let det = "";
+  if (sel === "doc") det = `<div class="f3d">
+      <div class="f3s">${docH ? `✓ Hecho${x.fecha_doc ? " el " + new Date(x.fecha_doc).toLocaleDateString("es-ES") : ""}${x.por_doc ? " · " + esc(x.por_doc) : ""}` : x.estado_doc === "En curso" ? "Oficina Técnica la está preparando" : "Pendiente de Oficina Técnica"}${x.revision ? ` · Rev. ${esc(x.revision)}` : ""}</div>
+      ${editaDoc ? `<div class="row">${docH ? `<button class="btn sm ghost" data-a="doc-undo">Deshacer</button>` : `${x.estado_doc !== "En curso" ? `<button class="btn sm ghost" data-a="doc-start">Empezar</button>` : ""}<button class="btn sm lime" data-a="doc-ok">Marcar hecho</button>`}</div>` : ""}</div>`;
+  if (sel === "fab") {
+    const lock = !docH;
+    det = `<div class="f3d">
+      ${lock ? `<div class="f3s lk">🔒 Se desbloquea cuando la documentación esté hecha</div>` : ""}
+      ${subs.length ? subs.map(s => `<div class="sfsub"><div class="pj-top"><div><b>${esc(s.desc_sub || s.titulo)}</b><div class="code">${[`${s.cantidad || 1} pieza${(s.cantidad || 1) > 1 ? "s" : ""}`, origenTxt(s.origen), s.acabado].filter(Boolean).map(esc).join(" · ")} ${ralChips(s.ral, esc)}</div></div>${fasesDe(s).length || editF ? "" : `<button class="fzb ${s.terminado ? "on" : ""}" data-term="${s.id}" ${edita && !lock ? "" : "disabled"}>${s.terminado ? "✓ Listo" : "Marcar listo"}</button>`}</div>${fasesDe(s).length || editF ? subfases(s, "s", lock) : ""}</div>`).join("") : subfases(x, "e", lock)}
+      ${lock ? "" : `<div class="f3s">${fabH ? `✓ Fabricado${x.operario_fab ? " · " + esc(x.operario_fab) : ""}` : editF ? "Toca una fase para añadirla o quitarla de este elemento." : faltan.length ? `Falta: <b>${faltan.map(f => esc(LBL(f))).join(" · ")}</b>` : `<span class="ok-t">✓ Fases terminadas · escanea el QR de cada unidad</span>`}</div>`}
+      <div class="row">${edita && !fabH ? `<button class="btn sm ghost" data-a="editf">${editF ? "✓ Listo" : "✎ Editar fases"}</button>` : ""}${fabH && puede("admin") ? `<button class="btn sm ghost" data-a="fab-undo">Deshacer fabricado</button>` : ""}</div></div>`;
+  }
+  if (sel === "car") det = `<div class="f3d">
+      ${!fabH ? `<div class="f3s lk">🔒 Se desbloquea cuando esté fabricado</div>` : `<div class="f3s">${carH ? `✓ Cargado${x.operario_carga ? " · " + esc(x.operario_carga) : ""}` : x.estado_carga === "Parcial" ? `Carga parcial · ${x.piezas_cargadas || 0}/${pzs.length || x.cantidad || 1} unidades` : "Pendiente de cargar"}${x.camion ? ` · Camión ${esc(x.camion)}` : ""}</div>
+      ${edita ? `<div class="row">${carH ? `<button class="btn sm ghost" data-a="car-undo">Deshacer</button>` : `<button class="btn sm lime" data-a="car-ok">Marcar cargado</button>`}</div>` : ""}`}</div>`;
+  const pasos = `<div class="card f3c"><div class="f3">${FASES3.map((f, i) => `<button class="f3b ${f.e} ${sel === f.k ? "sel" : ""}" data-tab="${f.k}"><i>${f.e === "done" ? "✓" : f.lock ? "🔒" : i + 1}</i><span><b>${f.k === "doc" ? `<span class="tl">Documentación</span><span class="tc">Doc. técnica</span>` : f.t}</b><small>${TXT[f.e]}</small></span></button>`).join("")}</div>${det}</div>`;
 
   // Avance de piezas: cada unidad pasa por Sin cortar → Cortada → Fabricada → Cargada
   const ETAPAS = ["Sin cortar", "Cortada", "Fabricada", "Cargada"];
@@ -123,21 +132,15 @@ export async function vElemento(ctx, p, eid) {
   const cuenta = k => pzs.filter(z => etapa(z) >= k).length;
   const deScan = S.scan && S.scan.vuelta && S.scan.vuelta.id === x.id && Date.now() - S.scan.vuelta.t < 10 * 60e3 ? S.scan.vuelta : null;
   const barraAv = (t, k) => { const n = cuenta(k), tot = pzs.length; return `<div class="avb ${n === tot ? "full" : ""}"><div class="avt"><span>${t}</span><b>${n}/${tot}</b></div><div class="avl"><i style="width:${tot ? Math.round(n / tot * 100) : 0}%"></i></div></div>`; };
-  const piezasHtml = pzs.length ? `<div class="card" id="cpz"><div class="pj-top"><h2>Avance de piezas</h2><span class="code">${pzs.length} unidad${pzs.length > 1 ? "es" : ""}</span></div>
+  const piezasHtml = pzs.length ? `<div class="card" id="cpz"><div class="pj-top"><h2>Unidades <small class="code">avance por QR</small></h2><span class="code">${pzs.length} unidad${pzs.length > 1 ? "es" : ""}</span></div>
     <div class="av3">${barraAv("Cortadas", 1)}${barraAv("Fabricadas", 2)}${barraAv("Cargadas", 3)}</div>
+    <details class="pzdet" ${deScan ? "open" : ""}><summary>Ver unidades${edita ? " y corregir a mano" : ""}</summary>
     ${pzs.map(z => { const e = etapa(z); return `<div class="pz2 ${deScan && deScan.zid === z.id ? "hl" : ""}" data-pz="${z.id}">
       <div class="pzh"><span class="num">P${z.num_pieza}</span><div class="pzb"><b>${esc(z.desc_pieza || x.elemento)}</b><div class="code">${esc(z.referencia)}</div></div><span class="pill ${e === 3 ? "ok" : e === 2 ? "ok" : e === 1 ? "warn" : ""}">${ETAPAS[e]}</span></div>
       <div class="pzs">${ETAPAS.slice(1).map((t, k) => `<span class="pst ${e > k ? "on" : ""}"><i></i>${t}</span>`).join("")}</div>
       ${edita ? `<div class="pza" hidden>${e > 0 ? `<button class="btn sm ghost" data-pzm="${z.id}" data-to="${e - 1}">↶ Volver a «${ETAPAS[e - 1]}»</button>` : ""}${e < 3 ? `<button class="btn sm lime" data-pzm="${z.id}" data-to="${e + 1}">Marcar «${ETAPAS[e + 1]}»</button>` : ""}</div>` : ""}
     </div>`; }).join("")}
-    <p class="hint" style="margin-top:8px">Lo normal es avanzar escaneando la etiqueta en Escanear. ${edita ? "Toca una unidad para corregir su estado a mano." : ""}</p></div>` : "";
-
-  const subsHtml = subs.length ? `<div class="card"><h2>Subelementos <small class="code">${subs.filter(s => s.terminado).length}/${subs.length} terminados</small></h2>
-    ${subs.map(s => `<div class="sub"><div class="pj-top"><div><b>${esc(s.desc_sub || s.titulo)}</b><div class="code">${[`${s.cantidad || 1} pieza${(s.cantidad || 1) > 1 ? "s" : ""}`, origenTxt(s.origen), s.acabado].filter(Boolean).map(esc).join(" · ")} ${ralChips(s.ral, esc)}</div></div>${fasesDe(s).length ? `<span class="pill ${s.terminado ? "ok" : ""}">${s.terminado ? "✓ Terminado" : `${fasesDe(s).filter(f => tiene(s.fases_hechas, f)).length}/${fasesDe(s).length} fases`}</span>` : `<button class="fzb ${s.terminado ? "on" : ""}" data-term="${s.id}" ${edita ? "" : "disabled"}>${s.terminado ? "✓ Listo" : "Marcar listo"}</button>`}</div>
-      ${botonesFase(s, "s")}</div>`).join("")}</div>` : "";
-
-  const fabHtml = !subs.length && fasesDe(x).length ? `<div class="card"><h2>Fabricación del elemento</h2>
-    <p class="hint">Marca cada fase al terminarla. Toca otra vez para desmarcar.</p>${botonesFase(x, "e")}</div>` : "";
+    <p class="hint" style="margin-top:8px">Lo normal es avanzar escaneando la etiqueta. ${edita ? "Toca una unidad para corregir su estado a mano." : ""}</p></details></div>` : "";
 
   const dato = (k, v) => `<dt>${k}</dt><dd>${v || "—"}</dd>`;
   // Resultado del último escaneo (solo informativo; se muestra unos minutos)
@@ -145,15 +148,17 @@ export async function vElemento(ctx, p, eid) {
   $app.innerHTML = `${verScan ? `<div class="scanres ${deScan.ok ? "ok" : "ko"} scanvuelta"><b>${deScan.ok ? "✓" : "✕"} ${esc(deScan.msg)}</b>${deScan.det ? `<div>${esc(deScan.det)}</div>` : ""}</div>` : ""}<a class="back" href="#/p/${p.id}/elementos">‹ ${esc(p.nombre)}</a>
   <div class="code">Ref. ${esc(x.referencia || "")}</div><h1>${esc(x.elemento || "")}</h1>
   <div class="code" style="margin:-8px 0 12px">${[medidasTxt(x) ? "Alto × ancho × fondo: " + medidasTxt(x) : "", x.acabado, origenTxt(x.origen)].filter(Boolean).map(esc).join(" · ")}</div>
-  ${pasos}${piezasHtml}${fabHtml}${subsHtml}
+  ${pasos}${piezasHtml}
   <div class="card"><dl class="kv">${dato("Unidades", x.cantidad)}${dato("Origen", esc(origenTxt(x.origen)))}${dato("Medidas (alto × ancho × fondo)", medidasTxt(x))}${dato("Acabado", esc(x.acabado))}${x.ral ? dato("Color RAL", ralChips(x.ral, esc)) : ""}${dato("Fases", esc(fasesDe(x).join(" · ")))}${x.es_extra ? dato("Extra", "Sí, pedido de última hora") : ""}${dato("Etiquetas", x.num_etiquetas)}${dato("Camión", esc(x.camion))}${dato("Orden de carga", x.orden_carga)}${dato("Ubicación nave", esc(x.ubicacion_nave))}${dato("Observaciones", esc(x.observaciones))}</dl></div>
   <div class="card"><div class="pj-top"><div><b>Incidencia</b><div class="code">${x.incidencia ? "Abierta" : "Sin incidencia"}</div></div>
     <label class="tg"><input type="checkbox" id="inc" ${x.incidencia ? "checked" : ""} ${edita ? "" : "disabled"}><span></span><b>${x.incidencia ? "Sí" : "No"}</b></label></div></div>
   ${x.hist_fases ? `<details class="card"><summary>Historial de fases</summary><pre class="hist">${esc(x.hist_fases)}</pre></details>` : ""}`;
 
+  $app.querySelectorAll("[data-tab]").forEach(b => b.onclick = () => { S.elTab[x.id] = b.dataset.tab; S.elEditF = false; recarga(); });
   // acciones de pasos
   $app.querySelectorAll("[data-a]").forEach(b => b.onclick = async () => {
     const now = new Date().toISOString(), a = b.dataset.a;
+    if (a === "editf") { S.elEditF = !S.elEditF; return recarga(); }
     const C = {
       "doc-start": { estado_doc: "En curso" },
       "doc-ok": { estado_doc: "Hecho", fecha_doc: now, por_doc: yo },
@@ -170,7 +175,7 @@ export async function vElemento(ctx, p, eid) {
     if (await upd("elementos", x.id, C)) recarga();
   });
   // fases (toggle) de elemento o subelemento
-  $app.querySelectorAll(".fzb[data-f]").forEach(b => b.onclick = async () => {
+  $app.querySelectorAll(".sf[data-f]").forEach(b => b.onclick = async () => {
     const tabla = b.dataset.t === "s" ? "subelementos" : "elementos";
     const obj = b.dataset.t === "s" ? subs.find(s => s.id === +b.dataset.id) : x;
     const f = b.dataset.f, h = obj.fases_hechas || "|", on = tiene(h, f);
@@ -185,6 +190,16 @@ export async function vElemento(ctx, p, eid) {
       if (!on && !faltanFases(x2, subs2).length) toast("✓ Todas las fases terminadas: escanea el QR de cada unidad.");
       recarga();
     }
+  });
+  // Editar qué subfases tiene el elemento / subelemento
+  $app.querySelectorAll("[data-ef]").forEach(b => b.onclick = async () => {
+    const tabla = b.dataset.t === "s" ? "subelementos" : "elementos";
+    const obj = b.dataset.t === "s" ? subs.find(s => s.id === +b.dataset.id) : x;
+    const f = b.dataset.ef, act = tiene(obj.fases, f);
+    const fases = "|" + ORD.filter(g => g === f ? !act : tiene(obj.fases, g)).join("|") + "|";
+    const cambios = { fases: fases === "||" ? null : fases, hist_fases: (obj.hist_fases || "") + `${ahora()} · ${act ? "Quita fase" : "Añade fase"} ${f} · ${yo}\n` };
+    if (act && tiene(obj.fases_hechas, f)) cambios.fases_hechas = obj.fases_hechas.replace("|" + f + "|", "|");
+    if (await upd(tabla, obj.id, cambios, `${LBL(f)} ${act ? "quitada" : "añadida"}`)) recarga();
   });
   // subelemento terminado
   $app.querySelectorAll("[data-term]").forEach(b => b.onclick = async () => {
