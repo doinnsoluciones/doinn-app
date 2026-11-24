@@ -766,3 +766,22 @@ body.tv .gg{font-size:15px;padding:10px 0}
 .g-row input,.g-row select{min-width:0}
 @media (max-width:640px){.g-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
 @media (max-width:400px){.g-row{grid-template-areas:"l t" "d1 d1" "d2 d2" "h tr"}}
+/* Calculadora de melamina */
+.m-herr{display:flex;flex-direction:column;gap:6px}
+.mgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:860px){.mgrid{grid-template-columns:1fr}}
+.mtw{overflow-x:auto}
+.mtbl{width:100%;border-collapse:collapse;font-size:13px}
+.mtbl th{text-align:left;font-size:11px;color:var(--muted2);font-weight:600;padding:4px 6px;text-transform:uppercase}
+.mtbl td{padding:3px 6px;border-top:1px solid var(--line)}
+.mtbl input{width:100%;min-width:60px;height:34px;border:1px solid var(--line);border-radius:8px;padding:0 8px;background:var(--card);font:inherit}
+.mtbl td:first-child input{min-width:170px}
+#m_txt{width:100%;border:1px solid var(--line);border-radius:10px;padding:8px;font:inherit;background:var(--card);margin:6px 0}
+.mres{border-top:1px solid var(--line);padding:12px 0}
+.mres-h{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px}
+.mkp{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-bottom:8px}
+.mkp div{background:var(--bg);border-radius:10px;padding:8px 10px}.mkp span{display:block;font-size:11px;color:var(--muted2)}.mkp b{font-size:17px}
+.mtabs{display:flex;flex-wrap:wrap;gap:10px}
+.mtab{margin:0;font-size:11px;color:var(--muted2);text-align:center}
+.mfondo{fill:var(--bg);stroke:var(--muted);stroke-width:8}
+.mpz{fill:#cfe6a8;stroke:#5b7a1e;stroke-width:4}
