@@ -41,7 +41,8 @@ const DEF_PAG = {
   lectura: TODAS.filter(x => x !== "escanear"),
 };
 const ROLES = [["superadmin", "SuperAdmin · control total"], ["admin", "Admin · proyectos (Fronts y OT)"], ["taller", "Taller · estado de producción"], ["lectura", "Lectura · solo consulta"]];
-const pagsDe = (rol, pags) => rol === "superadmin" ? TODAS : (pags && pags.length ? pags : DEF_PAG[rol] || []);
+// El encargado y el team leader («gestiona taller») ven además Muelle, Panel y Carga
+const pagsDe = (rol, pags, gt) => { if (rol === "superadmin") return TODAS; const b = pags && pags.length ? pags : DEF_PAG[rol] || []; return gt ? [...new Set([...b, "muelle", "panel", "carga"])] : b; };
 const verCartera = () => !!S.perfil && S.perfil.aprobado && (S.perfil.rol === "superadmin" || !!S.perfil.ve_cartera);
 // Despiece: solo Oficina Técnica (ficha del grupo OT) y SuperAdmin
 const verDespiece = () => !!S.perfil && S.perfil.aprobado && (S.perfil.rol === "superadmin" || (S.operarios || []).some(o => o.id === S.perfil.operario_id && o.grupo === "OT"));
@@ -50,7 +51,7 @@ const verHerr = () => verDespiece() || puede("admin");
 // Inventario: lo ve cualquier usuario aprobado (escriben administración y taller). Presupuestador: administración.
 const verInv = () => !!(S.perfil && S.perfil.aprobado);
 const verPres = () => puede("admin");
-const ver = pg => pg === "cartera" ? verCartera() : pg === "despiece" ? verDespiece() : pg === "melamina" ? verHerr() : pg === "inventario" || pg === "inv" ? verInv() : pg === "presupuestos" ? verPres() : !!S.perfil && pagsDe(S.perfil.rol, S.perfil.paginas).includes(pg);
+const ver = pg => pg === "cartera" ? verCartera() : pg === "despiece" ? verDespiece() : pg === "melamina" ? verHerr() : pg === "inventario" || pg === "inv" ? verInv() : pg === "presupuestos" ? verPres() : !!S.perfil && pagsDe(S.perfil.rol, S.perfil.paginas, S.perfil.gestiona_taller).includes(pg);
 // Proyectos en producción: confirmados o pre-confirmados (o con trabajo ya hecho); el resto solo se ve en Cartera y Planificación
 const enProduccion = p => (p.estado_com || "Confirmado") === "Confirmado" || (p.estado_com === "Pendiente" && !!p.fecha_carga) || S.elementos.some(e => e.proyecto_id === p.id);
 
@@ -58,11 +59,12 @@ const enProduccion = p => (p.estado_com || "Confirmado") === "Confirmado" || (p.
 async function cargar() {
   const [p, e, o] = await Promise.all([
     sb.from("proyectos").select("*").order("fecha_carga", { ascending: true, nullsFirst: false }),
-    sb.from("elementos").select("id,proyecto_id,cantidad,estado_doc,estado_fab,estado_carga,incidencia"),
+    sb.from("elementos").select("id,proyecto_id,cantidad,estado_doc,estado_fab,estado_carga,incidencia,elemento,num_item"),
     sb.from("operarios").select("id,nombre,grupo,subgrupo,activo,codigo,puesto").order("nombre"),
   ]);
   for (const r of [p, e, o]) if (r.error) throw r.error;
   S.proyectos = p.data; S.elementos = e.data; S.operarios = o.data;
+  try { const r = await sb.from("incidencias").select("id,elemento_id,proyecto_id,tipo,para,texto,fecha,usuario").eq("resuelta", false).order("fecha", { ascending: false }); S.incs = r.data || []; } catch { S.incs = []; }
   await autoArchivar();
 }
 // Proyectos con todas sus fechas pasadas → Cerrado (como en Power Apps)
@@ -173,6 +175,18 @@ function vPendiente() {
   <button class="btn ghost" id="rl">Volver a comprobar</button></div>`;
   document.getElementById("rl").onclick = () => location.reload();
 }
+// Incidencias abiertas que le tocan al usuario: OT ve las de «Oficina técnica», cada Front las de sus proyectos, SuperAdmin todas
+function incidenciasParaMi() {
+  const yo = S.perfil && S.perfil.operario_id, op = (S.operarios || []).find(o => o.id === yo);
+  const P = id => S.proyectos.find(p => p.id === id) || {};
+  const mias = (S.incs || []).filter(i => puede("superadmin") || (i.para === "Oficina técnica" && op && op.grupo === "OT") || (i.para === "Front" && yo && P(i.proyecto_id).front_id === yo) || (i.para === "Taller" && puede("taller") && !puede("admin")));
+  if (!mias.length) return "";
+  const E = id => S.elementos.find(e => e.id === id) || {};
+  const hace = t => { const m = Math.round((Date.now() - new Date(t)) / 6e4); return m < 60 ? `hace ${m} min` : m < 1440 ? `hace ${Math.round(m / 60)} h` : `hace ${Math.round(m / 1440)} d`; };
+  return `<div class="card incaviso"><div class="pj-top"><b>⚠ Incidencias abiertas${puede("superadmin") ? "" : " para ti"} · ${mias.length}</b></div>
+    ${mias.slice(0, 6).map(i => `<a class="incl" href="#/p/${i.proyecto_id}/el/${i.elemento_id}"><span class="pill bad">${esc(i.tipo || "Incidencia")}</span><b>${esc(E(i.elemento_id).elemento || "Elemento")}</b><span class="code">${esc(P(i.proyecto_id).nombre || "")} · ${hace(i.fecha)}${i.para && i.para !== "Nadie" ? " · → " + esc(i.para) : ""}</span><span class="incx">${esc((i.texto || "").slice(0, 80))}</span></a>`).join("")}
+    ${mias.length > 6 ? `<div class="code">y ${mias.length - 6} más</div>` : ""}</div>`;
+}
 function vProyectos() {
   const q = S.q.toLowerCase();
   let ps = S.verArch ? S.proyectos.filter(p => p.archivado) : S.proyectos.filter(p => !p.archivado && enProduccion(p) && (S.verCerrados || p.estado !== "Cerrado"));
@@ -185,6 +199,7 @@ function vProyectos() {
   ${puede("admin") ? `<button class="btn lime" id="nuevo">+ Nuevo</button>` : ""}</div>
   <div class="row" style="gap:14px">${S.verArch ? "" : `<button class="link" id="vc">${S.verCerrados ? "Ocultar" : "Ver"} proyectos terminados (${nCerr}) ▾</button>`}
   ${nArch || S.verArch ? `<button class="link" id="va">${S.verArch ? "‹ Volver a los proyectos activos" : `Ver archivados (${nArch})`}</button>` : ""}</div>
+  ${S.verArch ? "" : incidenciasParaMi()}
   ${S.verArch ? `<p class="hint"><b>Proyectos archivados.</b> No aparecen en planificación, panel ni muelle. Ábrelos para desarchivarlos.</p>` : ""}
   ${ps.map(card).join("") || `<div class="empty">No hay proyectos que coincidan.</div>`}`;
   const qi = document.getElementById("q");
@@ -362,7 +377,7 @@ async function route() {
   document.querySelectorAll("#tabs a").forEach(a => a.classList.toggle("on", (a.dataset.t === (h[0] || "proyectos")) || (h[0] === "p" && a.dataset.t === "proyectos")));
   document.querySelectorAll("#tabs a").forEach(a => a.hidden = !ver(a.dataset.t));
   const pag = h[0] === "p" ? (h[2] && ["editar", "desp", "el"].includes(h[2]) ? (h[2] === "editar" ? "ficha" : h[2] === "desp" ? "despiece" : "elementos") : null) : (h[0] === "tv" ? "plan" : h[0] || "proyectos");
-  if (pag && pag !== "usuarios" && pag !== "nuevo" && !ver(pag)) { const pri = TODAS.find(x => ver(x) && ["proyectos", "plan", "escanear", "muelle", "panel"].includes(x)); if (pri && pri !== pag) { location.hash = pri === "proyectos" ? "#/" : "#/" + pri; return; } $app.innerHTML = `<div class="empty">No tienes acceso a esta página.</div>`; return; }
+  if (pag && pag !== "usuarios" && pag !== "nuevo" && !ver(pag)) { const pri = TODAS.find(x => ver(x) && ["proyectos", "plan", "escanear", "muelle", "panel"].includes(x)); if (pri && pri !== pag) { toast(`No tienes acceso a «${(PAGINAS.find(x => x[0] === pag) || [pag, pag])[1]}». Pide a dirección que te la active.`); location.hash = pri === "proyectos" ? "#/" : "#/" + pri; return; } $app.innerHTML = `<div class="empty">No tienes acceso a esta página.</div>`; return; }
   if (h[0] === "nuevo") return puede("admin") ? vFicha(ctx(), null) : vProyectos();
   if (h[0] === "p" && h[2] === "editar") { const p = S.proyectos.find(x => x.id === +h[1]); return p && puede("admin") ? vFicha(ctx(), p) : vProyecto(h[1]); }
   if (h[0] === "p" && h[2] === "desp") { const p = S.proyectos.find(x => x.id === +h[1]); return p ? vElementoForm(ctx(), p, h[3]) : vProyectos(); }

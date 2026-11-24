@@ -129,7 +129,7 @@ export async function vElementoForm(ctx, p, eid) {
   // «copia-ID»: elemento nuevo con los datos de otro, para editar solo lo que cambia
   const copiaDe = String(eid).startsWith("copia-") ? d.els.find(e => e.id === +String(eid).slice(6)) : null;
   const nuevo = eid === "nuevo" || !!copiaDe;
-  const LIMPIA = ["id", "num_item", "referencia", "estado_doc", "estado_fab", "estado_carga", "fecha_doc", "por_doc", "operario_fab", "fases_hechas", "hist_fases", "incidencia", "camion", "orden_carga", "ubicacion_nave", "orden", "created_at", "updated_at"];
+  const LIMPIA = ["id", "num_item", "referencia", "estado_doc", "estado_fab", "estado_carga", "fecha_doc", "por_doc", "operario_fab", "fases_hechas", "hist_fases", "incidencia", "camion", "orden_carga", "ubicacion_nave", "orden", "revision_fecha", "created_at", "updated_at"];
   const sinCampos = (o, ks) => { const c = { ...o }; ks.forEach(k => delete c[k]); return c; };
   const x = copiaDe ? sinCampos(copiaDe, LIMPIA) : eid === "nuevo" ? { cantidad: 1, origen: "Fabricación", fases: "|Corte|Carpintería|" } : d.els.find(e => e.id === +eid);
   if (!x) { $app.innerHTML = `<div class="empty">Elemento no encontrado.</div>`; return; }
@@ -151,6 +151,8 @@ export async function vElementoForm(ctx, p, eid) {
       <div class="code" style="margin-top:6px">Medidas en mm <small>(opcional)</small></div>
       <div class="three med"><label>Alto<input id="e_h" type="number" value="${v("alto")}"></label><label>Ancho<input id="e_a" type="number" value="${v("ancho")}"></label><label>Fondo<input id="e_l" type="number" value="${v("largo")}"></label></div>
       <label>Observaciones<textarea id="e_obs" rows="2">${v("observaciones")}</textarea></label>
+      <div class="two"><label>Plano <small>(enlace al PDF o DXF en SharePoint / Dropbox)</small><input id="e_plano" type="url" value="${v("plano_url")}" placeholder="https://…"></label>
+      <label>Revisión del plano<input id="e_rev" value="${v("revision")}" placeholder="A, B, C…" maxlength="10"></label></div>
       <div class="pj-top"><b>¿Extra (pedido de última hora)?</b><label class="tg"><input type="checkbox" id="e_extra" ${x.es_extra ? "checked" : ""}><span></span><b>${x.es_extra ? "Sí" : "No"}</b></label></div>
       <div class="pj-top" style="margin-top:10px"><b>¿Tiene subelementos?</b><label class="tg"><input type="checkbox" id="e_sub" ${conSub ? "checked" : ""}><span></span><b>${conSub ? "Sí" : "No"}</b></label></div>
       ${conSub ? `<div id="subs">${subs.map((s, i) => `
@@ -171,7 +173,7 @@ export async function vElementoForm(ctx, p, eid) {
     if ($("e_ral")) cajaRal($("e_ral"), x.ral, t => x.ral = t);
     document.querySelectorAll("[data-sral]").forEach(b => { const s = subs[+b.dataset.sral]; cajaRal(b, s.ral, t => s.ral = t); });
     const leeSubs = () => document.querySelectorAll(".subf").forEach(el => { const s = subs[+el.dataset.i]; el.querySelectorAll("[data-s]").forEach(i => s[i.dataset.s] = i.value); s.fases = fasesTxt([...el.querySelectorAll("input[data-f]:checked")].map(c => c.value)); });
-    const guardaCampos = () => { x.elemento = $("e_nom").value; x.cantidad = +$("e_cant").value || 1; x.origen = $("e_ori").value; x.largo = $("e_l").value; x.ancho = $("e_a").value; x.alto = $("e_h").value; x.observaciones = $("e_obs").value; x.es_extra = $("e_extra").checked; if ($("e_acab")) { x.acabado = $("e_acab").value; x.fases = fasesTxt([...document.querySelectorAll("input[data-f=e]:checked")].map(c => c.value)); } if (conSub) leeSubs(); };
+    const guardaCampos = () => { x.elemento = $("e_nom").value; x.cantidad = +$("e_cant").value || 1; x.origen = $("e_ori").value; x.largo = $("e_l").value; x.ancho = $("e_a").value; x.alto = $("e_h").value; x.observaciones = $("e_obs").value; x.plano_url = $("e_plano").value; x.revision = $("e_rev").value; x.es_extra = $("e_extra").checked; if ($("e_acab")) { x.acabado = $("e_acab").value; x.fases = fasesTxt([...document.querySelectorAll("input[data-f=e]:checked")].map(c => c.value)); } if (conSub) leeSubs(); };
     $("e_sub").onchange = () => { guardaCampos(); conSub = $("e_sub").checked; if (conSub && !subs.length) subs.push({ cantidad: 1, origen: "Fabricación", fases: "|Corte|Carpintería|" }); pinta(); };
     $("e_extra").onchange = () => $("e_extra").nextElementSibling.nextElementSibling.textContent = $("e_extra").checked ? "Sí" : "No";
     const as = $("addsub"); if (as) as.onclick = () => { guardaCampos(); subs.push({ cantidad: 1, origen: "Fabricación", fases: "|Corte|Carpintería|" }); pinta(); };
@@ -200,9 +202,12 @@ async function guardar(ctx, p, d, x, subs, nuevo) {
     proyecto_id: p.id, num_item: n, referencia: ref, elemento: MAY(x.elemento), cantidad: x.cantidad, origen: x.origen,
     taller: x.taller || null, zona: MAY(x.zona) || null, material: MAY(x.material) || null, acabado: subs.length ? null : (MAY(x.acabado) || null), ral: subs.length ? null : (x.ral || null),
     largo: num(x.largo), ancho: num(x.ancho), alto: num(x.alto), observaciones: MAY(x.observaciones) || null,
+    plano_url: (x.plano_url || "").trim() || null, revision: MAY(x.revision) || null,
     es_extra: !!x.es_extra, tiene_sub: subs.length > 0, fases: fasesEl, pasa_pintura: tiene(fasesEl, "Pintura") || subs.some(s => tiene(s.fases, "Pintura")),
     num_etiquetas: x.cantidad, updated_at: new Date().toISOString(),
   };
+  const ant = d.els.find(e => e.id === x.id);
+  if (row.revision && (!ant || (ant.revision || null) !== row.revision)) row.revision_fecha = new Date().toISOString();
   if (nuevo) Object.assign(row, { estado_doc: "Pendiente", estado_fab: "Pendiente", estado_carga: "Pendiente", fecha_pedido_extra: x.es_extra ? new Date().toLocaleDateString("sv-SE") : null });
   const r = nuevo ? await sb.from("elementos").insert(row).select().single() : await sb.from("elementos").update(row).eq("id", x.id).select().single();
   if (r.error) return toast("No se pudo guardar: " + r.error.message);

@@ -48,6 +48,9 @@ export function vFicha(ctx, p) {
   const nuevo = !p;
   p = p || { estado: "En preparación", estado_com: "Confirmado", hay_carga: true, hay_montaje: true, hay_evento: true, hay_desmontaje: true, hay_retorno: true };
   const fronts = S.operarios.filter(o => o.grupo === "Fronts" && o.activo !== false);
+  // Nuevo proyecto: si quien lo crea es Front, queda como Front por defecto
+  const yoFront = nuevo && S.perfil && fronts.find(o => o.id === S.perfil.operario_id);
+  const frontSel = p.front_id || (yoFront ? yoFront.id : null);
   const v = k => esc(p[k] ?? "");
   const sel = (id, ops, val) => `<select id="${id}">${ops.map(o => `<option ${o === (val || "—") ? "selected" : ""}>${esc(o)}</option>`).join("")}</select>`;
   const filas = FASES.map(([k, l, hay, d1, d2, h, t]) => `
@@ -65,14 +68,14 @@ export function vFicha(ctx, p) {
   <h1>${nuevo ? "Nuevo proyecto" : "Ficha " + esc(p.codigo)}</h1>
   <p class="hint">Los campos con * son obligatorios. El resto puedes completarlo más adelante. Lo que escribas se guarda como borrador hasta que pulses Guardar.</p>
   <div class="borr" id="borr" hidden>Hemos recuperado lo que tenías sin guardar. <button type="button" class="link">Descartar borrador</button></div>
-  <form id="ff" autocomplete="off">
+  <form id="ff" autocomplete="off" novalidate>
   <div class="card frm">
     <h2>1 · Proyecto</h2>
-    <label>Código * <small>formato AAMMDD.NN (fecha del evento)</small><input id="codigo" value="${v("codigo")}" placeholder="261123.01" required pattern="\\d{6}\\.\\d{2}"></label>
-    <label>Nombre del proyecto *<input id="nombre" value="${v("nombre")}" required></label>
+    <label>Código * <small>AAMMDD.NN · se propone solo al poner la fecha del evento</small><span class="codrow"><input id="codigo" value="${v("codigo")}" placeholder="261123.01" inputmode="decimal"><button type="button" class="btn sm ghost" id="bcod" title="Proponer código con la fecha del evento">Proponer</button></span></label>
+    <label>Nombre del proyecto *<input id="nombre" value="${v("nombre")}"></label>
     <label>Cliente / agencia<input id="cliente" value="${v("cliente")}"></label>
     <div class="two">
-      <label>Front *<select id="front_id" required><option value="">Elige…</option>${fronts.map(o => `<option value="${o.id}" ${o.id === p.front_id ? "selected" : ""}>${esc(o.nombre)}</option>`).join("")}</select></label>
+      <label>Front *<select id="front_id"><option value="">Elige…</option>${fronts.map(o => `<option value="${o.id}" ${o.id === frontSel ? "selected" : ""}>${esc(o.nombre)}</option>`).join("")}</select></label>
       <label>Estado comercial${sel("estado_com", ESTADOS_COM, p.estado_com || "Confirmado")}</label>
     </div>
     <label>Estado de producción${sel("estado", ESTADOS, p.estado)}</label>
@@ -113,16 +116,33 @@ export function vFicha(ctx, p) {
     pon("evento_fin", $("evento_inicio").value);
     pon("fecha_desmontaje", $("evento_fin").value);
     pon("fecha_descarga", sumaDias($("fecha_desmontaje").value, 1));
+    proponCod();
   };
   const limpiaBorrador = borrador($("ff"), BKEY(nuevo ? null : p), $("borr"));
-  $("evento_inicio").onchange = () => { if (!$("evento_fin").value || $("evento_fin").value < $("evento_inicio").value) $("evento_fin").value = $("evento_inicio").value; };
+  // Código propuesto: AAMMDD de la fecha del evento + siguiente número libre de ese día
+  let codAuto = nuevo && !p.codigo ? "" : null;
+  const proponCod = (forzar) => {
+    const ev = $("evento_inicio").value || $("fecha_montaje").value || $("fecha_carga").value; if (!ev) { if (forzar) err("evento_inicio", "Pon la fecha del evento para proponer el código"); return; }
+    if (!forzar && codAuto === null) return;
+    if (!forzar && $("codigo").value && $("codigo").value !== codAuto) return;
+    const pre = ev.slice(2, 4) + ev.slice(5, 7) + ev.slice(8, 10);
+    let n = 1; while (S.proyectos.some(x => x.codigo === `${pre}.${String(n).padStart(2, "0")}` && x.id !== p.id)) n++;
+    codAuto = `${pre}.${String(n).padStart(2, "0")}`; $("codigo").value = codAuto; limpiaErr("codigo");
+  };
+  $("bcod").onclick = () => proponCod(true);
+  // Errores junto al campo, en vez del globo del navegador
+  const limpiaErr = id => { const e = document.querySelector(`[data-err="${id}"]`); if (e) e.remove(); const f = $(id); if (f) f.classList.remove("inv"); };
+  const err = (id, msg) => { limpiaErr(id); const f = $(id); if (!f) return toast(msg); f.classList.add("inv"); const d = document.createElement("div"); d.className = "ferr"; d.dataset.err = id; d.textContent = msg; (f.closest("label") || f.parentElement).appendChild(d); f.scrollIntoView({ block: "center", behavior: "smooth" }); f.focus({ preventScroll: true }); return false; };
+  ["codigo", "nombre", "front_id", "fecha_carga", "evento_inicio"].forEach(id => { const f = $(id); if (f) f.addEventListener("input", () => limpiaErr(id)); });
+  $("evento_inicio").onchange = () => { if (!$("evento_fin").value || $("evento_fin").value < $("evento_inicio").value) $("evento_fin").value = $("evento_inicio").value; proponCod(); };
 
   $("ff").onsubmit = async ev => {
     ev.preventDefault();
     const codigo = MAY($("codigo").value);
-    if (!/^\d{6}\.\d{2}$/.test(codigo)) return toast("El código debe ser AAMMDD.NN, por ejemplo 261123.01");
-    if (!$("front_id").value) return toast("Elige el Front del proyecto");
-    if (S.proyectos.some(x => x.codigo === codigo && x.id !== p.id)) return toast("Ya existe un proyecto con ese código");
+    if (!/^\d{6}\.\d{2}$/.test(codigo)) return err("codigo", "El código debe ser AAMMDD.NN, por ejemplo 261123.01 (pulsa «Proponer»)");
+    if (S.proyectos.some(x => x.codigo === codigo && x.id !== p.id)) return err("codigo", "Ya existe un proyecto con ese código");
+    if (!MAY($("nombre").value)) return err("nombre", "Falta el nombre del proyecto");
+    if (!$("front_id").value) return err("front_id", "Elige el Front del proyecto");
     const front = fronts.find(o => o.id === +$("front_id").value);
     const row = {
       codigo, nombre: MAY($("nombre").value), cliente: MAY($("cliente").value) || null,
@@ -141,7 +161,7 @@ export function vFicha(ctx, p) {
       row[h] = on && $(h).value !== "—" ? $(h).value : null;
       if (t) row[t] = on ? MAY($(t).value) || null : null;
     }
-    if (row.hay_carga && !row.fecha_carga) return toast("Falta la fecha de carga");
+    if (row.hay_carga && !row.fecha_carga) return err("fecha_carga", "Falta la fecha de carga");
     if (!row.transporte_vuelta) row.transporte_vuelta = row.transporte_ida;
     $("bsave").disabled = true;
     const r = nuevo ? await sb.from("proyectos").insert(row).select().single() : await sb.from("proyectos").update(row).eq("id", p.id).select().single();

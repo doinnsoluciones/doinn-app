@@ -11,6 +11,8 @@ const num = n => { if (n == null || n === "" || isNaN(n)) return ""; const [e, d
 const eur = n => { const t = num(n); return t ? t + " €" : ""; };
 // lee lo que escriba el usuario: «1.234,5», «1234,50», «1234.5» o «1.234»
 const leeNum = t => { t = String(t).replace(/[€\s]/g, ""); if (!t) return null; if (t.includes(",")) t = t.replace(/\./g, "").replace(",", "."); else if (!/^\d+\.\d{1,2}$/.test(t)) t = t.replace(/\./g, ""); const n = Number(t); return isFinite(n) ? Math.round(n * 100) / 100 : NaN; };
+// importe corto para la tira de meses: 1,2 M€ · 345 k€ · 900 €
+const eurK = n => { n = Number(n) || 0; const a = Math.abs(n); return a >= 1e6 ? (n / 1e6).toLocaleString("es-ES", { maximumFractionDigits: 1 }) + " M€" : a >= 1e3 ? Math.round(n / 1e3).toLocaleString("es-ES") + " k€" : Math.round(n) + " €"; };
 const pct = n => n == null || !isFinite(n) ? "" : Math.round(n * 100) + " %";
 const ls = { get: (k, d) => { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } }, set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { } } };
 
@@ -158,19 +160,33 @@ export async function vCartera(ctx) {
         ? (ps.length || nPend ? `<small>Confirmados: <b class="cn">${ps.length}</b></small><small>Pendientes: <b class="cn">${nPend}</b></small>` : `<small>sin eventos</small>`)
         : `<small>${re ? `${re} realizado${re > 1 ? "s" : ""}` : ""}${re && prev ? " · " : ""}${prev ? `${prev} previsto${prev > 1 ? "s" : ""}` : ""}${!ps.length ? "sin eventos" : ""}</small>`;
       return `<button class="cm ${st.meses.includes(mm) ? "on" : ""} ${clave === mesHoy ? "hoy" : ""} ${clave > mesHoy ? "fut" : ""}" data-mes="${mm}" title="Filtrar ${n}">
-        <span>${n.slice(0, 3)}</span><b>${ps.length ? eur(suma(ps, v)) : "—"}</b>${resumen}</button>`;
+        <span>${n.slice(0, 3)}</span><b title="${ps.length ? eur(suma(ps, v)) : ""}">${ps.length ? eurK(suma(ps, v)) : "—"}</b>${resumen}</button>`;
     }).join("")}</div>`;
     const selFront = p => `<select data-f="front" data-id="${p.id}" class="cfr" style="--c:${cF(p)}"><option value="">${p.front_id ? "—" : esc(p.front_nombre || "—")}</option>${fronts.map(f => `<option value="${f.id}" ${p.front_id === f.id ? "selected" : ""}>${esc(f.nombre)}</option>`).join("")}</select>`;
+    // Por defecto la tabla es de solo lectura; «✎ Editar» activa los campos (salvo en modo Excel vivo)
+    const editable = !!st.editar && !vivo;
+    const fdc = d => d ? new Date(d + "T00:00").toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "2-digit" }) : "—";
     const fila = p => {
       const vv = v(p), kk = k(p), mg = vv != null && kk != null ? vv - kk : null;
+      if (!editable) {
+        const fr = fronts.find(f => f.id === p.front_id);
+        return `<tr class="cro ${p.estado_com === "Cancelado" ? "canc" : ""}" style="--fc:${cF(p)}">
+        <td>${fdc(p.evento_inicio)}</td>
+        <td class="cn"><a href="#/p/${p.id}">${esc(p.nombre || p.codigo)}</a><small class="code">${esc(p.codigo)}</small></td>
+        <td>${esc(p.cliente || "—")}</td>
+        <td><span class="cfr-ro"><i style="background:${cF(p)}"></i>${esc(fr ? fr.nombre : p.front_nombre || "—")}</span></td>
+        <td><span class="pill" style="background:${COL_COM[p.estado_com] || "#ccc"}26;color:var(--ink)">${esc(p.estado_com || "—")}</span></td>
+        <td class="nr">${eur(vv) || "—"}</td><td class="nr">${eur(kk) || "—"}</td>
+        <td class="nr">${eur(mg)}</td><td class="nr">${vv && mg != null ? pct(mg / vv) : ""}</td></tr>`;
+      }
       return `<tr class="${p.estado_com === "Cancelado" ? "canc" : ""}" style="--fc:${cF(p)}">
         <td><input type="date" data-f="fecha" data-id="${p.id}" value="${p.evento_inicio || ""}"></td>
         <td class="cn"><a href="#/p/${p.id}">${esc(p.nombre || p.codigo)}</a><small class="code">${esc(p.codigo)}</small></td>
         <td><input data-f="cliente" data-id="${p.id}" value="${esc(p.cliente || "")}"></td>
         <td>${selFront(p)}</td>
         <td><select data-f="estado" data-id="${p.id}" class="cest" style="--c:${COL_COM[p.estado_com] || "#ccc"}">${ESTADOS.map(e => `<option ${e === p.estado_com ? "selected" : ""}>${e}</option>`).join("")}</select></td>
-        <td class="nr"><input inputmode="decimal" data-f="venta" data-id="${p.id}" value="${num(vv)}" placeholder="—"></td>
-        <td class="nr"><input inputmode="decimal" data-f="coste" data-id="${p.id}" value="${num(kk)}" placeholder="—"></td>
+        <td class="nr"><input inputmode="decimal" data-f="venta" data-id="${p.id}" value="${num(vv)}" placeholder="—"><span class="eu">€</span></td>
+        <td class="nr"><input inputmode="decimal" data-f="coste" data-id="${p.id}" value="${num(kk)}" placeholder="—"><span class="eu">€</span></td>
         <td class="nr">${eur(mg)}</td><td class="nr">${vv && mg != null ? pct(mg / vv) : ""}</td></tr>`;
     };
     const th = (c, t, cls = "") => `<th class="so ${cls} ${st.ord === c ? "act" : ""}" data-ord="${c}">${t}<i>${st.ord === c ? (st.dir > 0 ? "▲" : "▼") : ""}</i></th>`;
@@ -182,7 +198,7 @@ export async function vCartera(ctx) {
       const cerr = st.pleg.includes(g.m), cf = g.ps.filter(p => p.estado_com === "Confirmado");
       return `<tr class="mes" data-g="${g.m}"><td colspan="5"><span class="tg">${cerr ? "▸" : "▾"}</span> ${rot(g.m)} <small class="code">${g.ps.length} proyecto${g.ps.length > 1 ? "s" : ""}${cf.length !== g.ps.length && cf.length ? ` · confirmado ${eur(suma(cf, v))}` : ""}</small></td><td class="nr">${eur(suma(g.ps, v))}</td><td class="nr">${sumaK(g.ps)}</td><td colspan="2"></td></tr>${cerr ? "" : g.ps.map(fila).join("")}`;
     };
-    $app.innerHTML = `<div class="cart-top">${barraSync()}<div class="row" style="gap:8px;margin-left:auto"><button class="btn sm ghost" id="ccsv">Descargar Excel (CSV)</button>${vivo ? "" : `<button class="btn sm lime" id="cnew">+ Oportunidad</button>`}</div></div>
+    $app.innerHTML = `<div class="cart-top">${barraSync()}<div class="row" style="gap:8px;margin-left:auto"><button class="btn sm ghost" id="ccsv">Descargar Excel (CSV)</button>${vivo ? "" : `<button class="btn sm ${st.editar ? "" : "ghost"}" id="cedit">${st.editar ? "✓ Terminar edición" : "✎ Editar"}</button><button class="btn sm lime" id="cnew">+ Oportunidad</button>`}</div></div>
     <div class="kpis">
       <div class="kpi"><span>Venta confirmada</span><b>${eur(suma(conf, v))}</b><small>${conf.length} proyectos</small></div>
       <div class="kpi"><span>Eventos realizados</span><b>${real.length}</b><small>${eur(suma(real, v))} · ${conf.length - real.length} previstos</small></div>
@@ -237,6 +253,7 @@ export async function vCartera(ctx) {
     if (vivo) $app.querySelectorAll("[data-f]").forEach(el => { el.disabled = true; el.title = "Se edita en el Excel y se trae a la app con «Cargar Excel» o la sincronización"; });
     $("ccsv").onclick = () => csv(vis, v, k);
     if ($("cnew")) $("cnew").onclick = () => nueva(ctx, fronts, yo, C, pinta);
+    if ($("cedit")) $("cedit").onclick = () => { st.editar = !st.editar; pinta(); };
     // edición en la tabla
     $app.querySelectorAll("[data-f]").forEach(el => el.onchange = async () => {
       const p = S.proyectos.find(x => x.id === +el.dataset.id), f = el.dataset.f, val = el.value;

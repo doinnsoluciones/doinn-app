@@ -43,7 +43,18 @@ export async function vElementos(ctx, p, cont) {
   const fn = (filtros.find(x => x[0] === f) || filtros[0])[2];
   const n = els.length, cnt = k => els.filter(k).length;
   // avance por fase de fabricación (elementos que la necesitan)
-  const barras = ORD.map(fa => { const req = els.filter(x => tiene(x.fases, fa)); const ok = req.filter(x => tiene(x.fases_hechas, fa) || x.estado_fab === "Hecho"); return req.length ? `<div class="fb"><span>${fa}</span><div class="bar"><i style="width:${Math.round(100 * ok.length / req.length)}%"></i></div><b>${ok.length}/${req.length}</b></div>` : ""; }).join("");
+  // Avance por fase: cuenta el elemento si necesita la fase (él o alguno de sus subelementos);
+  // hecha si la marcó el elemento, todos sus subelementos que la llevan, o ya está fabricado. Corte también si todas sus unidades están cortadas.
+  const faseEl = (x, fa) => {
+    const ss = d.sub.filter(k => k.elemento_id === x.id), conF = ss.filter(k => tiene(k.fases, fa));
+    const req = tiene(x.fases, fa) || conF.length > 0;
+    if (!req) return null;
+    const pzs = d.pz.filter(z => z.elemento_id === x.id);
+    const hecha = x.estado_fab === "Hecho" || tiene(x.fases_hechas, fa) || (conF.length > 0 && conF.every(k => tiene(k.fases_hechas, fa))) || (fa === "Corte" && pzs.length > 0 && pzs.every(z => z.cortada || z.fabricada));
+    const curso = !hecha && (tiene(x.fases_curso, fa) || conF.some(k => tiene(k.fases_hechas, fa) || tiene(k.fases_curso, fa)) || (fa === "Corte" && pzs.some(z => z.cortada)));
+    return hecha ? "done" : curso ? "run" : "pend";
+  };
+  const barras = ORD.map(fa => { const st = els.map(x => faseEl(x, fa)).filter(Boolean); if (!st.length) return ""; const ok = st.filter(v => v === "done").length, run = st.filter(v => v === "run").length; return `<div class="fb"><span>${fa === "Cerrajería" ? "Calderería" : fa}</span><div class="bar"><i style="width:${Math.round(100 * ok / st.length)}%"></i><i class="run" style="width:${Math.round(100 * run / st.length)}%"></i></div><b>${ok}/${st.length}</b>${run ? `<small class="code">${run} en curso</small>` : ""}</div>`; }).join("");
   cont.innerHTML = `
   ${barras ? `<div class="card"><h2>Avance por fases <small class="code">elementos</small></h2>${barras}</div>` : ""}
   <div class="kpis">
@@ -150,20 +161,28 @@ export async function vElemento(ctx, p, eid) {
   const incHtml = `<div class="card" id="cinc"><div class="pj-top"><h2>Incidencias</h2><span class="pill ${abiertas ? "bad" : ""}">${abiertas ? `${abiertas} abierta${abiertas > 1 ? "s" : ""}` : "Sin incidencias abiertas"}</span></div>
     ${incs.map(i => `<div class="inc ${i.resuelta ? "res" : ""}">
       ${i.foto ? `<a class="incf" data-foto="${esc(i.foto)}" target="_blank" rel="noopener"><img alt="Foto de la incidencia"></a>` : ""}
-      <div class="incb"><div class="code">${fh(i.fecha)}${i.usuario ? " · " + esc(i.usuario) : ""}${i.resuelta ? " · ✓ Resuelta" : ""}</div><div>${esc(i.texto || "(sin comentario)")}</div>
+      <div class="incb"><div class="code">${i.tipo ? `<span class="pill bad">${esc(i.tipo)}</span> ` : ""}${i.para && i.para !== "Nadie" ? `<span class="pill">→ ${esc(i.para)}</span> ` : ""}${fh(i.fecha)}${i.usuario ? " · " + esc(i.usuario) : ""}${i.resuelta ? " · ✓ Resuelta" : ""}</div><div>${esc(i.texto || "(sin comentario)")}</div>
       ${edita ? `<button class="link" data-incres="${i.id}">${i.resuelta ? "Reabrir" : "✓ Marcar resuelta"}</button>` : ""}</div></div>`).join("")}
-    ${edita ? `<div class="incn"><textarea id="inctx" rows="2" placeholder="Describe la incidencia (qué pasa, qué falta…)"></textarea>
+    ${edita ? `<div class="incn"><div class="inct">${TIPOS_INC.map(([t], i) => `<label class="chipr"><input type="radio" name="inctipo" value="${t}" ${i === 0 ? "checked" : ""}><span>${t}</span></label>`).join("")}</div>
+      <label class="incpara">Avisar a <select id="incpara">${["Oficina técnica", "Front", "Taller", "Nadie"].map(x => `<option>${x}</option>`).join("")}</select></label>
+      <textarea id="inctx" rows="2" placeholder="Describe la incidencia (qué pasa, qué falta…)"></textarea>
       <div class="row"><label class="btn sm ghost incfoto">📷 Foto<input type="file" id="incfile" accept="image/*" capture="environment" hidden></label><span class="code" id="incfn"></span><span style="flex:1"></span><button class="btn sm lime" id="incok">Guardar incidencia</button></div>
       <img id="incprev" class="incprev" hidden alt=""></div>` : ""}</div>`;
 
+  // Plano: botón visible y aviso si la revisión cambió con la fabricación ya empezada
+  const empezado = !!(x.fases_hechas && x.fases_hechas !== "|") || !!(x.fases_curso && x.fases_curso !== "|") || (x.estado_fab && x.estado_fab !== "Pendiente") || pzs.some(z => z.cortada || z.fabricada);
+  const revNueva = x.revision_fecha && empezado && (Date.now() - new Date(x.revision_fecha)) < 21 * 864e5;
+  const planoHtml = `<div class="plano ${revNueva ? "rev" : ""}">${x.plano_url ? `<a class="btn" href="${esc(x.plano_url)}" target="_blank" rel="noopener">📄 Ver plano${x.revision ? " · Rev. " + esc(x.revision) : ""}</a>` : p.carpeta ? `<a class="btn ghost" href="${esc(p.carpeta)}" target="_blank" rel="noopener">📁 Carpeta del proyecto</a><span class="code">Sin enlace al plano${editaDoc ? " · añádelo en Editar elemento" : ""}</span>` : `<span class="code">Sin enlace al plano${editaDoc ? " · añádelo en Editar elemento" : ""}</span>`}
+    ${revNueva ? `<div class="revav">⚠ Plano cambiado a <b>Rev. ${esc(x.revision)}</b> el ${new Date(x.revision_fecha).toLocaleDateString("es-ES")}. Comprueba que el taller trabaja con esta revisión.</div>` : ""}</div>`;
   const dato = (k, v) => `<dt>${k}</dt><dd>${v || "—"}</dd>`;
   // Resultado del último escaneo (solo informativo; se muestra unos minutos)
   const verScan = deScan && Date.now() - deScan.t < 3 * 60e3;
   $app.innerHTML = `${verScan ? `<div class="scanres ${deScan.ok ? "ok" : "ko"} scanvuelta"><b>${deScan.ok ? "✓" : "✕"} ${esc(deScan.msg)}</b>${deScan.det ? `<div>${esc(deScan.det)}</div>` : ""}</div>` : ""}<a class="back" href="#/p/${p.id}/elementos">‹ ${esc(p.nombre)}</a>
   <div class="code">Ref. ${esc(x.referencia || "")}</div><h1>${esc(x.elemento || "")}</h1>
   <div class="code" style="margin:-8px 0 12px">${[medidasTxt(x) ? "Alto × ancho × fondo: " + medidasTxt(x) : "", x.acabado, origenTxt(x.origen)].filter(Boolean).map(esc).join(" · ")}</div>
+  ${planoHtml}
   ${pasos}${piezasHtml}${incHtml}
-  <div class="card"><dl class="kv">${dato("Unidades", x.cantidad)}${dato("Origen", esc(origenTxt(x.origen)))}${dato("Medidas (alto × ancho × fondo)", medidasTxt(x))}${dato("Acabado", esc(x.acabado))}${x.ral ? dato("Color RAL", ralChips(x.ral, esc)) : ""}${dato("Fases", esc(fasesDe(x).join(" · ")))}${x.es_extra ? dato("Extra", "Sí, pedido de última hora") : ""}${dato("Etiquetas", x.num_etiquetas)}${dato("Camión", esc(x.camion))}${dato("Orden de carga", x.orden_carga)}${dato("Ubicación nave", esc(x.ubicacion_nave))}${dato("Observaciones", esc(x.observaciones))}</dl></div>
+  <div class="card"><dl class="kv">${dato("Unidades", x.cantidad)}${dato("Origen", esc(origenTxt(x.origen)))}${dato("Medidas (alto × ancho × fondo)", medidasTxt(x))}${dato("Acabado", esc(x.acabado))}${x.ral ? dato("Color RAL", ralChips(x.ral, esc)) : ""}${dato("Fases", esc((subs.length ? ORD.filter(f => subs.some(k => tiene(k.fases, f))) : fasesDe(x)).map(f => f === "Cerrajería" ? "Calderería" : f).join(" · ")))}${x.es_extra ? dato("Extra", "Sí, pedido de última hora") : ""}${dato("Etiquetas", x.num_etiquetas)}${dato("Camión", esc(x.camion))}${dato("Orden de carga", x.orden_carga)}${dato("Ubicación nave", esc(x.ubicacion_nave))}${dato("Observaciones", esc(x.observaciones))}</dl></div>
   ${x.hist_fases ? `<details class="card"><summary>Historial de fases</summary><pre class="hist">${esc(x.hist_fases)}</pre></details>` : ""}`;
 
   $app.querySelectorAll("[data-tab]").forEach(b => b.onclick = () => { S.elTab[x.id] = b.dataset.tab; S.elEditF = false; recarga(); });
@@ -201,6 +220,8 @@ export async function vElemento(ctx, p, eid) {
     const cambios = { fases_hechas: nueva, fases_curso: nCur === "|" ? null : nCur, hist_fases: (obj.hist_fases || "") + `${ahora()} · ${sig === "curso" ? "Empieza" : sig === "hecho" ? "Termina" : "Desmarca"} ${f} · ${yo}\n` };
     if (tabla === "elementos" && sig !== "pend" && x.estado_fab === "Pendiente") cambios.estado_fab = "En curso";
     if (tabla === "subelementos") { const todas = fasesDe(obj).every(g => tiene(nueva, g)); if (todas !== !!obj.terminado) Object.assign(cambios, { terminado: todas, fecha_term: todas ? new Date().toISOString() : null, operario_term: todas ? yo : null }); }
+    // Corte terminado a mano en el elemento → sus unidades cuentan como cortadas (mismo dato que el escaneo)
+    if (sig === "hecho" && f === "Corte" && tabla === "elementos" && pzs.some(z => !z.cortada)) await sb.from("piezas").update({ cortada: true, fecha_corte: new Date().toISOString(), operario_corte: yo }).eq("elemento_id", x.id).eq("cortada", false);
     if (await upd(tabla, obj.id, cambios, sig === "curso" ? `▶ ${LBL(f)} en curso` : sig === "hecho" ? `✓ ${LBL(f)} hecha` : `${LBL(f)} desmarcada`)) {
       const subs2 = tabla === "subelementos" ? subs.map(k => k.id === obj.id ? { ...k, ...cambios } : k) : subs;
       const x2 = tabla === "elementos" ? { ...x, fases_hechas: nueva } : x;
@@ -252,6 +273,8 @@ export async function vElemento(ctx, p, eid) {
   const fotos = [...$app.querySelectorAll("[data-foto]")];
   if (fotos.length && sb.storage) sb.storage.from("fotos").createSignedUrls(fotos.map(a => a.dataset.foto), 3600).then(({ data }) => (data || []).forEach((u, k) => { if (u && u.signedUrl) { fotos[k].href = u.signedUrl; fotos[k].querySelector("img").src = u.signedUrl; } })).catch(() => { });
   let fichero = null;
+  // Tipo de incidencia → a quién avisar por defecto
+  $app.querySelectorAll("[name=inctipo]").forEach(r => r.onchange = () => { const t = TIPOS_INC.find(k => k[0] === r.value); if (t) document.getElementById("incpara").value = t[1]; });
   const fi = document.getElementById("incfile");
   if (fi) fi.onchange = () => { fichero = fi.files[0] || null; const pv = document.getElementById("incprev"); document.getElementById("incfn").textContent = fichero ? "Foto lista" : ""; if (fichero) { pv.src = URL.createObjectURL(fichero); pv.hidden = false; } else pv.hidden = true; };
   const ok = document.getElementById("incok");
@@ -267,7 +290,8 @@ export async function vElemento(ctx, p, eid) {
         const { error } = await sb.storage.from("fotos").upload(foto, blob, { contentType: "image/jpeg" });
         if (error) throw error;
       }
-      const { error } = await sb.from("incidencias").insert({ elemento_id: x.id, proyecto_id: p.id, texto: texto || null, foto, usuario: yo });
+      const tipo = (document.querySelector("[name=inctipo]:checked") || {}).value || null, para = document.getElementById("incpara").value;
+      const { error } = await sb.from("incidencias").insert({ elemento_id: x.id, proyecto_id: p.id, texto: texto || null, foto, usuario: yo, tipo, para });
       if (error) throw error;
       if (!x.incidencia) await upd("elementos", x.id, { incidencia: true });
       S.dirty = true; toast("Incidencia guardada"); recarga();
@@ -283,6 +307,7 @@ export async function vElemento(ctx, p, eid) {
   });
 }
 
+const TIPOS_INC = [["Medida", "Oficina técnica"], ["Plano / documentación", "Oficina técnica"], ["Material", "Front"], ["Falta pieza", "Front"], ["Golpe / daño", "Taller"], ["Acabado", "Taller"], ["Otro", "Taller"]];
 // Reduce la foto del móvil (máx. 1600 px, JPEG) antes de subirla
 async function reduceFoto(f) {
   try {

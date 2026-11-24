@@ -460,18 +460,62 @@ async function vStats(ctx, anio) {
 // ---------- Pantalla de taller (TV) ----------
 export function vTv(ctx) {
   document.body.classList.add("tv");
-  // Pantalla del taller: siempre la planificación de Personal, con datos frescos cada ~5 min
-  const modo = "personal"; let t = 0;
-  const pinta = () => { const g = document.querySelector(".gwrap"); vPlan(ctx, modo, "", { tv: true, silencioso: t > 0, scrollTop: g ? g.scrollTop : 0 }); };
+  // Pantalla del taller: Personal y, si la rotación está activa, Cargas de la semana y Listos para cargar.
+  // Personal se queda 60 s; las otras dos, 30 s. Datos frescos cada ~5 min.
+  const SEC = ["personal", "personal", "cargas", "listos"];
+  let t = 0, k = 0;
+  const rota = () => lsGet("doinn_tv_rota", true);
+  const pinta = () => {
+    const vista = rota() ? SEC[k % SEC.length] : "personal";
+    if (vista === "personal") { const g = document.querySelector(".gwrap"); vPlan(ctx, "personal", "", { tv: true, silencioso: t > 0, scrollTop: g ? g.scrollTop : 0 }); }
+    else tvLista(ctx, vista);
+    marcaRota();
+  };
+  // botón para activar/desactivar la rotación (esquina inferior derecha)
+  const marcaRota = () => {
+    let b = document.getElementById("tvrota");
+    if (!b) { b = document.createElement("button"); b.id = "tvrota"; b.className = "tvrota"; document.body.appendChild(b); b.onclick = () => { lsSet("doinn_tv_rota", !rota()); k = 0; pinta(); }; }
+    const vista = rota() ? SEC[k % SEC.length] : "personal";
+    b.innerHTML = `${["personal", "cargas", "listos"].map(v => `<i class="${v === vista ? "on" : ""}"></i>`).join("")} ${rota() ? "Rotación activa" : "Solo Personal"}`;
+  };
   pinta();
   const id = setInterval(async () => {
-    if (location.hash !== "#/tv") { clearInterval(id); document.body.classList.remove("tv"); return; }
-    t++;
+    if (location.hash !== "#/tv") return fin();
+    t++; k++;
     if (t % 10 === 0) { try { await ctx.recargar(); } catch { } }
     pinta();
   }, 30000);
-  const sal = () => { if (location.hash !== "#/tv") { clearInterval(id); document.body.classList.remove("tv"); window.removeEventListener("hashchange", sal); } };
+  const fin = () => { clearInterval(id); document.body.classList.remove("tv"); const b = document.getElementById("tvrota"); if (b) b.remove(); window.removeEventListener("hashchange", sal); };
+  const sal = () => { if (location.hash !== "#/tv") fin(); };
   window.addEventListener("hashchange", sal);
+}
+
+// Pantallas de la TV con letra grande: cargas y descargas de los próximos 7 días, y elementos listos para cargar
+function tvLista(ctx, vista) {
+  const { S, $app, esc } = ctx;
+  const hoy = iso(new Date()), fin7 = suma(hoy, 6);
+  const dia = d => { const x = pd(d), dd = Math.round((x - pd(hoy)) / 864e5); return dd === 0 ? "HOY" : dd === 1 ? "MAÑANA" : x.toLocaleDateString("es-ES", { weekday: "short", day: "numeric", month: "short" }).toUpperCase(); };
+  const els = pid => S.elementos.filter(e => e.proyecto_id === pid);
+  const vivos = S.proyectos.filter(p => !p.archivado && !caido(p));
+  const reloj = new Date().toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
+  let titulo, filas;
+  if (vista === "cargas") {
+    titulo = "Cargas y descargas · próximos 7 días";
+    const mov = [];
+    vivos.forEach(p => {
+      if (p.hay_carga !== false && p.fecha_carga && p.fecha_carga >= hoy && p.fecha_carga <= fin7) mov.push({ d: p.fecha_carga, h: p.hora_carga, t: "CARGA", p });
+      if (p.hay_retorno !== false && p.fecha_descarga && p.fecha_descarga >= hoy && p.fecha_descarga <= fin7) mov.push({ d: p.fecha_descarga, h: p.hora_descarga, t: "DESCARGA", p });
+    });
+    mov.sort((a, b) => (a.d + (a.h || "99")).localeCompare(b.d + (b.h || "99")));
+    filas = mov.map(m => { const e = els(m.p.id), lis = e.filter(x => x.estado_fab === "Hecho" || x.estado_carga === "Cargado").length;
+      return `<div class="tvf ${m.t === "CARGA" ? "c" : "d"}"><span class="tvd">${dia(m.d)}${m.h && m.h !== "—" ? `<small>${esc(m.h)}</small>` : ""}</span><span class="tvt">${m.t}</span><b>${esc(m.p.nombre || m.p.codigo)}</b>${m.t === "CARGA" && e.length ? `<span class="tvn ${lis === e.length ? "ok" : "ko"}">${lis}/${e.length} listos</span>` : "<span></span>"}</div>`; }).join("") || `<div class="tvv">Sin cargas ni descargas esta semana</div>`;
+  } else {
+    titulo = "Listos para cargar";
+    const ps = vivos.filter(p => p.fecha_carga && p.fecha_carga >= suma(hoy, -3)).map(p => { const e = els(p.id); return { p, e, lis: e.filter(x => x.estado_fab === "Hecho" && x.estado_carga !== "Cargado"), falt: e.filter(x => x.estado_fab !== "Hecho") }; })
+      .filter(x => x.e.length && x.e.some(y => y.estado_carga !== "Cargado")).sort((a, b) => a.p.fecha_carga.localeCompare(b.p.fecha_carga)).slice(0, 8);
+    filas = ps.map(x => `<div class="tvf l"><span class="tvd">${dia(x.p.fecha_carga)}</span><b>${esc(x.p.nombre || x.p.codigo)}</b><span class="tvn ok">${x.lis.length} listos</span><span class="tvn ${x.falt.length ? "ko" : "ok"}">${x.falt.length ? x.falt.length + " por fabricar" : "Todo fabricado"}</span></div>`).join("") || `<div class="tvv">Nada pendiente de cargar</div>`;
+  }
+  $app.innerHTML = `<div class="tvs"><div class="tvh"><h1>${titulo}</h1><span class="tvr">${reloj}</span></div>${filas}</div>`;
 }
 
 // Alta y baja de personal de subcontratas (equipos externos que no son los autónomos de "Externos")
@@ -567,13 +611,28 @@ export async function vEquipo(ctx, p, cont) {
   };
   const rango = o => o.grupo === "Taller" ? (o.subgrupo === "Montaje" ? 0 : 1) : o.grupo === "Externos" ? 2 : o.grupo === "Subcontratas" ? 3 : 4;
   const taller = S.operarios.filter(o => o.activo !== false).sort((a, b) => rango(a) - rango(b) || a.nombre.localeCompare(b.nombre));
-  const choque = a => D.asig.filter(x => x.id !== a.id && x.operario_id === a.operario_id && x.proyecto_id !== p.id && x.fecha_inicio && a.fecha_inicio && x.fecha_inicio <= (a.fecha_fin || a.fecha_inicio) && (x.fecha_fin || x.fecha_inicio) >= a.fecha_inicio)
-    .map(x => (S.proyectos.find(q => q.id === x.proyecto_id) || {}).nombre).filter(Boolean);
+  // Choques: otras asignaciones, ausencias (vacaciones, baja, curso…) y días pintados a mano en Personal
+  const J = new Map(D.jor.map(j => [j.operario_id + "|" + j.fecha, j]));
+  const pN = id => (S.proyectos.find(q => q.id === id) || {}).nombre || "otro proyecto";
+  const fdc = d => pd(d).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit" });
+  const choque = a => {
+    if (!a.operario_id || !a.fecha_inicio) return [];
+    const fin = a.fecha_fin && a.fecha_fin >= a.fecha_inicio ? a.fecha_fin : a.fecha_inicio;
+    const M = new Map(), add = (k, d) => { if (!M.has(k)) M.set(k, []); M.get(k).push(d); };
+    for (let d = a.fecha_inicio, n = 0; d <= fin && n < 120; d = suma(d, 1), n++) {
+      D.asig.filter(x => x.id !== a.id && x.operario_id === a.operario_id && x.proyecto_id !== p.id && enR(d, x.fecha_inicio, x.fecha_fin)).forEach(x => add(`asignado a ${pN(x.proyecto_id)}`, d));
+      const au = D.aus.find(x => x.operario_id === a.operario_id && enR(d, x.desde, x.hasta));
+      if (au) add((au.tipo || "Ausencia").toLowerCase(), d);
+      const j = J.get(a.operario_id + "|" + d);
+      if (j && j.proyecto_id !== p.id && normCod(j.codigo)) add(`${(COD[normCod(j.codigo)] || [j.codigo])[0].toLowerCase()}${j.proyecto_id ? " en " + pN(j.proyecto_id) : ""} (pintado en Personal)`, d);
+    }
+    return [...M].map(([k, ds]) => `${k} ${ds.length > 1 ? fdc(ds[0]) + "–" + fdc(ds[ds.length - 1]) : fdc(ds[0])}`);
+  };
   const f0 = fechasDe("Montaje");
   cont.innerHTML = `${!confirmado(p) ? `<div class="card avisos">Proyecto <b>${esc(estadoCom(p))}</b>: lo que asignes aquí aparece como <b>previsión</b> en Planificación hasta que se confirme.</div>` : ""}
   <div class="card"><h2>Personal asignado <small class="code">${mias.length}</small></h2>
     ${mias.map(a => { const c = choque(a); return `<div class="crow"><div><b>${esc(opN(a.operario_id))}</b> <span class="pill" style="background:${COL[a.fase]}22;color:var(--ink)">${esc(a.fase)}</span>
-      <div class="code">${a.fecha_inicio ? fd(a.fecha_inicio) : "—"}${a.fecha_fin && a.fecha_fin !== a.fecha_inicio ? " → " + fd(a.fecha_fin) : ""}${a.creado_por ? ` · por ${esc(a.creado_por)}` : ""}${c.length ? ` · <span style="color:var(--red)">también en ${esc(c.join(", "))}</span>` : ""}</div></div>
+      <div class="code">${a.fecha_inicio ? fd(a.fecha_inicio) : "—"}${a.fecha_fin && a.fecha_fin !== a.fecha_inicio ? " → " + fd(a.fecha_fin) : ""}${a.creado_por ? ` · por ${esc(a.creado_por)}` : ""}${c.length ? `<div class="choq">⚠ ${esc(c.join(" · "))}</div>` : ""}</div></div>
       ${edita ? `<button class="link" data-qdel="${a.id}">Quitar</button>` : ""}</div>`; }).join("") || `<div class="code">Nadie asignado todavía.</div>`}
   </div>
   ${edita ? `<form id="fa" class="card frm"><h2>+ Asignar personal</h2>
@@ -583,7 +642,7 @@ export async function vEquipo(ctx, p, cont) {
     <div id="q_av" class="code"></div>
     <button class="btn lime wide">Guardar asignación</button></form>` : ""}`;
   const $ = id => document.getElementById(id);
-  const avisa = () => { if (!$("q_op")) return; const c = choque({ id: 0, operario_id: +$("q_op").value, fecha_inicio: $("q_d").value, fecha_fin: $("q_h").value }); $("q_av").innerHTML = c.length ? `<span style="color:var(--red)">Aviso: ya está asignado a ${esc(c.join(", "))} en esas fechas.</span>` : ""; };
+  const avisa = () => { if (!$("q_op")) return; const c = choque({ id: 0, operario_id: +$("q_op").value, fecha_inicio: $("q_d").value, fecha_fin: $("q_h").value }); $("q_av").innerHTML = c.length ? `<div class="choq">⚠ En esas fechas: ${esc(c.join(" · "))}</div>` : ""; };
   if ($("q_f")) {
     $("q_f").onchange = () => { const [a, b] = fechasDe($("q_f").value); $("q_d").value = a || ""; $("q_h").value = b || ""; avisa(); };
     ["q_op", "q_d", "q_h"].forEach(i => $(i).onchange = avisa); avisa();
@@ -591,6 +650,8 @@ export async function vEquipo(ctx, p, cont) {
       ev.preventDefault();
       const row = { proyecto_id: p.id, operario_id: +$("q_op").value, fase: $("q_f").value, fecha_inicio: $("q_d").value || null, fecha_fin: $("q_h").value || $("q_d").value || null, creado_por: (S.perfil && (S.perfil.nombre || S.perfil.email)) || S.user.email };
       if (mias.some(a => a.operario_id === row.operario_id && a.fase === row.fase)) return toast("Esa persona ya está asignada a esa fase.");
+      const ch = choque({ id: 0, ...row });
+      if (ch.length && !confirm(`${opN(row.operario_id)} en esas fechas tiene:\n· ${ch.join("\n· ")}\n\n¿Asignar igualmente?`)) return;
       const { error } = await sb.from("asignaciones").insert(row);
       if (error) return toast(error.message);
       toast("Asignación guardada"); vEquipo(ctx, p, cont);
