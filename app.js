@@ -176,6 +176,17 @@ function vPendiente() {
   document.getElementById("rl").onclick = () => location.reload();
 }
 // Incidencias abiertas que le tocan al usuario: OT ve las de «Oficina técnica», cada Front las de sus proyectos, SuperAdmin todas
+// Aviso a dirección (SuperAdmin): proyectos cuya fecha de carga ya pasó con elementos sin escanear como cargados
+function sinCargar() {
+  if (!puede("superadmin")) return "";
+  const hoy = new Date().toLocaleDateString("sv-SE"), d = new Date(); d.setDate(d.getDate() - 30); const lim = d.toLocaleDateString("sv-SE");
+  const ps = S.proyectos.filter(p => !p.archivado && p.estado_com !== "Cancelado" && p.hay_carga !== false && p.fecha_carga && p.fecha_carga < hoy && p.fecha_carga >= lim)
+    .map(p => ({ p, n: S.elementos.filter(e => e.proyecto_id === p.id && e.estado_carga !== "Cargado").length })).filter(x => x.n).sort((a, b) => b.p.fecha_carga.localeCompare(a.p.fecha_carga));
+  if (!ps.length) return "";
+  return `<div class="card incaviso carav"><div class="pj-top"><b>🚚 Sin cargar tras la fecha de carga · ${ps.length} proyecto${ps.length > 1 ? "s" : ""}</b></div>
+    ${ps.slice(0, 6).map(x => `<a class="incl" href="#/p/${x.p.id}/carga"><b>${esc(x.p.nombre || x.p.codigo)}</b><span class="code">carga ${fd(x.p.fecha_carga)} · ${x.n} elemento${x.n > 1 ? "s" : ""} sin escanear como cargado${x.n > 1 ? "s" : ""}</span></a>`).join("")}
+    ${ps.length > 6 ? `<div class="code">y ${ps.length - 6} más</div>` : ""}</div>`;
+}
 function incidenciasParaMi() {
   const yo = S.perfil && S.perfil.operario_id, op = (S.operarios || []).find(o => o.id === yo);
   const P = id => S.proyectos.find(p => p.id === id) || {};
@@ -199,7 +210,7 @@ function vProyectos() {
   ${puede("admin") ? `<button class="btn lime" id="nuevo">+ Nuevo</button>` : ""}</div>
   <div class="row" style="gap:14px">${S.verArch ? "" : `<button class="link" id="vc">${S.verCerrados ? "Ocultar" : "Ver"} proyectos terminados (${nCerr}) ▾</button>`}
   ${nArch || S.verArch ? `<button class="link" id="va">${S.verArch ? "‹ Volver a los proyectos activos" : `Ver archivados (${nArch})`}</button>` : ""}</div>
-  ${S.verArch ? "" : incidenciasParaMi()}
+  ${S.verArch ? "" : sinCargar() + incidenciasParaMi()}
   ${S.verArch ? `<p class="hint"><b>Proyectos archivados.</b> No aparecen en planificación, panel ni muelle. Ábrelos para desarchivarlos.</p>` : ""}
   ${ps.map(card).join("") || `<div class="empty">No hay proyectos que coincidan.</div>`}`;
   const qi = document.getElementById("q");

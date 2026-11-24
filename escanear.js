@@ -1,7 +1,7 @@
 // Escanear: cámara del móvil, pistola Bluetooth (teclado + Enter) o código escrito a mano.
 // Entiende la etiqueta de unidad "DOINN|proyecto|REF|nombre|i/n", el código "REF-Pn" y la tarjeta de operario "T-####".
 const V = new URL(import.meta.url).search;
-const { faltanFases } = await import("./despiece.js" + V);
+const { faltanFases, siguienteFase } = await import("./despiece.js" + V);
 let stream = null, loopId = null, detector = null, ultimo = { c: "", t: 0 }, ocupado = false;
 
 function parar() {
@@ -143,10 +143,21 @@ async function procesa(ctx, raw) {
 
   // Unidad de elemento
   let ref = null;
-  const p = txt.split("|");
-  if (p[0] === "DOINN" && p.length >= 5) { const i = (p[4] || "").split("/")[0]; ref = `${p[2]}-P${parseInt(i, 10)}`; }
-  else if (/-P\d+$/i.test(txt)) ref = txt.toUpperCase();
-  if (!ref) return resultado(ctx, false, "Código no reconocido", txt.slice(0, 60));
+  // La pistola con teclado español puede cambiar «|» por «º», «ª» o «!»: se aceptan todos como separador
+  const p = /^DOINN/i.test(txt) ? txt.split(/[|º!¡ª]/) : txt.split("|");
+  if (/^DOINN$/i.test(p[0]) && p.length >= 5) { const i = (p[4] || "").split("/")[0]; ref = `${p[2].trim().toUpperCase()}-P${parseInt(i, 10)}`; }
+  else if (/-P\d+$/i.test(txt)) ref = txt.trim().toUpperCase();
+  else if (/^\d{6}\.\d{2}-\d{3}$/.test(txt.trim())) {
+    // Etiqueta con la referencia del elemento (sin unidad): se aplica a la unidad menos avanzada
+    const { data: e } = await sb.from("elementos").select("id").eq("referencia", txt.trim()).maybeSingle();
+    if (!e) return resultado(ctx, false, "Elemento no encontrado", txt.trim());
+    const { data: pz } = await sb.from("piezas").select("*").eq("elemento_id", e.id).order("num_pieza");
+    const et = z => z.cargada ? 3 : z.fabricada ? 2 : z.cortada ? 1 : 0;
+    const sig = (pz || []).filter(z => !z.cargada).sort((a, b) => et(a) - et(b) || a.num_pieza - b.num_pieza)[0];
+    if (!sig) return resultado(ctx, !!(pz && pz.length), pz && pz.length ? "Todas las unidades ya están cargadas" : "Este elemento no tiene unidades", txt.trim());
+    ref = sig.referencia;
+  }
+  if (!ref) return resultado(ctx, false, "Código no reconocido", `${txt.slice(0, 60)} · no es una etiqueta de Doinn`);
 
   const { data: z, error } = await sb.from("piezas").select("*").eq("referencia", ref).maybeSingle();
   if (error) return resultado(ctx, false, "Error al leer", error.message);
@@ -183,7 +194,12 @@ async function procesa(ctx, raw) {
     const ce = {};
     if (x.estado_fab === "Pendiente") ce.estado_fab = "En curso";
     // Todas las unidades cortadas → la fase Corte del elemento queda hecha
-    if (nCort === tot && (x.fases || "").includes("|Corte|") && !(x.fases_hechas || "").includes("|Corte|")) ce.fases_hechas = (x.fases_hechas || "|") + "Corte|";
+    if (nCort === tot && (x.fases || "").includes("|Corte|") && !(x.fases_hechas || "").includes("|Corte|")) {
+      ce.fases_hechas = (x.fases_hechas || "|") + "Corte|";
+      // …y pasa sola a la siguiente fase (en curso)
+      const sig = siguienteFase(x.fases, ce.fases_hechas);
+      ce.fases_curso = sig ? "|" + sig + "|" : null;
+    }
     if (Object.keys(ce).length) await sb.from("elementos").update(ce).eq("id", x.id);
     S.dirty = true;
     return vaFicha(true, "Cortada", `${nom} · ${nCort}/${tot} unidades cortadas`);

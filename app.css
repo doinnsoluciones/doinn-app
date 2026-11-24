@@ -946,3 +946,12 @@ body:not(.tv) .tvrota{display:none}
 .codrow{display:flex;gap:8px;align-items:center}.codrow input{flex:1}
 .ferr{margin-top:4px;color:var(--red);font-size:12.5px;font-weight:600}
 .inv{border-color:var(--red)!important;box-shadow:0 0 0 3px var(--red-bg)}
+/* Móvil: los indicadores Doc. técnica · Fabricación · Carga en una sola línea */
+@media (max-width:640px){
+  .kpis{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+  .kpis .card.k{padding:10px 12px;margin-bottom:0}.kpis .k span{font-size:11px}.kpis .k b{font-size:19px}
+  .kpis .kpi{padding:10px 12px}.kpis .kpi b{font-size:17px}.kpis .kpi span{font-size:11px}.kpis .kpi small{font-size:10.5px}
+}
+/* iPhone: franja fija bajo la hora para que el contenido no se vea detrás al hacer scroll */
+body::before{content:"";position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top);background:var(--navy);z-index:30;pointer-events:none}
+.carav{border-color:var(--amber);background:var(--amber-bg)}

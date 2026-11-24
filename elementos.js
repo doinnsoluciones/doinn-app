@@ -2,6 +2,7 @@
 const V = new URL(import.meta.url).search;
 const { origenTxt, medidasTxt, ralChips, ordenEl, faltanFases } = await import("./despiece.js" + V);
 const ORD = ["Corte", "Carpintería", "Cerrajería", "Pintura"];
+const sigFase = (fases, hechas) => ORD.find(f => tiene(fases, f) && !tiene(hechas, f)) || null;
 const tiene = (lista, f) => (lista || "").includes("|" + f + "|");
 const fasesDe = x => ORD.filter(f => tiene(x.fases, f));
 const ahora = () => new Date().toLocaleString("es-ES", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
@@ -136,7 +137,8 @@ export async function vElemento(ctx, p, eid) {
       <div class="row">${edita && !fabH ? `<button class="btn sm ghost" data-a="editf">${editF ? "✓ Listo" : "✎ Editar fases"}</button>` : ""}${fabH && puede("admin") ? `<button class="btn sm ghost" data-a="fab-undo">Deshacer fabricado</button>` : ""}</div>`;
   }
   if (sel === "car") det = !fabH ? `<div class="f3s lk">🔒 Se desbloquea cuando esté fabricado</div>` : `<div class="f3s">${carH ? `✓ Cargado${x.operario_carga ? " · " + esc(x.operario_carga) : ""}` : x.estado_carga === "Parcial" ? `Carga parcial · ${x.piezas_cargadas || 0}/${pzs.length || x.cantidad || 1} unidades` : "Pendiente de cargar"}${x.camion ? ` · Camión ${esc(x.camion)}` : ""}</div>
-      ${edita ? `<div class="row">${carH ? `<button class="btn sm ghost" data-a="car-undo">Deshacer</button>` : `<button class="btn sm lime" data-a="car-ok">Marcar cargado</button>`}</div>` : ""}`;
+      ${carH ? "" : `<div class="f3s">📷 Se valida escaneando cada unidad al subirla al camión.</div>`}
+      ${puede("superadmin") ? `<div class="row">${carH ? `<button class="btn sm ghost" data-a="car-undo">Deshacer</button>` : `<button class="btn sm ghost" data-a="car-ok" title="Solo SuperAdmin: corrección manual">Marcar cargado a mano</button>`}</div>` : ""}`;
   const pasos = `<div class="ftw big"><div class="ftabs">${FASES3.map(f => `<button class="ftab ${f.e} ${sel === f.k ? "on" : ""}" data-tab="${f.k}" title="${f.t}: ${TXT[f.e]}"><i class="dot">${f.e === "done" ? "✓" : ""}</i><span><b><span class="tl">${f.t}</span><span class="tc">${f.c}</span></b><small>${f.lock ? "🔒 " : ""}${TXT[f.e]}</small></span></button>`).join("")}</div><div class="fpanel">${det}</div></div>`;
 
   // Avance de piezas: cada unidad pasa por Sin cortar → Cortada → Fabricada → Cargada
@@ -151,7 +153,7 @@ export async function vElemento(ctx, p, eid) {
     ${pzs.map(z => { const e = etapa(z); return `<div class="pz2 ${deScan && deScan.zid === z.id ? "hl" : ""}" data-pz="${z.id}">
       <div class="pzh"><span class="num">P${z.num_pieza}</span><div class="pzb"><b>${esc(z.desc_pieza || x.elemento)}</b><div class="code">${esc(z.referencia)}</div></div><span class="pill ${e === 3 ? "ok" : e === 2 ? "ok" : e === 1 ? "warn" : ""}">${ETAPAS[e]}</span></div>
       <div class="pzs">${ETAPAS.slice(1).map((t, k) => `<span class="pst ${e > k ? "on" : ""}"><i></i>${t}</span>`).join("")}</div>
-      ${edita ? `<div class="pza" hidden>${e > 0 ? `<button class="btn sm ghost" data-pzm="${z.id}" data-to="${e - 1}">↶ Volver a «${ETAPAS[e - 1]}»</button>` : ""}${e < 3 ? `<button class="btn sm lime" data-pzm="${z.id}" data-to="${e + 1}">Marcar «${ETAPAS[e + 1]}»</button>` : ""}</div>` : ""}
+      ${edita ? `<div class="pza" hidden>${e > 0 ? `<button class="btn sm ghost" data-pzm="${z.id}" data-to="${e - 1}">↶ Volver a «${ETAPAS[e - 1]}»</button>` : ""}${e < 3 && (e + 1 < 2 || puede("superadmin")) ? `<button class="btn sm lime" data-pzm="${z.id}" data-to="${e + 1}">Marcar «${ETAPAS[e + 1]}»</button>` : e < 3 ? `<span class="code">«${ETAPAS[e + 1]}» se valida escaneando la etiqueta</span>` : ""}</div>` : ""}
     </div>`; }).join("")}
     <p class="hint" style="margin-top:8px">Lo normal es avanzar escaneando la etiqueta. ${edita ? "Toca una unidad para corregir su estado a mano." : ""}</p></details></div>` : "";
 
@@ -203,7 +205,14 @@ export async function vElemento(ctx, p, eid) {
     if (a === "doc-undo" && x.estado_carga === "Cargado") return toast("El elemento ya está cargado: primero deshaz la carga.");
     if (a === "doc-undo" && x.estado_fab !== "Pendiente" && !confirm("El taller ya ha empezado este elemento. Si reabres la documentación, no se podrá seguir escaneando como fabricado hasta que la vuelvas a marcar como hecha. Las fases y piezas ya hechas se conservan. ¿Reabrir?")) return;
     if (a === "fab-undo" && x.estado_carga === "Cargado") return toast("Primero deshaz la carga.");
-    if (await upd("elementos", x.id, C)) recarga();
+    // Documentación hecha → el elemento pasa solo a su primera fase de fabricación (en curso)
+    if (a === "doc-ok" && x.estado_fab !== "Hecho") {
+      if (subs.length) {
+        for (const s of subs) { const f = sigFase(s.fases, s.fases_hechas); if (f && !tiene(s.fases_curso, f)) await sb.from("subelementos").update({ fases_curso: "|" + f + "|" }).eq("id", s.id); }
+        if (subs.some(s => sigFase(s.fases, s.fases_hechas))) C.estado_fab = "En curso";
+      } else { const f = sigFase(x.fases, x.fases_hechas); if (f) Object.assign(C, { estado_fab: "En curso", fases_curso: "|" + f + "|" }); }
+    }
+    if (await upd("elementos", x.id, C)) { if (a === "doc-ok") S.elTab[x.id] = "fab"; recarga(); }
   });
   // fases (toggle) de elemento o subelemento
   $app.querySelectorAll(".sf[data-f]").forEach(b => b.onclick = async () => {
@@ -216,7 +225,9 @@ export async function vElemento(ctx, p, eid) {
     const sig = on ? "pend" : cur ? "hecho" : "curso";
     const quita = (l, g) => (l || "|").replace("|" + g + "|", "|");
     const nueva = sig === "hecho" ? h + f + "|" : quita(h, f);
-    const nCur = sig === "curso" ? c + f + "|" : quita(c, f);
+    let nCur = sig === "curso" ? c + f + "|" : quita(c, f);
+    // Fase terminada → la siguiente pasa sola a «en curso»
+    if (sig === "hecho") { const sg = ORD.find(g => tiene(obj.fases, g) && !tiene(nueva, g)); if (sg && !tiene(nCur, sg)) nCur = (nCur || "|") + sg + "|"; }
     const cambios = { fases_hechas: nueva, fases_curso: nCur === "|" ? null : nCur, hist_fases: (obj.hist_fases || "") + `${ahora()} · ${sig === "curso" ? "Empieza" : sig === "hecho" ? "Termina" : "Desmarca"} ${f} · ${yo}\n` };
     if (tabla === "elementos" && sig !== "pend" && x.estado_fab === "Pendiente") cambios.estado_fab = "En curso";
     if (tabla === "subelementos") { const todas = fasesDe(obj).every(g => tiene(nueva, g)); if (todas !== !!obj.terminado) Object.assign(cambios, { terminado: todas, fecha_term: todas ? new Date().toISOString() : null, operario_term: todas ? yo : null }); }

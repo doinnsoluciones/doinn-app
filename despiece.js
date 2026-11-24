@@ -30,6 +30,8 @@ function cajaRal(box, valor, cambia) {
 }
 // Qué fases faltan para poder escanear el QR (elemento sin subelementos: sus fases; con subelementos: las de cada uno)
 const FASES_ORD = ["Corte", "Carpintería", "Cerrajería", "Pintura"];
+// Siguiente fase de fabricación pendiente (en el orden del taller), o null si no queda ninguna
+export function siguienteFase(fases, hechas, menos = "") { return FASES_ORD.find(f => (fases || "").includes("|" + f + "|") && !(hechas || "").includes("|" + f + "|") && f !== menos) || null; }
 export function faltanFases(x, subs = []) {
   const de = o => FASES_ORD.filter(f => tiene(o.fases, f));
   const sin = o => de(o).filter(f => !tiene(o.fases_hechas, f));
