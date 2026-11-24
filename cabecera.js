@@ -75,6 +75,13 @@ function reloj() {
 }
 
 // Sesión (tras entrar). Sin usuario: vacía.
+// Páginas del menú ⋯ (herramientas), en orden
+const herrs = () => [
+  api?.verInv?.() && ["#/inventario", "▤ Inventario"],
+  api?.verPres?.() && ["#/presupuestos", "€ Presupuestador"],
+  api?.verHerr?.() && ["#/melamina", "▦ Calculadora de melamina"],
+].filter(Boolean);
+
 export function pintaUsuario() {
   const { S, esc, puede } = api;
   const me = $("me");
@@ -82,7 +89,7 @@ export function pintaUsuario() {
   const nom = S.perfil.nombre || (S.user.email || "").split("@")[0];
   me.innerHTML = `<button class="hd-user" id="hperfil" title="Mi perfil"><span class="av">${esc((nom[0] || "?").toUpperCase())}</span>
       <span class="hd-un"><b>${esc(nom)}</b><i class="rol">${ROL_TXT[S.perfil.rol] || S.perfil.rol}</i></span></button>
-    ${api?.verHerr?.() ? `<span class="hd-tools"><button class="hd-dots" id="hdots" title="Herramientas" aria-label="Herramientas">⋯</button></span>` : ""}
+    ${herrs().length ? `<span class="hd-tools"><button class="hd-dots" id="hdots" title="Más herramientas" aria-label="Más herramientas">⋯</button></span>` : ""}
     ${puede("superadmin") ? `<a class="hd-lnk" href="#/usuarios">Usuarios</a>` : ""}
     <button class="hd-out" id="hout" title="Cerrar sesión">${ic.salir}<span>Cerrar sesión</span></button>`;
   $("hperfil").onclick = miPerfil;
@@ -91,7 +98,7 @@ export function pintaUsuario() {
     e.stopPropagation();
     const w = dots.parentElement, old = w.querySelector(".hd-dd");
     if (old) return old.remove();
-    w.insertAdjacentHTML("beforeend", `<div class="hd-dd"><a href="#/melamina">▦ Calculadora de melamina</a></div>`);
+    w.insertAdjacentHTML("beforeend", `<div class="hd-dd">${herrs().map(([h, t]) => `<a href="${h}">${t}</a>`).join("")}</div>`);
     const cierra = () => { w.querySelector(".hd-dd")?.remove(); document.removeEventListener("click", cierra); };
     setTimeout(() => document.addEventListener("click", cierra), 0);
   };
@@ -121,7 +128,7 @@ function menu() {
     ${S.perfil ? `<div class="m-x m-user"><div><b>${esc(nom)}</b> <i class="rol">${ROL_TXT[S.perfil.rol] || S.perfil.rol}</i><div class="code">${esc(S.user.email || "")}</div></div>
       <div class="m-acts"><button class="m-btn" data-a="perfil">${ic.perfil} Mi perfil</button>${puede("superadmin") ? `<a class="m-btn" href="#/usuarios">Usuarios</a>` : ""}<button class="m-btn" data-a="salir">${ic.salir} Cerrar sesión</button></div></div>` : ""}
     ${S.perfil && puede("superadmin") ? `<div class="m-x m-usu"><a href="#/usuarios">Gestión de usuarios ›</a></div>` : ""}
-    ${S.perfil && api.verHerr && api.verHerr() ? `<div class="m-x m-herr"><div class="code">Herramientas</div><a class="m-btn" href="#/melamina">▦ Calculadora de melamina</a></div>` : ""}
+    ${S.perfil && herrs().length ? `<div class="m-x m-herr"><div class="code">Herramientas</div>${herrs().map(([h, t]) => `<a class="m-btn" href="${h}">${t}</a>`).join("")}</div>` : ""}
     <div class="m-opts">
     <label class="m-row"><span>Tema oscuro</span><input type="checkbox" class="sw" data-a="tema" ${temaActual() === "oscuro" ? "checked" : ""}></label>
     <label class="m-row"><span>Avisos parpadeantes</span><input type="checkbox" class="sw" data-a="neon" ${neonOn() ? "checked" : ""}></label>

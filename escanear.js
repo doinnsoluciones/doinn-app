@@ -19,7 +19,8 @@ export function vEscanear(ctx) {
   const { $app, S, esc } = ctx;
   S.scan = S.scan || { operario: null, log: [] };
   const st = S.scan;
-  $app.innerHTML = `
+  const ses = S.invSes, sesP = ses && ses.proyecto_id ? (S.proyectos || []).find(p => p.id === ses.proyecto_id) : null;
+  $app.innerHTML = `${ses ? `<div class="card invses ${ses.tipo === "Salida" ? "sal" : "ent"}"><div class="pj-top"><div><div class="code">Inventario · cada lectura se registra sola</div><b>${ses.tipo === "Salida" ? `⬆ Salida a ${esc(sesP ? sesP.nombre : "proyecto")}` : "⬇ Entrada a almacén"}</b> · <span id="sesn">${ses.n || 0}</span> leídas</div><button class="btn sm ghost" id="sesx">Terminar</button></div></div>` : ""}
   <div class="card">
     <div class="pj-top"><div><div class="code">Operario</div><b id="sop">${st.operario ? esc(st.operario.nombre) : "Escanea tu tarjeta (T-…)"}</b></div>
     ${st.operario ? `<button class="link" id="sout">Cambiar</button>` : ""}</div>
@@ -36,6 +37,7 @@ export function vEscanear(ctx) {
   <div class="card"><h2>Últimos escaneos</h2><div id="log">${st.log.map(l => `<div class="lg ${l.ok ? "ok" : "ko"}"><span>${l.h}</span> ${esc(l.m)}</div>`).join("") || `<div class="code">Aún no hay escaneos en esta sesión.</div>`}</div></div>`;
 
   const $ = id => document.getElementById(id);
+  const sx = $("sesx"); if (sx) sx.onclick = () => { const n = S.invSes ? S.invSes.n || 0 : 0; S.invSes = null; ctx.toast(`Sesión de inventario terminada · ${n} lecturas`); location.hash = "#/inventario"; };
   const so = $("sout"); if (so) so.onclick = () => { st.operario = null; vEscanear(ctx); };
   $("fman").onsubmit = ev => { ev.preventDefault(); const v = $("man").value.trim(); $("man").value = ""; if (v) procesa(ctx, v); };
   $("man").focus();
@@ -127,6 +129,16 @@ async function procesa(ctx, raw) {
     st.operario = op;
     document.getElementById("sop").textContent = op.nombre;
     return resultado(ctx, true, `Hola, ${op.nombre}`, "Ya puedes escanear piezas");
+  }
+
+  // Material de inventario (etiqueta DOINN|INVENTARIO|… o código MOS-0001)
+  const { esCodigoInv, escaneaInv } = await import("./inventario.js" + V);
+  const ci = esCodigoInv(txt);
+  if (ci) {
+    const r = await escaneaInv(ctx, ci);
+    if (r.nav) { parar(); location.hash = r.nav; return; }
+    const b = document.getElementById("sesn"); if (b && S.invSes) b.textContent = S.invSes.n || 0;
+    return resultado(ctx, r.ok, r.msg, r.det || "");
   }
 
   // Unidad de elemento

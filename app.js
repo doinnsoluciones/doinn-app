@@ -10,6 +10,8 @@ const { vDespiece, vElementoForm } = await import("./despiece.js" + V);
 const { vCarga, vRetorno, vMuelle } = await import("./carga.js" + V);
 const { vPlan, vEquipo, vTv } = await import("./plan.js" + V);
 const { vMelamina } = await import("./melamina.js" + V);
+const { vInventario } = await import("./inventario.js" + V);
+const { vPresupuestos } = await import("./presupuestos.js" + V);
 const { COL_COM, estadoCom, confirmado, riesgos, neonOn, ordenProyectos } = await import("./estados.js" + V);
 const { iniciaCabecera, pintaUsuario, pintaNav } = await import("./cabecera.js" + V);
 const { vCartera } = await import("./cartera.js" + V);
@@ -45,7 +47,10 @@ const verCartera = () => !!S.perfil && S.perfil.aprobado && (S.perfil.rol === "s
 const verDespiece = () => !!S.perfil && S.perfil.aprobado && (S.perfil.rol === "superadmin" || (S.operarios || []).some(o => o.id === S.perfil.operario_id && o.grupo === "OT"));
 // Herramientas de oficina (calculadora de melamina): Oficina Técnica, administración y superadmin
 const verHerr = () => verDespiece() || puede("admin");
-const ver = pg => pg === "cartera" ? verCartera() : pg === "despiece" ? verDespiece() : pg === "melamina" ? verHerr() : !!S.perfil && pagsDe(S.perfil.rol, S.perfil.paginas).includes(pg);
+// Inventario: lo ve cualquier usuario aprobado (escriben administración y taller). Presupuestador: administración.
+const verInv = () => !!(S.perfil && S.perfil.aprobado);
+const verPres = () => puede("admin");
+const ver = pg => pg === "cartera" ? verCartera() : pg === "despiece" ? verDespiece() : pg === "melamina" ? verHerr() : pg === "inventario" || pg === "inv" ? verInv() : pg === "presupuestos" ? verPres() : !!S.perfil && pagsDe(S.perfil.rol, S.perfil.paginas).includes(pg);
 // Proyectos en producción: confirmados o pre-confirmados (o con trabajo ya hecho); el resto solo se ve en Cartera y Planificación
 const enProduccion = p => (p.estado_com || "Confirmado") === "Confirmado" || (p.estado_com === "Pendiente" && !!p.fecha_carga) || S.elementos.some(e => e.proyecto_id === p.id);
 
@@ -366,6 +371,9 @@ async function route() {
   if (h[0] === "usuarios") return vUsuarios();
   if (h[0] === "cartera") return vCartera(ctx());
   if (h[0] === "melamina") return vMelamina(ctx());
+  if (h[0] === "inventario") return vInventario(ctx(), h[1] || "lista");
+  if (h[0] === "inv") return vInventario(ctx(), h[1] || "lista", h[2], h[3]);
+  if (h[0] === "presupuestos") return vPresupuestos(ctx());
   if (h[0] === "plan") return vPlan(ctx(), h[1] || "proyectos", h[2] || "");
   if (h[0] === "tv") return vTv(ctx());
   if (h[0] === "escanear") return vEscanear(ctx());
@@ -375,7 +383,7 @@ async function route() {
   return vProyectos();
 }
 window.addEventListener("hashchange", route);
-iniciaCabecera({ S, sb, esc, toast, puede, verHerr, rerender: () => route() });
+iniciaCabecera({ S, sb, esc, toast, puede, verHerr, verInv, verPres, rerender: () => route() });
 
 async function arrancar(session) {
   S.user = session?.user || null;

@@ -72,6 +72,8 @@ export async function vElemento(ctx, p, eid) {
   const x = d.els.find(e => e.id === +eid);
   if (!x) { $app.innerHTML = `<div class="empty">Elemento no encontrado.</div>`; return; }
   const pzs = d.pz.filter(z => z.elemento_id === x.id), subs = d.sub.filter(s => s.elemento_id === x.id);
+  let incs = [];
+  try { const r = await sb.from("incidencias").select("*").eq("elemento_id", x.id).order("fecha", { ascending: false }); incs = r.data || []; } catch { }
   const yo = (S.perfil && S.perfil.nombre) || (S.user.email || "").split("@")[0];
   const edita = puede("admin", "taller");
   // La documentación técnica solo la cambian Oficina Técnica y administración (el taller la ve en solo lectura)
@@ -84,47 +86,47 @@ export async function vElemento(ctx, p, eid) {
     return true;
   };
 
-  // Estado en 3 fases horizontales (Doc → Fab → Carga). Gris = pendiente, naranja = en curso, verde = hecho.
+  // Estado en 3 fases horizontales (Doc → Fab → Carga). Blanco = pendiente, naranja = en curso, verde = hecho.
   const faltan = faltanFases(x, subs);
   const docH = x.estado_doc === "Hecho", fabH = x.estado_fab === "Hecho", carH = x.estado_carga === "Cargado";
   const est = (hecho, estado, lock) => hecho && !lock ? "done" : !lock && (estado === "En curso" || estado === "Parcial") ? "run" : "pend";
   const FASES3 = [
-    { k: "doc", t: "Documentación", e: est(docH, x.estado_doc, false), lock: false },
-    { k: "fab", t: "Fabricación", e: est(fabH, x.estado_fab, !docH), lock: !docH },
-    { k: "car", t: "Carga", e: est(carH, x.estado_carga, !fabH), lock: !fabH },
+    { k: "doc", t: "Documentación", c: "Doc. técnica", e: est(docH, x.estado_doc, false), lock: false },
+    { k: "fab", t: "Fabricación", c: "Fabricación", e: est(fabH, x.estado_fab, !docH), lock: !docH },
+    { k: "car", t: "Carga", c: "Carga", e: est(carH, x.estado_carga, !fabH), lock: !fabH },
   ];
   S.elTab = S.elTab || {};
   const sel = S.elTab[x.id] || (FASES3.find(f => f.e !== "done") || FASES3[2]).k;
+  const iSel = FASES3.findIndex(f => f.k === sel);
   const TXT = { done: "Hecho", run: "En curso", pend: "Pendiente" };
   const LBL = f => f === "Cerrajería" ? "Calderería" : f;
   const editF = !!S.elEditF && edita;
-  // Subfases de fabricación: salen las 4; solo las del elemento están activas
+  // Subfases de fabricación: salen las 4; solo las del elemento están activas. Tocar: pendiente → en curso → hecho
   const subfases = (obj, tipo, lock) => {
     const fs = fasesDe(obj);
     return `<div class="sf4">${ORD.map(f => {
-      const act = fs.includes(f), on = act && tiene(obj.fases_hechas, f);
-      const cls = !act ? "na" : on ? "done" : "pend";
+      const act = fs.includes(f), on = act && tiene(obj.fases_hechas, f), cur = act && !on && tiene(obj.fases_curso, f);
+      const cls = !act ? "na" : on ? "done" : cur ? "run" : "pend";
       const attr = editF ? `data-ef="${f}" data-t="${tipo}" data-id="${obj.id}"` : act ? `data-f="${f}" data-t="${tipo}" data-id="${obj.id}"` : "";
       const dis = editF ? "" : !act || !edita || lock ? "disabled" : "";
-      return `<button class="sf ${cls} ${editF ? "ed" : ""}" ${attr} ${dis}><i>${editF ? (act ? "−" : "+") : on ? "✓" : act ? "" : "–"}</i><span>${LBL(f)}</span><small>${editF ? (act ? "Quitar" : "Añadir") : !act ? "No aplica" : on ? "Hecho" : "Pendiente"}</small></button>`;
+      const tit = editF ? (act ? "Quitar de este elemento" : "Añadir a este elemento") : !act ? "No aplica" : on ? "Hecho" : cur ? "En curso" : "Pendiente";
+      return `<button class="sf ${cls} ${editF ? "ed" : ""}" ${attr} ${dis} title="${tit}"><i>${editF ? (act ? "−" : "+") : on ? "✓" : ""}</i><span>${LBL(f)}</span></button>`;
     }).join("")}</div>`;
   };
   let det = "";
-  if (sel === "doc") det = `<div class="f3d">
+  if (sel === "doc") det = `
       <div class="f3s">${docH ? `✓ Hecho${x.fecha_doc ? " el " + new Date(x.fecha_doc).toLocaleDateString("es-ES") : ""}${x.por_doc ? " · " + esc(x.por_doc) : ""}` : x.estado_doc === "En curso" ? "Oficina Técnica la está preparando" : "Pendiente de Oficina Técnica"}${x.revision ? ` · Rev. ${esc(x.revision)}` : ""}</div>
-      ${editaDoc ? `<div class="row">${docH ? `<button class="btn sm ghost" data-a="doc-undo">Deshacer</button>` : `${x.estado_doc !== "En curso" ? `<button class="btn sm ghost" data-a="doc-start">Empezar</button>` : ""}<button class="btn sm lime" data-a="doc-ok">Marcar hecho</button>`}</div>` : ""}</div>`;
+      ${editaDoc ? `<div class="row">${docH ? `<button class="btn sm ghost" data-a="doc-undo">Deshacer</button>` : `${x.estado_doc !== "En curso" ? `<button class="btn sm ghost" data-a="doc-start">Empezar</button>` : ""}<button class="btn sm lime" data-a="doc-ok">Marcar hecho</button>`}</div>` : ""}`;
   if (sel === "fab") {
     const lock = !docH;
-    det = `<div class="f3d">
-      ${lock ? `<div class="f3s lk">🔒 Se desbloquea cuando la documentación esté hecha</div>` : ""}
+    det = `
       ${subs.length ? subs.map(s => `<div class="sfsub"><div class="pj-top"><div><b>${esc(s.desc_sub || s.titulo)}</b><div class="code">${[`${s.cantidad || 1} pieza${(s.cantidad || 1) > 1 ? "s" : ""}`, origenTxt(s.origen), s.acabado].filter(Boolean).map(esc).join(" · ")} ${ralChips(s.ral, esc)}</div></div>${fasesDe(s).length || editF ? "" : `<button class="fzb ${s.terminado ? "on" : ""}" data-term="${s.id}" ${edita && !lock ? "" : "disabled"}>${s.terminado ? "✓ Listo" : "Marcar listo"}</button>`}</div>${fasesDe(s).length || editF ? subfases(s, "s", lock) : ""}</div>`).join("") : subfases(x, "e", lock)}
-      ${lock ? "" : `<div class="f3s">${fabH ? `✓ Fabricado${x.operario_fab ? " · " + esc(x.operario_fab) : ""}` : editF ? "Toca una fase para añadirla o quitarla de este elemento." : faltan.length ? `Falta: <b>${faltan.map(f => esc(LBL(f))).join(" · ")}</b>` : `<span class="ok-t">✓ Fases terminadas · escanea el QR de cada unidad</span>`}</div>`}
-      <div class="row">${edita && !fabH ? `<button class="btn sm ghost" data-a="editf">${editF ? "✓ Listo" : "✎ Editar fases"}</button>` : ""}${fabH && puede("admin") ? `<button class="btn sm ghost" data-a="fab-undo">Deshacer fabricado</button>` : ""}</div></div>`;
+      <div class="f3s ${lock ? "lk" : ""}">${lock ? "🔒 Se desbloquea cuando la documentación esté hecha" : fabH ? `✓ Fabricado${x.operario_fab ? " · " + esc(x.operario_fab) : ""}` : editF ? "Toca una fase para añadirla o quitarla de este elemento." : faltan.length ? `Falta: <b>${faltan.map(f => esc(LBL(f))).join(" · ")}</b> <span class="code">· toca una fase: 1 vez en curso, 2 veces hecha</span>` : `<span class="ok-t">✓ Fases terminadas · escanea el QR de cada unidad</span>`}</div>
+      <div class="row">${edita && !fabH ? `<button class="btn sm ghost" data-a="editf">${editF ? "✓ Listo" : "✎ Editar fases"}</button>` : ""}${fabH && puede("admin") ? `<button class="btn sm ghost" data-a="fab-undo">Deshacer fabricado</button>` : ""}</div>`;
   }
-  if (sel === "car") det = `<div class="f3d">
-      ${!fabH ? `<div class="f3s lk">🔒 Se desbloquea cuando esté fabricado</div>` : `<div class="f3s">${carH ? `✓ Cargado${x.operario_carga ? " · " + esc(x.operario_carga) : ""}` : x.estado_carga === "Parcial" ? `Carga parcial · ${x.piezas_cargadas || 0}/${pzs.length || x.cantidad || 1} unidades` : "Pendiente de cargar"}${x.camion ? ` · Camión ${esc(x.camion)}` : ""}</div>
-      ${edita ? `<div class="row">${carH ? `<button class="btn sm ghost" data-a="car-undo">Deshacer</button>` : `<button class="btn sm lime" data-a="car-ok">Marcar cargado</button>`}</div>` : ""}`}</div>`;
-  const pasos = `<div class="card f3c"><div class="f3">${FASES3.map((f, i) => `<button class="f3b ${f.e} ${sel === f.k ? "sel" : ""}" data-tab="${f.k}"><i>${f.e === "done" ? "✓" : f.lock ? "🔒" : i + 1}</i><span><b>${f.k === "doc" ? `<span class="tl">Documentación</span><span class="tc">Doc. técnica</span>` : f.t}</b><small>${TXT[f.e]}</small></span></button>`).join("")}</div>${det}</div>`;
+  if (sel === "car") det = !fabH ? `<div class="f3s lk">🔒 Se desbloquea cuando esté fabricado</div>` : `<div class="f3s">${carH ? `✓ Cargado${x.operario_carga ? " · " + esc(x.operario_carga) : ""}` : x.estado_carga === "Parcial" ? `Carga parcial · ${x.piezas_cargadas || 0}/${pzs.length || x.cantidad || 1} unidades` : "Pendiente de cargar"}${x.camion ? ` · Camión ${esc(x.camion)}` : ""}</div>
+      ${edita ? `<div class="row">${carH ? `<button class="btn sm ghost" data-a="car-undo">Deshacer</button>` : `<button class="btn sm lime" data-a="car-ok">Marcar cargado</button>`}</div>` : ""}`;
+  const pasos = `<div class="f3w s${iSel}"><div class="f3">${FASES3.map(f => `<button class="f3b ${f.e} ${sel === f.k ? "sel" : ""}" data-tab="${f.k}" title="${f.t}: ${TXT[f.e]}"><i>${f.e === "done" ? "✓" : ""}</i><span><span class="tl">${f.t}</span><span class="tc">${f.c}</span></span></button>`).join("")}</div><div class="f3p">${det}</div></div>`;
 
   // Avance de piezas: cada unidad pasa por Sin cortar → Cortada → Fabricada → Cargada
   const ETAPAS = ["Sin cortar", "Cortada", "Fabricada", "Cargada"];
@@ -142,16 +144,26 @@ export async function vElemento(ctx, p, eid) {
     </div>`; }).join("")}
     <p class="hint" style="margin-top:8px">Lo normal es avanzar escaneando la etiqueta. ${edita ? "Toca una unidad para corregir su estado a mano." : ""}</p></details></div>` : "";
 
+  // Incidencias: comentario + foto (varias por elemento)
+  const abiertas = incs.filter(i => !i.resuelta).length;
+  const fh = t => new Date(t).toLocaleString("es-ES", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  const incHtml = `<div class="card" id="cinc"><div class="pj-top"><h2>Incidencias</h2><span class="pill ${abiertas ? "bad" : ""}">${abiertas ? `${abiertas} abierta${abiertas > 1 ? "s" : ""}` : "Sin incidencias abiertas"}</span></div>
+    ${incs.map(i => `<div class="inc ${i.resuelta ? "res" : ""}">
+      ${i.foto ? `<a class="incf" data-foto="${esc(i.foto)}" target="_blank" rel="noopener"><img alt="Foto de la incidencia"></a>` : ""}
+      <div class="incb"><div class="code">${fh(i.fecha)}${i.usuario ? " · " + esc(i.usuario) : ""}${i.resuelta ? " · ✓ Resuelta" : ""}</div><div>${esc(i.texto || "(sin comentario)")}</div>
+      ${edita ? `<button class="link" data-incres="${i.id}">${i.resuelta ? "Reabrir" : "✓ Marcar resuelta"}</button>` : ""}</div></div>`).join("")}
+    ${edita ? `<div class="incn"><textarea id="inctx" rows="2" placeholder="Describe la incidencia (qué pasa, qué falta…)"></textarea>
+      <div class="row"><label class="btn sm ghost incfoto">📷 Foto<input type="file" id="incfile" accept="image/*" capture="environment" hidden></label><span class="code" id="incfn"></span><span style="flex:1"></span><button class="btn sm lime" id="incok">Guardar incidencia</button></div>
+      <img id="incprev" class="incprev" hidden alt=""></div>` : ""}</div>`;
+
   const dato = (k, v) => `<dt>${k}</dt><dd>${v || "—"}</dd>`;
   // Resultado del último escaneo (solo informativo; se muestra unos minutos)
   const verScan = deScan && Date.now() - deScan.t < 3 * 60e3;
   $app.innerHTML = `${verScan ? `<div class="scanres ${deScan.ok ? "ok" : "ko"} scanvuelta"><b>${deScan.ok ? "✓" : "✕"} ${esc(deScan.msg)}</b>${deScan.det ? `<div>${esc(deScan.det)}</div>` : ""}</div>` : ""}<a class="back" href="#/p/${p.id}/elementos">‹ ${esc(p.nombre)}</a>
   <div class="code">Ref. ${esc(x.referencia || "")}</div><h1>${esc(x.elemento || "")}</h1>
   <div class="code" style="margin:-8px 0 12px">${[medidasTxt(x) ? "Alto × ancho × fondo: " + medidasTxt(x) : "", x.acabado, origenTxt(x.origen)].filter(Boolean).map(esc).join(" · ")}</div>
-  ${pasos}${piezasHtml}
+  ${pasos}${piezasHtml}${incHtml}
   <div class="card"><dl class="kv">${dato("Unidades", x.cantidad)}${dato("Origen", esc(origenTxt(x.origen)))}${dato("Medidas (alto × ancho × fondo)", medidasTxt(x))}${dato("Acabado", esc(x.acabado))}${x.ral ? dato("Color RAL", ralChips(x.ral, esc)) : ""}${dato("Fases", esc(fasesDe(x).join(" · ")))}${x.es_extra ? dato("Extra", "Sí, pedido de última hora") : ""}${dato("Etiquetas", x.num_etiquetas)}${dato("Camión", esc(x.camion))}${dato("Orden de carga", x.orden_carga)}${dato("Ubicación nave", esc(x.ubicacion_nave))}${dato("Observaciones", esc(x.observaciones))}</dl></div>
-  <div class="card"><div class="pj-top"><div><b>Incidencia</b><div class="code">${x.incidencia ? "Abierta" : "Sin incidencia"}</div></div>
-    <label class="tg"><input type="checkbox" id="inc" ${x.incidencia ? "checked" : ""} ${edita ? "" : "disabled"}><span></span><b>${x.incidencia ? "Sí" : "No"}</b></label></div></div>
   ${x.hist_fases ? `<details class="card"><summary>Historial de fases</summary><pre class="hist">${esc(x.hist_fases)}</pre></details>` : ""}`;
 
   $app.querySelectorAll("[data-tab]").forEach(b => b.onclick = () => { S.elTab[x.id] = b.dataset.tab; S.elEditF = false; recarga(); });
@@ -178,16 +190,21 @@ export async function vElemento(ctx, p, eid) {
   $app.querySelectorAll(".sf[data-f]").forEach(b => b.onclick = async () => {
     const tabla = b.dataset.t === "s" ? "subelementos" : "elementos";
     const obj = b.dataset.t === "s" ? subs.find(s => s.id === +b.dataset.id) : x;
-    const f = b.dataset.f, h = obj.fases_hechas || "|", on = tiene(h, f);
-    const nueva = on ? h.replace("|" + f + "|", "|") : h + f + "|";
-    const cambios = { fases_hechas: nueva, hist_fases: (obj.hist_fases || "") + `${ahora()} · ${on ? "Desmarca " : ""}${f} · ${yo}\n` };
-    if (tabla === "elementos" && !on && x.estado_fab === "Pendiente") cambios.estado_fab = "En curso";
-    if (tabla === "subelementos") { const todas = fasesDe(obj).every(g => tiene(nueva, g)); if (todas !== !!obj.terminado) Object.assign(cambios, { terminado: todas, fecha_term: todas ? new Date().toISOString() : null, operario_term: todas ? yo : null }); }
+    const f = b.dataset.f, h = obj.fases_hechas || "|", c = obj.fases_curso || "|", on = tiene(h, f), cur = tiene(c, f);
     if (on && x.estado_fab === "Hecho") return toast("El elemento ya está fabricado: deshaz la fabricación antes de desmarcar fases.");
-    if (await upd(tabla, obj.id, cambios, on ? `${f} desmarcada` : `✓ ${f}`)) {
+    if (on && !confirm(`¿Desmarcar ${LBL(f)}? Volverá a pendiente.`)) return;
+    // pendiente → en curso → hecho → pendiente
+    const sig = on ? "pend" : cur ? "hecho" : "curso";
+    const quita = (l, g) => (l || "|").replace("|" + g + "|", "|");
+    const nueva = sig === "hecho" ? h + f + "|" : quita(h, f);
+    const nCur = sig === "curso" ? c + f + "|" : quita(c, f);
+    const cambios = { fases_hechas: nueva, fases_curso: nCur === "|" ? null : nCur, hist_fases: (obj.hist_fases || "") + `${ahora()} · ${sig === "curso" ? "Empieza" : sig === "hecho" ? "Termina" : "Desmarca"} ${f} · ${yo}\n` };
+    if (tabla === "elementos" && sig !== "pend" && x.estado_fab === "Pendiente") cambios.estado_fab = "En curso";
+    if (tabla === "subelementos") { const todas = fasesDe(obj).every(g => tiene(nueva, g)); if (todas !== !!obj.terminado) Object.assign(cambios, { terminado: todas, fecha_term: todas ? new Date().toISOString() : null, operario_term: todas ? yo : null }); }
+    if (await upd(tabla, obj.id, cambios, sig === "curso" ? `▶ ${LBL(f)} en curso` : sig === "hecho" ? `✓ ${LBL(f)} hecha` : `${LBL(f)} desmarcada`)) {
       const subs2 = tabla === "subelementos" ? subs.map(k => k.id === obj.id ? { ...k, ...cambios } : k) : subs;
       const x2 = tabla === "elementos" ? { ...x, fases_hechas: nueva } : x;
-      if (!on && !faltanFases(x2, subs2).length) toast("✓ Todas las fases terminadas: escanea el QR de cada unidad.");
+      if (sig === "hecho" && !faltanFases(x2, subs2).length) toast("✓ Todas las fases terminadas: escanea el QR de cada unidad.");
       recarga();
     }
   });
@@ -199,6 +216,7 @@ export async function vElemento(ctx, p, eid) {
     const fases = "|" + ORD.filter(g => g === f ? !act : tiene(obj.fases, g)).join("|") + "|";
     const cambios = { fases: fases === "||" ? null : fases, hist_fases: (obj.hist_fases || "") + `${ahora()} · ${act ? "Quita fase" : "Añade fase"} ${f} · ${yo}\n` };
     if (act && tiene(obj.fases_hechas, f)) cambios.fases_hechas = obj.fases_hechas.replace("|" + f + "|", "|");
+    if (act && tiene(obj.fases_curso, f)) cambios.fases_curso = obj.fases_curso.replace("|" + f + "|", "|");
     if (await upd(tabla, obj.id, cambios, `${LBL(f)} ${act ? "quitada" : "añadida"}`)) recarga();
   });
   // subelemento terminado
@@ -230,6 +248,48 @@ export async function vElemento(ctx, p, eid) {
     if (Object.keys(ce).length) await upd("elementos", x.id, ce);
     S.dirty = true; toast(`P${z.num_pieza}: ${ETAPAS[to]}`); recarga();
   });
-  const inc = document.getElementById("inc");
-  inc.onchange = async () => { if (await upd("elementos", x.id, { incidencia: inc.checked }, inc.checked ? "Incidencia abierta" : "Incidencia cerrada")) recarga(); };
+  // Fotos de incidencias (enlace firmado, 1 h)
+  const fotos = [...$app.querySelectorAll("[data-foto]")];
+  if (fotos.length && sb.storage) sb.storage.from("fotos").createSignedUrls(fotos.map(a => a.dataset.foto), 3600).then(({ data }) => (data || []).forEach((u, k) => { if (u && u.signedUrl) { fotos[k].href = u.signedUrl; fotos[k].querySelector("img").src = u.signedUrl; } })).catch(() => { });
+  let fichero = null;
+  const fi = document.getElementById("incfile");
+  if (fi) fi.onchange = () => { fichero = fi.files[0] || null; const pv = document.getElementById("incprev"); document.getElementById("incfn").textContent = fichero ? "Foto lista" : ""; if (fichero) { pv.src = URL.createObjectURL(fichero); pv.hidden = false; } else pv.hidden = true; };
+  const ok = document.getElementById("incok");
+  if (ok) ok.onclick = async () => {
+    const texto = document.getElementById("inctx").value.trim();
+    if (!texto && !fichero) return toast("Escribe un comentario o añade una foto");
+    ok.disabled = true; ok.textContent = "Guardando…";
+    let foto = null;
+    try {
+      if (fichero) {
+        const blob = await reduceFoto(fichero);
+        foto = `incidencias/${p.id}/${x.id}/${Date.now()}.jpg`;
+        const { error } = await sb.storage.from("fotos").upload(foto, blob, { contentType: "image/jpeg" });
+        if (error) throw error;
+      }
+      const { error } = await sb.from("incidencias").insert({ elemento_id: x.id, proyecto_id: p.id, texto: texto || null, foto, usuario: yo });
+      if (error) throw error;
+      if (!x.incidencia) await upd("elementos", x.id, { incidencia: true });
+      S.dirty = true; toast("Incidencia guardada"); recarga();
+    } catch (e) { toast("No se pudo guardar: " + (e.message || e)); ok.disabled = false; ok.textContent = "Guardar incidencia"; }
+  };
+  $app.querySelectorAll("[data-incres]").forEach(b => b.onclick = async () => {
+    const i = incs.find(k => k.id === +b.dataset.incres), r = !i.resuelta;
+    const { error } = await sb.from("incidencias").update({ resuelta: r }).eq("id", i.id);
+    if (error) return toast("No se pudo guardar: " + error.message);
+    const quedan = incs.filter(k => k.id !== i.id && !k.resuelta).length + (r ? 0 : 1);
+    if (!!x.incidencia !== quedan > 0) await upd("elementos", x.id, { incidencia: quedan > 0 });
+    S.dirty = true; toast(r ? "Incidencia resuelta" : "Incidencia reabierta"); recarga();
+  });
+}
+
+// Reduce la foto del móvil (máx. 1600 px, JPEG) antes de subirla
+async function reduceFoto(f) {
+  try {
+    const img = await createImageBitmap(f);
+    const k = Math.min(1, 1600 / Math.max(img.width, img.height));
+    const c = document.createElement("canvas"); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+    c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+    return await new Promise(ok => c.toBlob(b => ok(b || f), "image/jpeg", 0.82));
+  } catch { return f; }
 }
