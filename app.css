@@ -955,3 +955,6 @@ body:not(.tv) .tvrota{display:none}
 /* iPhone: franja fija bajo la hora para que el contenido no se vea detrás al hacer scroll */
 body::before{content:"";position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top);background:var(--navy);z-index:30;pointer-events:none}
 .carav{border-color:var(--amber);background:var(--amber-bg)}
+.cam{position:relative}
+.linterna{position:absolute;right:14px;top:14px;z-index:3;width:46px;height:46px;border-radius:50%;border:0;background:rgba(19,30,41,.7);font-size:22px;cursor:pointer}
+.linterna.on{background:var(--lime)}

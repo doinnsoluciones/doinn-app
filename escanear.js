@@ -2,18 +2,35 @@
 // Entiende la etiqueta de unidad "DOINN|proyecto|REF|nombre|i/n", el código "REF-Pn" y la tarjeta de operario "T-####".
 const V = new URL(import.meta.url).search;
 const { faltanFases, siguienteFase } = await import("./despiece.js" + V);
-let stream = null, loopId = null, detector = null, ultimo = { c: "", t: 0 }, ocupado = false;
+let stream = null, loopId = null, detector = null, ultimo = { c: "", t: 0 }, ocupado = false, apagar = null;
 
 function parar() {
   if (loopId) cancelAnimationFrame(loopId), loopId = null;
   if (stream) stream.getTracks().forEach(t => t.stop()), stream = null;
 }
-window.addEventListener("hashchange", () => { if (!location.hash.startsWith("#/escanear")) parar(); });
+// Al salir de Escanear (p. ej. a la ficha tras una lectura) la cámara se mantiene encendida 90 s
+// para que al volver arranque al instante; si no se vuelve, se apaga.
+window.addEventListener("hashchange", () => {
+  if (location.hash.startsWith("#/escanear")) { clearTimeout(apagar); return; }
+  if (loopId) cancelAnimationFrame(loopId), loopId = null;
+  clearTimeout(apagar); if (stream) apagar = setTimeout(parar, 90000);
+});
 
-function cargaLibQR() {
-  if (window.jsQR) return Promise.resolve();
-  return new Promise((ok, ko) => { const s = document.createElement("script"); s.src = "https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"; s.onload = ok; s.onerror = ko; document.head.appendChild(s); });
+function cargaScript(src, test) {
+  if (test()) return Promise.resolve();
+  return new Promise((ok, ko) => { const s = document.createElement("script"); s.src = src; s.onload = ok; s.onerror = ko; document.head.appendChild(s); });
 }
+// Lector: el nativo del navegador (Android/Chrome) o ZXing en WebAssembly (iPhone), mucho más rápido que jsQR. jsQR queda de reserva.
+async function preparaLector() {
+  if (detector) return;
+  if ("BarcodeDetector" in window) { try { const f = await window.BarcodeDetector.getSupportedFormats(); if (f.includes("qr_code")) { detector = new window.BarcodeDetector({ formats: ["qr_code"] }); return; } } catch { } }
+  try {
+    await cargaScript("https://cdn.jsdelivr.net/npm/barcode-detector@3.0.8/dist/iife/ponyfill.js", () => window.BarcodeDetectionAPI);
+    detector = new window.BarcodeDetectionAPI.BarcodeDetector({ formats: ["qr_code"] });
+    await detector.detect(new ImageData(8, 8)).catch(() => { }); // descarga y arranca el motor ya
+  } catch { detector = null; }
+}
+const cargaLibQR = () => cargaScript("https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js", () => window.jsQR);
 
 export function vEscanear(ctx) {
   const { $app, S, esc } = ctx;
@@ -30,6 +47,7 @@ export function vEscanear(ctx) {
     <video id="vid" playsinline muted></video><canvas id="cv" hidden></canvas>
     <div class="aim" id="aim"></div>
     <div class="scanov" id="sov"><span class="sov-idle">Buscando código… centra el QR en el recuadro</span></div>
+    <button class="linterna" id="blinterna" type="button" hidden title="Linterna">🔦</button>
     <button class="camtap" id="bcam" type="button"><span class="cmark"><i></i></span><span class="ctxt">Toca aquí para abrir la cámara</span></button>
   </div>
   <form id="fman" class="search"><input id="man" placeholder="Pistola o código a mano (ej. 261123.01-001-P1)" autocomplete="off"><button class="btn">OK</button></form>
@@ -48,28 +66,32 @@ export function vEscanear(ctx) {
 async function abrirCamara(ctx) {
   const vid = document.getElementById("vid"), cv = document.getElementById("cv"), b = document.getElementById("bcam");
   try {
-    // Pedimos resolución alta: el QR de la etiqueta (25 × 54 mm) es pequeño y a baja resolución no se lee
+    clearTimeout(apagar);
+    // Resolución alta: el QR de la etiqueta (25 × 54 mm) es pequeño. Se analiza solo el centro (equivale a un zoom ×1,5).
     if (!stream) stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
-    try { const tr = stream.getVideoTracks()[0], cap = tr.getCapabilities ? tr.getCapabilities() : {}; if (cap.focusMode && cap.focusMode.includes("continuous")) await tr.applyConstraints({ advanced: [{ focusMode: "continuous" }] }); } catch { }
+    const tr = stream.getVideoTracks()[0], cap = tr.getCapabilities ? tr.getCapabilities() : {};
+    try { if (cap.focusMode && cap.focusMode.includes("continuous")) await tr.applyConstraints({ advanced: [{ focusMode: "continuous" }] }); } catch { }
     vid.srcObject = stream; await vid.play();
     document.getElementById("camc").classList.add("on"); b.style.display = "none";
-    if ("BarcodeDetector" in window) { try { const f = await window.BarcodeDetector.getSupportedFormats(); detector = f.includes("qr_code") ? new window.BarcodeDetector({ formats: ["qr_code"] }) : null; } catch { detector = null; } }
-    await cargaLibQR().catch(() => { });
+    // Linterna (si el móvil la ofrece): ayuda mucho en zonas oscuras de la nave
+    const lt = document.getElementById("blinterna");
+    if (lt && cap.torch) { lt.hidden = false; let on = false; lt.onclick = async () => { on = !on; try { await tr.applyConstraints({ advanced: [{ torch: on }] }); lt.classList.toggle("on", on); } catch { } }; }
+    await preparaLector();
+    if (!detector) await cargaLibQR().catch(() => { }); else cargaLibQR().catch(() => { }); // jsQR de reserva
     const g = cv.getContext("2d", { willReadFrequently: true });
-    let fallosDet = 0, n = 0;
+    let n = 0, fallos = 0;
     const tick = async () => {
-      if (!stream || !document.getElementById("vid")) return parar();
+      if (!stream || !document.getElementById("vid")) return;
       if (vid.readyState >= 2 && vid.videoWidth) {
         let txt = null;
-        if (detector && fallosDet < 30) { try { const r = await detector.detect(vid); if (r[0]) txt = r[0].rawValue; } catch { fallosDet++; } }
-        // jsQR sobre el centro de la imagen a buena resolución (cada 2 fotogramas, o siempre si no hay detector nativo)
-        if (!txt && window.jsQR && (!detector || fallosDet >= 30 || ++n % 2 === 0)) {
-          const vw = vid.videoWidth, vh = vid.videoHeight, lado = Math.min(vw, vh) * 0.8, sx = (vw - lado) / 2, sy = (vh - lado) / 2, w = Math.min(800, Math.round(lado));
-          cv.width = w; cv.height = w; g.drawImage(vid, sx, sy, lado, lado, 0, 0, w, w);
-          const r = window.jsQR(g.getImageData(0, 0, w, w).data, w, w, { inversionAttempts: "attemptBoth" });
-          if (r && r.data) txt = r.data;
-        }
-        if (txt && !ocupado) { ocupado = true; try { await procesa(ctx, txt); } finally { ocupado = false; } if (!stream) return; }
+        const vw = vid.videoWidth, vh = vid.videoHeight;
+        // Alterna recorte central (QR pequeño o lejos) y fotograma completo (QR grande o descentrado)
+        const lado = Math.min(vw, vh) * (n % 3 === 2 ? 1 : 0.65), sx = (vw - lado) / 2, sy = (vh - lado) / 2, w = Math.min(720, Math.round(lado));
+        cv.width = w; cv.height = w; g.drawImage(vid, sx, sy, lado, lado, 0, 0, w, w);
+        n++;
+        if (detector && fallos < 20) { try { const r = await detector.detect(cv); if (r[0]) txt = r[0].rawValue; } catch { fallos++; } }
+        else if (window.jsQR) { const r = window.jsQR(g.getImageData(0, 0, w, w).data, w, w, { inversionAttempts: n % 4 ? "dontInvert" : "attemptBoth" }); if (r && r.data) txt = r.data; }
+        if (txt && !ocupado) { ocupado = true; try { await procesa(ctx, txt); } finally { ocupado = false; } if (!document.getElementById("vid")) return; }
       }
       loopId = requestAnimationFrame(tick);
     };
@@ -178,7 +200,7 @@ async function procesa(ctx, raw) {
     if (st.undo) st.undo.msg = msg;
     // En carga se escanean muchos bultos seguidos: se queda en el escáner y no repite el mismo código en 30 s
     if (paso === "carga") { ultimo = { c: txt, t: Date.now() + 27000 }; return resultado(ctx, ok, msg, det); }
-    resultado(ctx, ok, msg, det); parar(); st.vuelta = { id: z.elemento_id, zid: z.id, ok, msg, det, t: Date.now() }; st.autoCam = true; setTimeout(() => { location.hash = `#/p/${z.proyecto_id || x.proyecto_id}/el/${z.elemento_id}`; }, ok ? 900 : 1600); };
+    resultado(ctx, ok, msg, det); if (loopId) cancelAnimationFrame(loopId), loopId = null; st.vuelta = { id: z.elemento_id, zid: z.id, ok, msg, det, t: Date.now() }; st.autoCam = true; setTimeout(() => { location.hash = `#/p/${z.proyecto_id || x.proyecto_id}/el/${z.elemento_id}`; }, ok ? 600 : 1500); };
   const nom = `${x.elemento || x.referencia} · ${z.num_pieza}/${z.total_piezas}`;
   const quien = st.operario ? st.operario.nombre : (S.perfil.nombre || S.user.email.split("@")[0]);
   const now = new Date().toISOString();
