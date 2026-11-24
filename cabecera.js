@@ -75,11 +75,14 @@ function reloj() {
 }
 
 // Sesión (tras entrar). Sin usuario: vacía.
-// Páginas del menú ⋯ (herramientas), en orden
+// Páginas del menú ⋯ (lo que no es de uso diario), en orden
 const herrs = () => [
   api?.verInv?.() && ["#/inventario", "▤ Inventario"],
+  api?.verCartera?.() && ["#/cartera", "◫ Cartera"],
   api?.verPres?.() && ["#/presupuestos", "€ Presupuestador"],
   api?.verHerr?.() && ["#/melamina", "▦ Calculadora de melamina"],
+  api?.verTv?.() && ["#/tv", "▭ Pantalla de taller (TV)"],
+  api?.puede?.("superadmin") && ["#/usuarios", "◎ Usuarios"],
 ].filter(Boolean);
 
 export function pintaUsuario() {
@@ -89,8 +92,7 @@ export function pintaUsuario() {
   const nom = S.perfil.nombre || (S.user.email || "").split("@")[0];
   me.innerHTML = `<button class="hd-user" id="hperfil" title="Mi perfil"><span class="av">${esc((nom[0] || "?").toUpperCase())}</span>
       <span class="hd-un"><b>${esc(nom)}</b><i class="rol">${ROL_TXT[S.perfil.rol] || S.perfil.rol}</i></span></button>
-    ${herrs().length ? `<span class="hd-tools"><button class="hd-dots" id="hdots" title="Más herramientas" aria-label="Más herramientas">⋯</button></span>` : ""}
-    ${puede("superadmin") ? `<a class="hd-lnk" href="#/usuarios">Usuarios</a>` : ""}
+    ${herrs().length ? `<span class="hd-tools"><button class="hd-dots" id="hdots" title="Más" aria-label="Más">⋯</button></span>` : ""}
     <button class="hd-out" id="hout" title="Cerrar sesión">${ic.salir}<span>Cerrar sesión</span></button>`;
   $("hperfil").onclick = miPerfil;
   const dots = $("hdots");
@@ -126,9 +128,8 @@ function menu() {
     <div class="m-x m-clock"><b>${d.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}</b> ${d.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</div>
     ${nav ? `<div class="m-x m-nav"><a class="hd-ar" href="${nav.prev}">${ic.ant}</a><span>${nav.label}</span><a class="hd-ar" href="${nav.next}">${ic.sig}</a><a class="hd-hoy" href="${nav.hoy}">Hoy</a></div>` : ""}
     ${S.perfil ? `<div class="m-x m-user"><div><b>${esc(nom)}</b> <i class="rol">${ROL_TXT[S.perfil.rol] || S.perfil.rol}</i><div class="code">${esc(S.user.email || "")}</div></div>
-      <div class="m-acts"><button class="m-btn" data-a="perfil">${ic.perfil} Mi perfil</button>${puede("superadmin") ? `<a class="m-btn" href="#/usuarios">Usuarios</a>` : ""}<button class="m-btn" data-a="salir">${ic.salir} Cerrar sesión</button></div></div>` : ""}
-    ${S.perfil && puede("superadmin") ? `<div class="m-x m-usu"><a href="#/usuarios">Gestión de usuarios ›</a></div>` : ""}
-    ${S.perfil && herrs().length ? `<div class="m-x m-herr"><div class="code">Herramientas</div>${herrs().map(([h, t]) => `<a class="m-btn" href="${h}">${t}</a>`).join("")}</div>` : ""}
+      <div class="m-acts"><button class="m-btn" data-a="perfil">${ic.perfil} Mi perfil</button><button class="m-btn" data-a="salir">${ic.salir} Cerrar sesión</button></div></div>` : ""}
+    ${S.perfil && herrs().length ? `<div class="m-x m-herr"><div class="code">Más</div>${herrs().map(([h, t]) => `<a class="m-btn" href="${h}">${t}</a>`).join("")}</div>` : ""}
     <div class="m-opts">
     <label class="m-row"><span>Tema oscuro</span><input type="checkbox" class="sw" data-a="tema" ${temaActual() === "oscuro" ? "checked" : ""}></label>
     <label class="m-row"><span>Avisos parpadeantes</span><input type="checkbox" class="sw" data-a="neon" ${neonOn() ? "checked" : ""}></label>

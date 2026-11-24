@@ -383,7 +383,7 @@ async function route() {
   return vProyectos();
 }
 window.addEventListener("hashchange", route);
-iniciaCabecera({ S, sb, esc, toast, puede, verHerr, verInv, verPres, rerender: () => route() });
+iniciaCabecera({ S, sb, esc, toast, puede, verHerr, verInv, verPres, verCartera, verTv: () => ver("plan"), rerender: () => route() });
 
 async function arrancar(session) {
   S.user = session?.user || null;
