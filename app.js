@@ -46,7 +46,7 @@ const pagsDe = (rol, pags, gt) => { if (rol === "superadmin") return TODAS; cons
 const verCartera = () => !!S.perfil && S.perfil.aprobado && (S.perfil.rol === "superadmin" || !!S.perfil.ve_cartera);
 // Despiece: solo Oficina Técnica (ficha del grupo OT) y SuperAdmin
 const verDespiece = () => !!S.perfil && S.perfil.aprobado && (S.perfil.rol === "superadmin" || (S.operarios || []).some(o => o.id === S.perfil.operario_id && o.grupo === "OT"));
-// Herramientas de oficina (calculadora de melamina): Oficina Técnica, administración y superadmin
+// Herramientas de oficina (calculadora de paneles): Oficina Técnica, administración y superadmin
 const verHerr = () => verDespiece() || puede("admin");
 // Inventario: lo ve cualquier usuario aprobado (escriben administración y taller). Presupuestador: administración.
 const verInv = () => !!(S.perfil && S.perfil.aprobado);

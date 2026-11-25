@@ -1,4 +1,4 @@
-// Calculadora de melamina: cuántos tableros hacen falta para una lista de piezas.
+// Calculadora de paneles: cuántos tableros hacen falta para una lista de piezas.
 // Las piezas se cargan desde el despiece de un proyecto (estimación por cajas o paneles) o se meten a mano / pegando desde Excel.
 // El cálculo coloca las piezas en tableros con un algoritmo MaxRects (mejor ajuste por lado corto), con margen de corte y recorte perimetral.
 
@@ -93,7 +93,7 @@ export async function vMelamina(ctx) {
         <figcaption>Tablero ${i + 1} · ${fmt(t.puestas.reduce((s, c) => s + c.it.l * c.it.a, 0) / (st.L * st.A) * 100)} %</figcaption></figure>`;
     };
     $app.innerHTML = `
-    <div class="pj-top"><h1 class="h1">Calculadora de melamina<span class="cur">_</span></h1></div>
+    <div class="pj-top"><h1 class="h1">Calculadora de paneles<span class="cur">_</span></h1></div>
     <p class="hint">Calcula cuántos tableros hacen falta. Carga las piezas desde el despiece de un proyecto o mételas a mano (también puedes pegarlas desde Excel). Lo que metas se guarda en este dispositivo.</p>
 
     <div class="mgrid">
@@ -168,7 +168,7 @@ export async function vMelamina(ctx) {
       res.forEach(r => filas.push([r.mat, r.uds, r.m2.toFixed(2).replace(".", ","), r.nT, r.aprov.toFixed(0), r.pedir]));
       filas.push([], ["Tablero", `${st.L} x ${st.A} mm`, "Sierra", `${st.kerf} mm`, "Recorte", `${st.recorte} mm`]);
       const csv = "﻿" + filas.map(f => f.map(v => `"${String(v ?? "").replace(/"/g, '""')}"`).join(";")).join("\n");
-      const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); a.download = "melamina.csv"; a.click();
+      const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); a.download = "paneles.csv"; a.click();
     };
   };
   pinta();

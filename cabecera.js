@@ -80,7 +80,7 @@ const herrs = () => [
   api?.verInv?.() && ["#/inventario", "▤ Inventario"],
   api?.verCartera?.() && ["#/cartera", "◫ Cartera"],
   api?.verPres?.() && ["#/presupuestos", "€ Presupuestador"],
-  api?.verHerr?.() && ["#/melamina", "▦ Calculadora de melamina"],
+  api?.verHerr?.() && ["#/melamina", "▦ Calculadora de paneles"],
   api?.verTv?.() && ["#/tv", "▭ Pantalla de taller (TV)"],
   api?.puede?.("superadmin") && ["#/usuarios", "◎ Usuarios"],
 ].filter(Boolean);
