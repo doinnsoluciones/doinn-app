@@ -3,6 +3,9 @@ const HORAS = ["—", ...Array.from({ length: 48 }, (_, i) => `${String(Math.flo
 const ESTADOS = ["En preparación", "En taller", "Cargado", "Cerrado"];
 const ESTADOS_COM = ["Pendiente", "Confirmado", "Cancelado"];
 const MAY = s => (s ?? "").trim().toUpperCase();
+// Tipos de vehículo (tarifa de transporte): un proyecto puede llevar varios, cada uno con su hora
+const VEHICULOS = ["FURGONETA 12 M³", "CAMIÓN 4 M", "CAMIÓN 6 M", "CAMIÓN 7 M", "CAMIÓN 8 M", "CAMIÓN 9 M", "TRÁILER 13 M", "TRÁILER 13 M CON TRAMPILLA"];
+export const vehTxt = vs => (vs || []).filter(x => x && x.tipo).map(x => x.tipo + (x.hora ? " · " + x.hora : "")).join(" + ");
 const sumaDias = (s, n) => { if (!s) return null; const d = new Date(s + "T00:00:00"); d.setDate(d.getDate() + n); return d.toLocaleDateString("sv-SE"); };
 
 // Limpia el enlace de SharePoint ("Copiar vínculo" o barra de direcciones) a una ruta directa
@@ -92,7 +95,7 @@ export function vFicha(ctx, p) {
   <div class="card frm">
     <h2>3 · Transporte y destino</h2>
     <label>Ubicación del evento<input id="ubicacion" value="${v("ubicacion")}"></label>
-    <label>Tipo de vehículo<input id="tipo_vehiculo" value="${v("tipo_vehiculo")}"></label>
+    <div class="vehs"><div class="vh-t">Vehículos <small>tipo y hora de cada uno</small></div><div id="vehs"></div><button type="button" class="btn sm ghost" id="bveh">+ Añadir vehículo</button></div>
     <label>Necesidades especiales<textarea id="necesidades" rows="3">${v("necesidades")}</textarea></label>
   </div>
   <div class="acts">
@@ -118,6 +121,21 @@ export function vFicha(ctx, p) {
     pon("fecha_descarga", sumaDias($("fecha_desmontaje").value, 1));
     proponCod();
   };
+  // Vehículos: filas «Vehículo N» con tipo (desplegable) y hora
+  const vehIni = Array.isArray(p.vehiculos) && p.vehiculos.length ? p.vehiculos : p.tipo_vehiculo ? [{ tipo: p.tipo_vehiculo, hora: null }] : [{ tipo: "", hora: null }];
+  const bPrev = lsB.get(BKEY(nuevo ? null : p));
+  const nPrev = bPrev && bPrev.d ? Math.max(0, ...Object.keys(bPrev.d).filter(k => /^veh_t_\d+$/.test(k)).map(k => +k.slice(6) + 1)) : 0;
+  let nVeh = 0;
+  const filaVeh = (x = {}) => {
+    const i = nVeh++, tipos = x.tipo && !VEHICULOS.includes(x.tipo) ? [...VEHICULOS, x.tipo] : VEHICULOS;
+    const d = document.createElement("div"); d.className = "vh-row"; d.dataset.i = i;
+    d.innerHTML = `<span class="vh-n">Vehículo ${i + 1}</span><select id="veh_t_${i}"><option value="">Elige tipo…</option>${tipos.map(t => `<option ${t === x.tipo ? "selected" : ""}>${esc(t)}</option>`).join("")}</select>${sel("veh_h_" + i, HORAS, x.hora)}<button type="button" class="vh-x" title="Quitar vehículo" aria-label="Quitar vehículo">×</button>`;
+    d.querySelector(".vh-x").onclick = () => { d.remove(); [...$("vehs").children].forEach((r, k) => r.querySelector(".vh-n").textContent = `Vehículo ${k + 1}`); $("ff").dispatchEvent(new Event("change")); };
+    $("vehs").appendChild(d);
+  };
+  vehIni.forEach(filaVeh); while (nVeh < nPrev) filaVeh();
+  $("bveh").onclick = () => { filaVeh(); $("veh_t_" + (nVeh - 1)).focus(); };
+  const leeVeh = () => [...$("vehs").children].map(r => { const i = r.dataset.i, t = $("veh_t_" + i).value, h = $("veh_h_" + i).value; return t ? { tipo: t, hora: h !== "—" ? h : null } : null; }).filter(Boolean);
   const limpiaBorrador = borrador($("ff"), BKEY(nuevo ? null : p), $("borr"));
   // Código propuesto: AAMMDD de la fecha del evento + siguiente número libre de ese día
   let codAuto = nuevo && !p.codigo ? "" : null;
@@ -148,7 +166,7 @@ export function vFicha(ctx, p) {
       codigo, nombre: MAY($("nombre").value), cliente: MAY($("cliente").value) || null,
       front_id: front.id, front_nombre: front.nombre, estado: $("estado").value, estado_com: $("estado_com").value,
       carpeta: limpiaCarpeta($("carpeta").value),
-      ubicacion: MAY($("ubicacion").value) || null, tipo_vehiculo: MAY($("tipo_vehiculo").value) || null,
+      ubicacion: MAY($("ubicacion").value) || null, vehiculos: leeVeh(), tipo_vehiculo: vehTxt(leeVeh()) || null,
       necesidades: MAY($("necesidades").value) || null, updated_at: new Date().toISOString(),
     };
     for (const [, , hay, d1, d2, h, t] of FASES) {
