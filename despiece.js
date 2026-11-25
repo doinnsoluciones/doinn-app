@@ -8,6 +8,9 @@ const fasesTxt = arr => arr.length ? "|" + arr.join("|") + "|" : null;
 const tiene = (l, f) => (l || "").includes("|" + f + "|");
 const ETIQ = "https://doinnsoluciones.github.io/Etiquetas/";
 const ORIGENES = ["Fabricación", "Almacén"];
+const ORI_TXT = { "Fabricación": "Fabricación ad hoc", "Almacén": "Almacén (inventario)" };
+const V = new URL(import.meta.url).search;
+const esAlm = o => origenTxt(o) === "Almacén";
 export const origenTxt = o => !o ? "Fabricación" : o === "Inventario" ? "Almacén" : o;
 // Colores RAL: se guardan como "9010|7016"; muestra con su color aproximado
 const RAL_HEX = { 1013: "#E3D9C6", 1015: "#E6D2B5", 1018: "#F3DA0B", 1021: "#EEC900", 1023: "#F0CA00", 2004: "#E25303", 2008: "#F67828", 3000: "#A72920", 3003: "#8D1D2C", 3020: "#C1121C", 4005: "#76689A", 5002: "#00387B", 5005: "#005387", 5010: "#004F7C", 5012: "#0089B6", 5015: "#007CB0", 5017: "#005B8C", 6005: "#0F4336", 6018: "#48A43F", 6029: "#007243", 7001: "#8C969D", 7004: "#9B9B9B", 7011: "#52595D", 7012: "#575D5E", 7015: "#51565C", 7016: "#383E42", 7021: "#2F3234", 7022: "#4C4A44", 7024: "#474A50", 7030: "#939388", 7035: "#CBD0CC", 7036: "#9A9697", 7038: "#B0B0A9", 7040: "#9DA3A6", 7042: "#8F9695", 7046: "#82898E", 7047: "#D0D0D0", 8014: "#4A3526", 8017: "#45302B", 8019: "#3D3635", 9001: "#E9E0D2", 9002: "#D7D5CB", 9003: "#ECECE7", 9004: "#2B2B2C", 9005: "#0A0A0A", 9006: "#A5A8A6", 9007: "#8F8F8C", 9010: "#F1ECE1", 9011: "#1C1C1C", 9016: "#F1F0EA", 9017: "#29292A", 9018: "#C8CBC4" };
@@ -133,7 +136,7 @@ export async function vElementoForm(ctx, p, eid) {
   // «copia-ID»: elemento nuevo con los datos de otro, para editar solo lo que cambia
   const copiaDe = String(eid).startsWith("copia-") ? d.els.find(e => e.id === +String(eid).slice(6)) : null;
   const nuevo = eid === "nuevo" || !!copiaDe;
-  const LIMPIA = ["id", "num_item", "referencia", "estado_doc", "estado_fab", "estado_carga", "fecha_doc", "por_doc", "operario_fab", "fases_hechas", "hist_fases", "incidencia", "camion", "orden_carga", "ubicacion_nave", "orden", "revision_fecha", "created_at", "updated_at"];
+  const LIMPIA = ["id", "inv_reserva", "num_item", "referencia", "estado_doc", "estado_fab", "estado_carga", "fecha_doc", "por_doc", "operario_fab", "fases_hechas", "hist_fases", "incidencia", "camion", "orden_carga", "ubicacion_nave", "orden", "revision_fecha", "created_at", "updated_at"];
   const sinCampos = (o, ks) => { const c = { ...o }; ks.forEach(k => delete c[k]); return c; };
   const x = copiaDe ? sinCampos(copiaDe, LIMPIA) : eid === "nuevo" ? { cantidad: 1, origen: "Fabricación", fases: "|Corte|Carpintería|" } : d.els.find(e => e.id === +eid);
   if (!x) { $app.innerHTML = `<div class="empty">Elemento no encontrado.</div>`; return; }
@@ -142,6 +145,14 @@ export async function vElementoForm(ctx, p, eid) {
   let subs = (copiaDe ? d.subs.filter(s => s.elemento_id === copiaDe.id).map(s => sinCampos(s, ["id", "elemento_id", "titulo", "terminado", "fases_hechas"])) : nuevo ? [] : d.subs.filter(s => s.elemento_id === x.id).map(s => ({ ...s })));
   subs.forEach(s => { if (s.origen === "Inventario") s.origen = "Almacén"; });
   let conSub = copiaDe ? subs.length > 0 : nuevo ? false : (x.tiene_sub || subs.length > 0);
+  // Inventario (elementos de almacén): modelos y disponibilidad en las fechas del proyecto
+  let INV = null, invMod = null;
+  try { invMod = await import("./inventario.js" + V); INV = await invMod.invDatos(sb); } catch { INV = null; }
+  const pd1 = invMod && invMod.invIni(p), pd2 = invMod && invMod.invFin(p);
+  const modelos = INV ? INV.mods.filter(m => m.activo !== false) : [];
+  const libresDe = id => INV && id && pd1 ? invMod.invLibres(ctx.S, INV, +id, pd1, pd2 || pd1, p.id) : null;
+  const selInv = (attr, val) => `<label>Elemento del inventario *<select ${attr}><option value="">Elige del inventario…</option>${modelos.map(m => { const l = libresDe(m.id); return `<option value="${m.id}" ${+val === m.id ? "selected" : ""}>${esc(m.nombre)}${l ? ` · ${l.libres} libres de ${l.total}` : ""}</option>`; }).join("")}</select></label>`;
+  const avisoInv = (id, n) => { if (!id) return ""; const l = libresDe(id); if (!l) return `<div class="hint">El proyecto no tiene fechas: se reservará cuando las tenga.</div>`; return `<div class="${l.libres < n ? "invko" : "invok"}">${l.libres < n ? `⚠ Solo hay ${l.libres} libres en las fechas del proyecto y necesitas ${n}` : `✓ ${l.libres} libres en las fechas del proyecto (necesitas ${n})`}</div>`; };
   const v = k => esc(x[k] ?? "");
   const chkF = (pref, val) => FASES.map(f => `<label class="ck"><input type="checkbox" data-f="${pref}" value="${f}" ${tiene(val, f) ? "checked" : ""}> ${f}</label>`).join("");
 
@@ -152,7 +163,8 @@ export async function vElementoForm(ctx, p, eid) {
     <form id="fe" class="card frm" autocomplete="off">
       <div class="two"><label>Nombre *<input id="e_nom" value="${v("elemento")}" required></label>
       <label>Unidades *<input id="e_cant" type="number" min="1" value="${x.cantidad || 1}" required></label></div>
-      <label>Origen<select id="e_ori">${ORIGENES.map(o => `<option ${o === (x.origen || "Fabricación") ? "selected" : ""}>${o}</option>`).join("")}</select></label>
+      <label>Origen<select id="e_ori">${ORIGENES.map(o => `<option value="${o}" ${o === (x.origen || "Fabricación") ? "selected" : ""}>${ORI_TXT[o]}</option>`).join("")}</select></label>
+      ${!conSub && esAlm(x.origen) ? `${selInv('id="e_inv"', x.inv_modelo_id)}<div data-av="e">${avisoInv(x.inv_modelo_id, x.cantidad || 1)}</div><p class="hint">De almacén: no pasa por fabricación. Al guardar se reserva en Inventario para las fechas del proyecto.</p>` : ""}
       <div class="code" style="margin-top:6px">Medidas en mm <small>(opcional)</small></div>
       <div class="three med"><label>Alto<input id="e_h" type="number" value="${v("alto")}"></label><label>Ancho<input id="e_a" type="number" value="${v("ancho")}"></label><label>Fondo<input id="e_l" type="number" value="${v("largo")}"></label></div>
       <label>Observaciones<textarea id="e_obs" rows="2">${v("observaciones")}</textarea></label>
@@ -164,12 +176,12 @@ export async function vElementoForm(ctx, p, eid) {
         <div class="subf" data-i="${i}">
           <div class="pj-top"><b>Subelemento ${i + 1}</b><button type="button" class="link" data-del="${i}">Quitar</button></div>
           <div class="two"><label>Nombre<input data-s="desc_sub" value="${esc(s.desc_sub || "")}"></label><label>Nº de piezas<input data-s="cantidad" type="number" min="1" value="${s.cantidad || 1}"></label></div>
-          <div class="two"><label>Origen<select data-s="origen">${ORIGENES.map(o => `<option ${o === (s.origen || "Fabricación") ? "selected" : ""}>${o}</option>`).join("")}</select></label><label>Acabado<input data-s="acabado" value="${esc(s.acabado || "")}"></label></div>
-          <label>Color RAL <small>(uno o varios)</small><div class="ralbox" data-sral="${i}"></div></label>
-          <div class="fasesck">${chkF("s" + i, s.fases)}</div>
+          <div class="two"><label>Origen<select data-s="origen" data-ori="${i}">${ORIGENES.map(o => `<option value="${o}" ${o === (s.origen || "Fabricación") ? "selected" : ""}>${ORI_TXT[o]}</option>`).join("")}</select></label>${esAlm(s.origen) ? selInv(`data-s="inv_modelo_id" data-inv="${i}"`, s.inv_modelo_id) : `<label>Acabado<input data-s="acabado" value="${esc(s.acabado || "")}"></label>`}</div>
+          ${esAlm(s.origen) ? `<div data-av="${i}">${avisoInv(s.inv_modelo_id, (+s.cantidad || 1) * (x.cantidad || 1))}</div><p class="hint">De almacén: sin fases de fabricación. Nº de piezas = por cada unidad del elemento.</p>` : `<label>Color RAL <small>(uno o varios)</small><div class="ralbox" data-sral="${i}"></div></label>
+          <div class="fasesck">${chkF("s" + i, s.fases)}</div>`}
         </div>`).join("")}</div>
         <button type="button" class="btn ghost wide" id="addsub">+ Añadir subelemento</button>`
-      : `<div class="two"><label>Acabado<input id="e_acab" value="${v("acabado")}"></label><label>Color RAL <small>(uno o varios)</small><div class="ralbox" id="e_ral"></div></label></div><div class="code">Fases de fabricación</div><div class="fasesck">${chkF("e", x.fases)}</div>`}
+      : esAlm(x.origen) ? "" : `<div class="two"><label>Acabado<input id="e_acab" value="${v("acabado")}"></label><label>Color RAL <small>(uno o varios)</small><div class="ralbox" id="e_ral"></div></label></div><div class="code">Fases de fabricación</div><div class="fasesck">${chkF("e", x.fases)}</div>`}
       <div class="acts" style="margin-top:14px"><button class="btn lime" type="submit" id="esave">${nuevo ? "Crear elemento" : "Guardar"}</button>
       ${nuevo ? "" : `<button class="btn ghost" type="button" id="ecopia" title="Crear un elemento nuevo con estos mismos datos">⧉ Copiar elemento</button><button class="btn red" type="button" id="edel">Eliminar</button>`}</div>
       ${nuevo ? "" : `<a class="btn ghost wide" target="_blank" rel="noopener" href="${urlEtiquetas(p, [x])}" style="margin-top:10px">Imprimir ${x.cantidad || 1} etiqueta${(x.cantidad || 1) > 1 ? "s" : ""} QR</a>`}
@@ -177,9 +189,20 @@ export async function vElementoForm(ctx, p, eid) {
     const $ = id => document.getElementById(id);
     if ($("e_ral")) cajaRal($("e_ral"), x.ral, t => x.ral = t);
     document.querySelectorAll("[data-sral]").forEach(b => { const s = subs[+b.dataset.sral]; cajaRal(b, s.ral, t => s.ral = t); });
-    const leeSubs = () => document.querySelectorAll(".subf").forEach(el => { const s = subs[+el.dataset.i]; el.querySelectorAll("[data-s]").forEach(i => s[i.dataset.s] = i.value); s.fases = fasesTxt([...el.querySelectorAll("input[data-f]:checked")].map(c => c.value)); });
-    const guardaCampos = () => { x.elemento = $("e_nom").value; x.cantidad = +$("e_cant").value || 1; x.origen = $("e_ori").value; x.largo = $("e_l").value; x.ancho = $("e_a").value; x.alto = $("e_h").value; x.observaciones = $("e_obs").value; x.plano_url = $("e_plano").value; x.revision = $("e_rev").value; x.es_extra = $("e_extra").checked; if ($("e_acab")) { x.acabado = $("e_acab").value; x.fases = fasesTxt([...document.querySelectorAll("input[data-f=e]:checked")].map(c => c.value)); } if (conSub) leeSubs(); };
+    const leeSubs = () => document.querySelectorAll(".subf").forEach(el => { const s = subs[+el.dataset.i]; el.querySelectorAll("[data-s]").forEach(i => s[i.dataset.s] = i.value); if (esAlm(s.origen)) s.fases = null; else if (el.querySelector("input[data-f]")) s.fases = fasesTxt([...el.querySelectorAll("input[data-f]:checked")].map(c => c.value)); });
+    const guardaCampos = () => { x.elemento = $("e_nom").value; x.cantidad = +$("e_cant").value || 1; x.origen = $("e_ori").value; x.largo = $("e_l").value; x.ancho = $("e_a").value; x.alto = $("e_h").value; x.observaciones = $("e_obs").value; x.plano_url = $("e_plano").value; x.revision = $("e_rev").value; x.es_extra = $("e_extra").checked; if ($("e_inv")) x.inv_modelo_id = $("e_inv").value ? +$("e_inv").value : null; if ($("e_acab")) { x.acabado = $("e_acab").value; x.fases = fasesTxt([...document.querySelectorAll("input[data-f=e]:checked")].map(c => c.value)); } if (conSub) leeSubs(); };
     $("e_sub").onchange = () => { guardaCampos(); conSub = $("e_sub").checked; if (conSub && !subs.length) subs.push({ cantidad: 1, origen: "Fabricación", fases: "|Corte|Carpintería|" }); pinta(); };
+    // Cambiar origen o elegir del inventario repinta (muestra/oculta fases y la disponibilidad); el nombre se propone del inventario
+    const nomInv = id => (modelos.find(m => m.id === +id) || {}).nombre || "";
+    $("e_ori").onchange = () => { guardaCampos(); if (!esAlm(x.origen) && !x.fases) x.fases = "|Corte|Carpintería|"; pinta(); };
+    if ($("e_inv")) $("e_inv").onchange = () => { guardaCampos(); if (!x.elemento) x.elemento = nomInv(x.inv_modelo_id); pinta(); };
+    document.querySelectorAll("[data-ori]").forEach(sl => sl.onchange = () => { guardaCampos(); const s = subs[+sl.dataset.ori]; if (!esAlm(s.origen) && !s.fases) s.fases = "|Corte|Carpintería|"; pinta(); });
+    // Cambiar cantidades repinta la disponibilidad del almacén
+    const hayAlm = () => (!conSub && esAlm(x.origen)) || (conSub && subs.some(s => esAlm(s.origen)));
+    const refrescaAv = () => { if (!hayAlm()) return; guardaCampos(); const e = document.querySelector('[data-av="e"]'); if (e) e.innerHTML = avisoInv(x.inv_modelo_id, x.cantidad || 1); subs.forEach((s, i) => { const b = document.querySelector(`[data-av="${i}"]`); if (b) b.innerHTML = avisoInv(s.inv_modelo_id, (+s.cantidad || 1) * (x.cantidad || 1)); }); };
+    $("e_cant").addEventListener("input", refrescaAv);
+    document.querySelectorAll(".subf [data-s=cantidad]").forEach(i => i.addEventListener("input", refrescaAv));
+    document.querySelectorAll("[data-inv]").forEach(sl => sl.onchange = () => { guardaCampos(); const s = subs[+sl.dataset.inv]; if (!s.desc_sub) s.desc_sub = nomInv(s.inv_modelo_id); pinta(); });
     $("e_extra").onchange = () => $("e_extra").nextElementSibling.nextElementSibling.textContent = $("e_extra").checked ? "Sí" : "No";
     const as = $("addsub"); if (as) as.onclick = () => { guardaCampos(); subs.push({ cantidad: 1, origen: "Fabricación", fases: "|Corte|Carpintería|" }); pinta(); };
     document.querySelectorAll("[data-del]").forEach(b => b.onclick = () => { guardaCampos(); subs.splice(+b.dataset.del, 1); pinta(); });
@@ -199,21 +222,26 @@ export async function vElementoForm(ctx, p, eid) {
 async function guardar(ctx, p, d, x, subs, nuevo, revOrig = null) {
   const { sb, toast, S } = ctx;
   if (!MAY(x.elemento)) return toast("Falta el nombre");
+  const almEl = esAlm(x.origen) && !subs.length;
+  if (almEl && !x.inv_modelo_id) return toast("Elige el elemento del inventario");
+  if (subs.some(s => esAlm(s.origen) && !s.inv_modelo_id)) return toast("Elige del inventario en los subelementos de almacén");
   const usados = new Set(d.els.filter(e => e.id !== x.id).map(e => e.num_item));
   let n = x.num_item; if (!n) { n = 1; while (usados.has(n)) n++; }
   const ref = `${p.codigo}-${pad(n)}`;
-  const fasesEl = subs.length ? null : x.fases;
+  const fasesEl = subs.length || almEl ? null : x.fases;
   const row = {
     proyecto_id: p.id, num_item: n, referencia: ref, elemento: MAY(x.elemento), cantidad: x.cantidad, origen: x.origen,
     taller: x.taller || null, zona: MAY(x.zona) || null, material: MAY(x.material) || null, acabado: subs.length ? null : (MAY(x.acabado) || null), ral: subs.length ? null : (x.ral || null),
     largo: num(x.largo), ancho: num(x.ancho), alto: num(x.alto), observaciones: MAY(x.observaciones) || null,
     plano_url: (x.plano_url || "").trim() || null, revision: MAY(x.revision) || null,
     es_extra: !!x.es_extra, tiene_sub: subs.length > 0, fases: fasesEl, pasa_pintura: tiene(fasesEl, "Pintura") || subs.some(s => tiene(s.fases, "Pintura")),
-    num_etiquetas: x.cantidad, updated_at: new Date().toISOString(),
+    num_etiquetas: x.cantidad, updated_at: new Date().toISOString(), inv_modelo_id: almEl ? +x.inv_modelo_id : null,
   };
   // Revisión del plano cambiada respecto a la que tenía al abrir el formulario → se guarda la fecha (activa el aviso al taller)
   if (row.revision && row.revision !== (revOrig ? MAY(revOrig) : null)) row.revision_fecha = new Date().toISOString();
   if (nuevo) Object.assign(row, { estado_doc: "Pendiente", estado_fab: "Pendiente", estado_carga: "Pendiente", fecha_pedido_extra: x.es_extra ? new Date().toLocaleDateString("sv-SE") : null });
+  // De almacén (sin subelementos): no necesita documentación ni fabricación → queda listo para cargar
+  if (almEl && (nuevo || x.estado_doc !== "Hecho")) Object.assign(row, { estado_doc: "Hecho", fecha_doc: new Date().toISOString(), por_doc: "Almacén" });
   const r = nuevo ? await sb.from("elementos").insert(row).select().single() : await sb.from("elementos").update(row).eq("id", x.id).select().single();
   if (r.error) return toast("No se pudo guardar: " + r.error.message);
   const el = r.data;
@@ -223,7 +251,7 @@ async function guardar(ctx, p, d, x, subs, nuevo, revOrig = null) {
   if (quitar.length) await sb.from("subelementos").delete().in("id", quitar);
   for (let i = 0; i < subs.length; i++) {
     const s = subs[i];
-    const sr = { elemento_id: el.id, proyecto_id: p.id, num_sub: i + 1, total_sub: subs.length, titulo: `${ref}-S${i + 1}`, desc_sub: MAY(s.desc_sub) || `SUBELEMENTO ${i + 1}`, cantidad: +s.cantidad || 1, origen: s.origen || "Fabricación", acabado: MAY(s.acabado) || null, ral: s.ral || null, fases: s.fases || null, pasa_pintura: tiene(s.fases, "Pintura") };
+    const sr = { elemento_id: el.id, proyecto_id: p.id, num_sub: i + 1, total_sub: subs.length, titulo: `${ref}-S${i + 1}`, desc_sub: MAY(s.desc_sub) || `SUBELEMENTO ${i + 1}`, cantidad: +s.cantidad || 1, origen: s.origen || "Fabricación", acabado: esAlm(s.origen) ? null : MAY(s.acabado) || null, ral: esAlm(s.origen) ? null : s.ral || null, fases: esAlm(s.origen) ? null : s.fases || null, pasa_pintura: !esAlm(s.origen) && tiene(s.fases, "Pintura"), inv_modelo_id: esAlm(s.origen) ? +s.inv_modelo_id : null, ...(esAlm(s.origen) ? { terminado: true, fecha_term: s.terminado ? s.fecha_term : new Date().toISOString(), operario_term: s.terminado ? s.operario_term : "Almacén" } : {}) };
     const q = s.id ? await sb.from("subelementos").update(sr).eq("id", s.id) : await sb.from("subelementos").insert(sr);
     if (q.error) return toast("Error en subelemento " + (i + 1) + ": " + q.error.message);
   }
@@ -234,7 +262,11 @@ async function guardar(ctx, p, d, x, subs, nuevo, revOrig = null) {
   else if (sobran.length) await sb.from("piezas").delete().in("id", sobran.map(z => z.id));
   const nuevas = [];
   for (let i = 1; i <= el.cantidad; i++) if (!pz.some(z => z.num_pieza === i)) nuevas.push({ elemento_id: el.id, proyecto_id: p.id, num_pieza: i, total_piezas: el.cantidad, referencia: `${ref}-P${i}`, desc_pieza: el.elemento, taller: el.taller === "Cerrajería" ? "Calderería" : "Carpintería", pasa_pintura: el.pasa_pintura });
+  if (almEl) nuevas.forEach(z => Object.assign(z, { fabricada: true, fecha_fab: new Date().toISOString(), operario_fab: "Almacén" }));
   if (nuevas.length) { const q = await sb.from("piezas").insert(nuevas); if (q.error) return toast("Error creando QR: " + q.error.message); }
+  if (almEl) await sb.from("piezas").update({ fabricada: true, fecha_fab: new Date().toISOString(), operario_fab: "Almacén" }).eq("elemento_id", el.id).eq("fabricada", false);
+  // Reserva en Inventario de lo que sale del almacén (se rehace en cada guardado; al borrar el elemento se borra sola)
+  const reservaAviso = await reservaAlmacen(ctx, p, el, almEl ? [{ inv_modelo_id: +x.inv_modelo_id, n: el.cantidad }] : subs.filter(s => esAlm(s.origen)).map(s => ({ inv_modelo_id: +s.inv_modelo_id, n: (+s.cantidad || 1) * el.cantidad })));
   await sb.from("piezas").update({ total_piezas: el.cantidad, desc_pieza: el.elemento }).eq("elemento_id", el.id);
   // recalcula fabricación según unidades
   const { data: todas } = await sb.from("piezas").select("fabricada").eq("elemento_id", el.id);
@@ -242,8 +274,24 @@ async function guardar(ctx, p, d, x, subs, nuevo, revOrig = null) {
   const est = hechas && hechas >= el.cantidad ? "Hecho" : hechas ? "En curso" : (el.estado_fab === "Hecho" ? "En curso" : el.estado_fab);
   if (est !== el.estado_fab) await sb.from("elementos").update({ estado_fab: est }).eq("id", el.id);
   S.dirty = true;
-  toast(nuevo ? `Elemento ${pad(n)} creado` : "Elemento guardado");
+  toast((nuevo ? `Elemento ${pad(n)} creado` : "Elemento guardado") + (reservaAviso ? " · " + reservaAviso : ""));
   return true;
+}
+
+async function reservaAlmacen(ctx, p, el, lineas) {
+  const { sb, S } = ctx;
+  const q = await sb.from("inv_reservas").delete().eq("elemento_id", el.id);
+  if (q.error) return "no se pudo actualizar la reserva de inventario";
+  const porModelo = new Map(); lineas.filter(l => l.inv_modelo_id).forEach(l => porModelo.set(l.inv_modelo_id, (porModelo.get(l.inv_modelo_id) || 0) + l.n));
+  if (!porModelo.size) return "";
+  let inv; try { inv = await import("./inventario.js" + V); } catch { return "no se pudo reservar en inventario"; }
+  const d1 = inv.invIni(p), d2 = inv.invFin(p) || d1;
+  if (!d1) return "sin fechas en el proyecto: no se ha reservado en inventario";
+  const D = await inv.invDatos(sb), faltas = [];
+  for (const [id, n] of porModelo) { const l = inv.invLibres(S, D, id, d1, d2, p.id); if (l.libres < n) faltas.push(`${(D.mods.find(m => m.id === id) || {}).nombre || "elemento"}: ${l.libres} libres de ${n}`); }
+  const r = await sb.from("inv_reservas").insert([...porModelo].map(([id, n]) => ({ modelo_id: id, proyecto_id: p.id, elemento_id: el.id, cantidad: n, desde: d1, hasta: d2, nota: `Despiece ${el.referencia} · ${el.elemento}`, usuario: (S.perfil && S.perfil.nombre) || "Despiece" })));
+  if (r.error) return "no se pudo reservar en inventario: " + r.error.message;
+  return faltas.length ? `⚠ reservado en inventario, pero falta material (${faltas.join("; ")})` : "reservado en inventario";
 }
 
 // ---------- importar listado Excel (plantilla "Listado de elementos") ----------

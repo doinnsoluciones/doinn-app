@@ -1001,3 +1001,4 @@ body::before{content:"";position:fixed;top:0;left:0;right:0;height:env(safe-area
 .g-hv{visibility:hidden}
 @media (max-width:640px){.g-veh{margin:-4px 0 10px 10px;padding-left:10px;border-left:2px solid var(--line)}.g-veh .vh-row{grid-template-columns:minmax(0,1fr) 64px 40px;grid-template-areas:"n n x" "t t t" "p h h"}.g-veh .vh-row .vh-n{grid-area:n}.g-veh .vh-row select[id*="_t_"]{grid-area:t}.g-veh .vh-row select[id*="_h_"]{grid-area:h}.g-veh .vh-row .vh-p{grid-area:p}.g-veh .vh-row .vh-x{grid-area:x;height:40px;width:40px}.g-veh .vh-add{display:block}.g-hv{display:none}}
 .cfl{font-size:12px;color:var(--muted);font-weight:600;align-self:center;margin-right:2px}
+.invok,.invko{font-size:13px;margin:-4px 0 8px;font-weight:600}.invok{color:var(--ok-t)}.invko{color:#B42318}

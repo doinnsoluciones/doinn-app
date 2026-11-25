@@ -424,3 +424,6 @@ async function vMovs(ctx, d) {
   const el = document.getElementById("imv"); if (!el) return;
   el.innerHTML = error ? esc(error.message) : (data || []).map(v => movFila(ctx, d, v)).join("") || `<div class="code">Aún no hay movimientos.</div>`;
 }
+
+// Para el despiece: elementos de almacén dentro de un elemento (disponibilidad y reserva por fechas del proyecto)
+export { datos as invDatos, libres as invLibres, ini as invIni, fin as invFin };
