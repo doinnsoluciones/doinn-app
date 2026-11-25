@@ -148,19 +148,23 @@ export async function vCartera(ctx) {
     const grupos = []; vis.forEach(p => { const m = p.evento_inicio ? p.evento_inicio.slice(0, 7) : "sin"; let g = grupos.find(x => x.m === m); if (!g) grupos.push(g = { m, ps: [] }); g.ps.push(p); });
     grupos.sort((a, b) => a.m.localeCompare(b.m) * (st.ord === "fecha" ? st.dir : 1));
     const rot = m => m === "sin" ? "Sin fecha" : `${MESES[+m.slice(5, 7) - 1]} ${m.slice(0, 4)}`;
+    // Un solo criterio para todos los importes: los estados marcados (por defecto Confirmado + Pendiente); lo cancelado no suma
+    const EST_SUMA = st.est.filter(e => e !== "Cancelado"), suma_ = p => EST_SUMA.includes(p.estado_com);
+    const txtSuma = EST_SUMA.length === 2 ? "confirmada + pendiente" : EST_SUMA.length ? EST_SUMA[0].toLowerCase() : "";
     // tira mes a mes (solo con un año concreto)
     const mesHoy = hoy.slice(0, 7);
     const tira = st.anio === "todos" ? "" : `<div class="cmes">${MESES.map((n, i) => {
       const mm = String(i + 1).padStart(2, "0"), clave = `${st.anio}-${mm}`;
       const ps = base.filter(p => (p.evento_inicio || "").startsWith(clave) && p.estado_com === "Confirmado");
       const re = ps.filter(p => p.evento_inicio <= hoy).length, prev = ps.length - re;
+      const psSuma = base.filter(p => (p.evento_inicio || "").startsWith(clave) && suma_(p)), imp = suma(psSuma, v);
       // Meses futuros: resumen de confirmados y pendientes
       const nPend = base.filter(p => (p.evento_inicio || "").startsWith(clave) && p.estado_com === "Pendiente").length;
       const resumen = clave > mesHoy
         ? (ps.length || nPend ? `<small>Confirmados: <b class="cn">${ps.length}</b></small><small>Pendientes: <b class="cn">${nPend}</b></small>` : `<small>sin eventos</small>`)
         : `<small>${re ? `${re} realizado${re > 1 ? "s" : ""}` : ""}${re && prev ? " · " : ""}${prev ? `${prev} previsto${prev > 1 ? "s" : ""}` : ""}${!ps.length ? "sin eventos" : ""}</small>`;
       return `<button class="cm ${st.meses.includes(mm) ? "on" : ""} ${clave === mesHoy ? "hoy" : ""} ${clave > mesHoy ? "fut" : ""}" data-mes="${mm}" title="Filtrar ${n}">
-        <span>${n.slice(0, 3)}</span><b title="${ps.length ? eur(suma(ps, v)) : ""}">${ps.length ? eurK(suma(ps, v)) : "—"}</b>${resumen}</button>`;
+        <span>${n.slice(0, 3)}</span><b title="${psSuma.length ? eur(imp) + " · venta " + txtSuma : ""}">${psSuma.length ? eurK(imp) : "—"}</b>${resumen}</button>`;
     }).join("")}</div>`;
     const selFront = p => `<select data-f="front" data-id="${p.id}" class="cfr" style="--c:${cF(p)}"><option value="">${p.front_id ? "—" : esc(p.front_nombre || "—")}</option>${fronts.map(f => `<option value="${f.id}" ${p.front_id === f.id ? "selected" : ""}>${esc(f.nombre)}</option>`).join("")}</select>`;
     // Por defecto la tabla es de solo lectura; «✎ Editar» activa los campos (salvo en modo Excel vivo)
@@ -195,12 +199,12 @@ export async function vCartera(ctx) {
     const hayFil = st.meses.length || st.desde || st.hasta || st.q || st.cli || st.front || st.anio !== anioHoy || st.est.join() !== "Confirmado,Pendiente";
     const todosPleg = grupos.length && grupos.every(g => st.pleg.includes(g.m));
     const grupo = g => {
-      const cerr = st.pleg.includes(g.m), cf = g.ps.filter(p => p.estado_com === "Confirmado");
-      return `<tr class="mes" data-g="${g.m}"><td colspan="5"><span class="tg">${cerr ? "▸" : "▾"}</span> ${rot(g.m)} <small class="code">${g.ps.length} proyecto${g.ps.length > 1 ? "s" : ""}${cf.length !== g.ps.length && cf.length ? ` · confirmado ${eur(suma(cf, v))}` : ""}</small></td><td class="nr">${eur(suma(g.ps, v))}</td><td class="nr">${sumaK(g.ps)}</td><td colspan="2"></td></tr>${cerr ? "" : g.ps.map(fila).join("")}`;
+      const cerr = st.pleg.includes(g.m), cf = g.ps.filter(p => p.estado_com === "Confirmado"), pe = g.ps.filter(p => p.estado_com === "Pendiente"), sm = g.ps.filter(suma_);
+      return `<tr class="mes" data-g="${g.m}"><td colspan="5"><span class="tg">${cerr ? "▸" : "▾"}</span> ${rot(g.m)} <small class="code">${g.ps.length} proyecto${g.ps.length > 1 ? "s" : ""}${EST_SUMA.length === 2 && cf.length && pe.length ? ` · confirmado ${eur(suma(cf, v))} · pendiente ${eur(suma(pe, v))}` : ""}</small></td><td class="nr">${eur(suma(sm, v))}</td><td class="nr">${sumaK(g.ps)}</td><td colspan="2"></td></tr>${cerr ? "" : g.ps.map(fila).join("")}`;
     };
     $app.innerHTML = `<div class="cart-top">${barraSync()}<div class="row" style="gap:8px;margin-left:auto"><button class="btn sm ghost" id="ccsv">Descargar Excel (CSV)</button>${vivo ? "" : `<button class="btn sm ${st.editar ? "" : "ghost"}" id="cedit">${st.editar ? "✓ Terminar edición" : "✎ Editar"}</button><button class="btn sm lime" id="cnew">+ Oportunidad</button>`}</div></div>
     <div class="kpis">
-      <div class="kpi"><span>Venta confirmada</span><b>${eur(suma(conf, v))}</b><small>${conf.length} proyectos</small></div>
+      <div class="kpi"><span>Venta ${txtSuma || "(marca Confirmado o Pendiente)"}</span><b>${eur(suma(vis.filter(suma_), v))}</b><small>${EST_SUMA.length === 2 ? `${eur(suma(conf, v))} confirmado · ${eur(suma(pend, v))} pendiente` : `${vis.filter(suma_).length} proyectos`}</small></div>
       <div class="kpi"><span>Eventos realizados</span><b>${real.length}</b><small>${eur(suma(real, v))} · ${conf.length - real.length} previstos</small></div>
       <div class="kpi"><span>Cartera pendiente</span><b>${eur(suma(pend, v))}</b><small>${pend.length} proyecto${pend.length === 1 ? "" : "s"} pendiente${pend.length === 1 ? "" : "s"}</small></div>
     </div>
@@ -216,7 +220,7 @@ export async function vCartera(ctx) {
     </div>
     <div class="cart-fil cleg">${fronts.map(f => `<button class="chip sm ${String(f.id) === st.front ? "on" : ""}" data-fr="${f.id}"><i style="background:${colF.get(f.id)}"></i>${esc(corto(f))}</button>`).join("")}<button class="chip sm ${st.front === "otros" ? "on" : ""}" data-fr="otros"><i style="background:#A0A8B0"></i>Externos y antiguos</button></div>
     <div class="cart-fil">
-      ${FILTROS.map(([f]) => `<button class="chip sm ${st.est.includes(f) ? "on" : ""}" data-est="${f}">${f}</button>`).join("")}
+      <span class="cfl" title="Lo marcado decide qué proyectos se ven y qué suman todos los importes (tira de meses, totales y KPI). Lo cancelado se ve pero no suma.">Importes de:</span>${FILTROS.map(([f]) => `<button class="chip sm ${st.est.includes(f) ? "on" : ""}" data-est="${f}">${f}</button>`).join("")}
       ${st.meses.length ? `<span class="cfm">Meses: ${st.meses.map(m => MESES[+m - 1].slice(0, 3)).join(", ")}</span>` : ""}
       <button class="btn sm ghost cbor" id="climp" ${hayFil ? "" : "disabled"}>✕ Borrar filtros</button>
       <span style="flex:1"></span>
@@ -224,7 +228,7 @@ export async function vCartera(ctx) {
     </div>
     <div class="gwrap cart-wrap"><table class="cart"><thead><tr>${th("fecha", "Fecha evento")}${th("nombre", "Proyecto")}${th("cliente", "Cliente")}${th("front", "Front")}${th("estado", "Estado")}${th("venta", "Venta", "nr")}${th("coste", "Coste est.", "nr")}${th("margen", "Margen", "nr")}${th("pct", "%", "nr")}</tr></thead>
     <tbody>${grupos.map(grupo).join("") || `<tr><td colspan="9" class="empty">No hay proyectos con estos filtros.</td></tr>`}</tbody>
-    <tfoot><tr><td colspan="5">Total (${vis.length})</td><td class="nr">${eur(suma(vis, v))}</td><td class="nr">${sumaK(vis)}</td><td colspan="2"></td></tr></tfoot></table></div>`;
+    <tfoot><tr><td colspan="5">Total venta ${txtSuma} (${vis.filter(suma_).length})</td><td class="nr">${eur(suma(vis.filter(suma_), v))}</td><td class="nr">${sumaK(vis)}</td><td colspan="2"></td></tr></tfoot></table></div>`;
 
     const $ = id => document.getElementById(id);
     const w = $app.querySelector(".cart-wrap");
