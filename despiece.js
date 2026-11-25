@@ -36,7 +36,9 @@ export function faltanFases(x, subs = []) {
   const de = o => FASES_ORD.filter(f => tiene(o.fases, f));
   const sin = o => de(o).filter(f => !tiene(o.fases_hechas, f));
   if (!subs.length) { const m = sin(x); return m.length ? [m.join(", ")] : []; }
-  return subs.map(s => { const n = `S${s.num_sub || ""} ${s.desc_sub || ""}`.trim(); if (!de(s).length) return s.terminado ? null : `${n} (sin marcar como listo)`; const m = sin(s); return m.length ? `${n}: ${m.join(", ")}` : null; }).filter(Boolean);
+  // En lenguaje de taller: «frontal: pintura» · «encimera: sin terminar»
+  const nom = s => { const t = (s.desc_sub || "").trim(); return t ? t.charAt(0) + t.slice(1).toLowerCase() : `Parte ${s.num_sub || ""}`.trim(); };
+  return subs.map(s => { const n = nom(s); if (!de(s).length) return s.terminado ? null : `${n}: sin terminar`; const m = sin(s); return m.length ? `${n}: ${m.join(", ").toLowerCase()}` : null; }).filter(Boolean);
 }
 // Orden visual del despiece (columna «orden»); sin orden, por número de elemento y al final
 export const ordenEl = (a, b) => (a.orden ?? 1e6 + (a.num_item || 0)) - (b.orden ?? 1e6 + (b.num_item || 0));
@@ -136,6 +138,7 @@ export async function vElementoForm(ctx, p, eid) {
   const x = copiaDe ? sinCampos(copiaDe, LIMPIA) : eid === "nuevo" ? { cantidad: 1, origen: "Fabricación", fases: "|Corte|Carpintería|" } : d.els.find(e => e.id === +eid);
   if (!x) { $app.innerHTML = `<div class="empty">Elemento no encontrado.</div>`; return; }
   if (x.origen === "Inventario") x.origen = "Almacén";
+  const revOrig = copiaDe || eid === "nuevo" ? null : (x.revision || null);
   let subs = (copiaDe ? d.subs.filter(s => s.elemento_id === copiaDe.id).map(s => sinCampos(s, ["id", "elemento_id", "titulo", "terminado", "fases_hechas"])) : nuevo ? [] : d.subs.filter(s => s.elemento_id === x.id).map(s => ({ ...s })));
   subs.forEach(s => { if (s.origen === "Inventario") s.origen = "Almacén"; });
   let conSub = copiaDe ? subs.length > 0 : nuevo ? false : (x.tiene_sub || subs.length > 0);
@@ -180,7 +183,7 @@ export async function vElementoForm(ctx, p, eid) {
     $("e_extra").onchange = () => $("e_extra").nextElementSibling.nextElementSibling.textContent = $("e_extra").checked ? "Sí" : "No";
     const as = $("addsub"); if (as) as.onclick = () => { guardaCampos(); subs.push({ cantidad: 1, origen: "Fabricación", fases: "|Corte|Carpintería|" }); pinta(); };
     document.querySelectorAll("[data-del]").forEach(b => b.onclick = () => { guardaCampos(); subs.splice(+b.dataset.del, 1); pinta(); });
-    $("fe").onsubmit = async ev => { ev.preventDefault(); guardaCampos(); $("esave").disabled = true; const ok = await guardar(ctx, p, d, x, conSub ? subs : [], nuevo); $("esave").disabled = false; if (ok) location.hash = `#/p/${p.id}/despiece`; };
+    $("fe").onsubmit = async ev => { ev.preventDefault(); guardaCampos(); $("esave").disabled = true; const ok = await guardar(ctx, p, d, x, conSub ? subs : [], nuevo, revOrig); $("esave").disabled = false; if (ok) location.hash = `#/p/${p.id}/despiece`; };
     const ec = $("ecopia"); if (ec) ec.onclick = () => location.hash = `#/p/${p.id}/desp/copia-${x.id}`;
     const de = $("edel"); if (de) de.onclick = async () => {
       if (d.pz.some(z => z.elemento_id === x.id && (z.fabricada || z.cargada)) && !confirm("Este elemento tiene unidades fabricadas o cargadas. ¿Eliminarlo igualmente?")) return;
@@ -193,7 +196,7 @@ export async function vElementoForm(ctx, p, eid) {
   pinta();
 }
 
-async function guardar(ctx, p, d, x, subs, nuevo) {
+async function guardar(ctx, p, d, x, subs, nuevo, revOrig = null) {
   const { sb, toast, S } = ctx;
   if (!MAY(x.elemento)) return toast("Falta el nombre");
   const usados = new Set(d.els.filter(e => e.id !== x.id).map(e => e.num_item));
@@ -208,8 +211,8 @@ async function guardar(ctx, p, d, x, subs, nuevo) {
     es_extra: !!x.es_extra, tiene_sub: subs.length > 0, fases: fasesEl, pasa_pintura: tiene(fasesEl, "Pintura") || subs.some(s => tiene(s.fases, "Pintura")),
     num_etiquetas: x.cantidad, updated_at: new Date().toISOString(),
   };
-  const ant = d.els.find(e => e.id === x.id);
-  if (row.revision && (!ant || (ant.revision || null) !== row.revision)) row.revision_fecha = new Date().toISOString();
+  // Revisión del plano cambiada respecto a la que tenía al abrir el formulario → se guarda la fecha (activa el aviso al taller)
+  if (row.revision && row.revision !== (revOrig ? MAY(revOrig) : null)) row.revision_fecha = new Date().toISOString();
   if (nuevo) Object.assign(row, { estado_doc: "Pendiente", estado_fab: "Pendiente", estado_carga: "Pendiente", fecha_pedido_extra: x.es_extra ? new Date().toLocaleDateString("sv-SE") : null });
   const r = nuevo ? await sb.from("elementos").insert(row).select().single() : await sb.from("elementos").update(row).eq("id", x.id).select().single();
   if (r.error) return toast("No se pudo guardar: " + r.error.message);
@@ -275,7 +278,7 @@ async function importar(ctx, p, file, d) {
     const ex = d.els.find(e => e.num_item === n);
     const fases = ["Corte", it.taller === "Cerrajería" ? "Cerrajería" : "Carpintería"].concat(it.pinta ? ["Pintura"] : []);
     const x = { ...(ex || {}), num_item: n, elemento: it.nombre, cantidad: it.uds, zona: it.zona, material: it.material, acabado: it.acabado, largo: it.largo, ancho: it.ancho, alto: it.alto, observaciones: it.obs, taller: it.taller, origen: (ex && ex.origen) || "Fabricación", fases: (ex && ex.fases) || fasesTxt(fases) };
-    await guardar({ ...ctx, toast: () => { } }, p, d, x, ex ? d.subs.filter(s => s.elemento_id === ex.id) : [], !ex);
+    await guardar({ ...ctx, toast: () => { } }, p, d, x, ex ? d.subs.filter(s => s.elemento_id === ex.id) : [], !ex, ex ? ex.revision : null);
     ex ? act++ : creados++;
     const dd = await leer(sb, p.id); d.els = dd.els; d.subs = dd.subs; d.pz = dd.pz;
   }

@@ -62,10 +62,10 @@ export async function vCarga(ctx, p, cont) {
           <select data-f="camion" ${editaLog ? "" : "disabled"}><option value="">Camión</option>${CAMIONES.map(c => `<option ${c === x.camion ? "selected" : ""}>${c}</option>`).join("")}</select>
           <input data-f="orden_carga" type="number" min="1" placeholder="Orden" value="${x.orden_carga ?? ""}" ${editaLog ? "" : "disabled"}>
           <input data-f="ubicacion_nave" placeholder="Ubicación nave" value="${esc(x.ubicacion_nave || "")}" ${editaLog ? "" : "disabled"}>
-          <button class="fzb ${ok ? "on" : ""}" data-car="${x.id}" ${editaLog ? "" : "disabled"}>${ok ? "✓ Cargado" : x.estado_carga === "Parcial" ? "Parcial" : "Cargar"}</button>
+          ${puede("superadmin") ? `<button class="fzb ${ok ? "on" : ""}" data-car="${x.id}" title="Corrección manual (solo SuperAdmin)">${ok ? "✓ Cargado" : x.estado_carga === "Parcial" ? "Parcial" : "Cargar a mano"}</button>` : `<span class="fzb ${ok ? "on" : ""}" style="cursor:default">${ok ? "✓ Cargado" : x.estado_carga === "Parcial" ? "Parcial" : "📷 Escanear"}</span>`}
         </div>
       </div>`; }).join("") || `<div class="code">Sin elementos.</div>`}
-    <p class="hint" style="margin-top:8px">También se carga escaneando cada etiqueta en Escanear › Cargar.</p>
+    <p class="hint" style="margin-top:8px">La carga se valida escaneando la etiqueta de cada unidad en <b>Escanear</b>.</p>
   </div>`;
 
   const $ = id => document.getElementById(id);
@@ -100,7 +100,8 @@ export async function vCarga(ctx, p, cont) {
   });
   cont.querySelectorAll("[data-car]").forEach(b => b.onclick = async () => {
     const x = d.els.find(e => e.id === +b.dataset.car), on = x.estado_carga !== "Cargado";
-    if (on && x.estado_fab !== "Hecho" && !confirm("Este elemento no está fabricado. ¿Marcarlo como cargado igualmente?")) return;
+    if (!puede("superadmin")) return toast("La carga se valida escaneando cada unidad.");
+    if (on && x.estado_fab !== "Hecho") return toast("Este elemento aún no está fabricado: no se puede cargar.");
     const now = new Date().toISOString();
     const { error } = await sb.from("elementos").update(on ? { estado_carga: "Cargado", fecha_cargado: now, operario_carga: yo } : { estado_carga: "Pendiente", fecha_cargado: null, operario_carga: null, piezas_cargadas: 0 }).eq("id", x.id);
     if (error) return toast(error.message);

@@ -89,7 +89,8 @@ export async function vElemento(ctx, p, eid) {
   const yo = (S.perfil && S.perfil.nombre) || (S.user.email || "").split("@")[0];
   const edita = puede("admin", "taller");
   // La documentación técnica solo la cambian Oficina Técnica y administración (el taller la ve en solo lectura)
-  const editaDoc = puede("admin") || (S.operarios || []).some(o => o.id === (S.perfil && S.perfil.operario_id) && o.grupo === "OT");
+  // Documentación técnica y qué fases lleva cada elemento: solo Oficina Técnica (ficha OT vinculada) y SuperAdmin
+  const editaDoc = puede("superadmin") || (S.operarios || []).some(o => o.id === (S.perfil && S.perfil.operario_id) && o.grupo === "OT");
   const recarga = () => vElemento(ctx, p, eid);
   const upd = async (tabla, id, cambios, msg) => {
     const { error } = await sb.from(tabla).update(cambios).eq("id", id);
@@ -112,7 +113,7 @@ export async function vElemento(ctx, p, eid) {
   const iSel = FASES3.findIndex(f => f.k === sel);
   const TXT = { done: "Hecho", run: "En curso", pend: "Pendiente" };
   const LBL = f => f === "Cerrajería" ? "Calderería" : f;
-  const editF = !!S.elEditF && edita;
+  const editF = !!S.elEditF && editaDoc;
   // Subfases de fabricación: salen las 4; solo las del elemento están activas. Tocar: pendiente → en curso → hecho
   const subfases = (obj, tipo, lock) => {
     const fs = fasesDe(obj);
@@ -134,7 +135,7 @@ export async function vElemento(ctx, p, eid) {
     det = `
       ${subs.length ? subs.map(s => `<div class="sfsub"><div class="pj-top"><div><b>${esc(s.desc_sub || s.titulo)}</b><div class="code">${[`${s.cantidad || 1} pieza${(s.cantidad || 1) > 1 ? "s" : ""}`, origenTxt(s.origen), s.acabado].filter(Boolean).map(esc).join(" · ")} ${ralChips(s.ral, esc)}</div></div>${fasesDe(s).length || editF ? "" : `<button class="fzb ${s.terminado ? "on" : ""}" data-term="${s.id}" ${edita && !lock ? "" : "disabled"}>${s.terminado ? "✓ Listo" : "Marcar listo"}</button>`}</div>${fasesDe(s).length || editF ? subfases(s, "s", lock) : ""}</div>`).join("") : subfases(x, "e", lock)}
       <div class="f3s ${lock ? "lk" : ""}">${lock ? "🔒 Se desbloquea cuando la documentación esté hecha" : fabH ? `✓ Fabricado${x.operario_fab ? " · " + esc(x.operario_fab) : ""}` : editF ? "Toca una fase para añadirla o quitarla de este elemento." : faltan.length ? `Falta: <b>${faltan.map(f => esc(LBL(f))).join(" · ")}</b> <span class="code">· toca una fase: 1 vez en curso, 2 veces hecha</span>` : `<span class="ok-t">✓ Fases terminadas · escanea el QR de cada unidad</span>`}</div>
-      <div class="row">${edita && !fabH ? `<button class="btn sm ghost" data-a="editf">${editF ? "✓ Listo" : "✎ Editar fases"}</button>` : ""}${fabH && puede("admin") ? `<button class="btn sm ghost" data-a="fab-undo">Deshacer fabricado</button>` : ""}</div>`;
+      <div class="row">${editaDoc && !fabH ? `<button class="btn sm ghost" data-a="editf">${editF ? "✓ Listo" : "✎ Editar fases"}</button>` : ""}${fabH && puede("admin") ? `<button class="btn sm ghost" data-a="fab-undo">Deshacer fabricado</button>` : ""}</div>`;
   }
   if (sel === "car") det = !fabH ? `<div class="f3s lk">🔒 Se desbloquea cuando esté fabricado</div>` : `<div class="f3s">${carH ? `✓ Cargado${x.operario_carga ? " · " + esc(x.operario_carga) : ""}` : x.estado_carga === "Parcial" ? `Carga parcial · ${x.piezas_cargadas || 0}/${pzs.length || x.cantidad || 1} unidades` : "Pendiente de cargar"}${x.camion ? ` · Camión ${esc(x.camion)}` : ""}</div>
       ${carH ? "" : `<div class="f3s">📷 Se valida escaneando cada unidad al subirla al camión.</div>`}
@@ -242,6 +243,7 @@ export async function vElemento(ctx, p, eid) {
   });
   // Editar qué subfases tiene el elemento / subelemento
   $app.querySelectorAll("[data-ef]").forEach(b => b.onclick = async () => {
+    if (!editaDoc) return toast("Solo Oficina Técnica cambia las fases de un elemento.");
     const tabla = b.dataset.t === "s" ? "subelementos" : "elementos";
     const obj = b.dataset.t === "s" ? subs.find(s => s.id === +b.dataset.id) : x;
     const f = b.dataset.ef, act = tiene(obj.fases, f);

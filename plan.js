@@ -511,9 +511,9 @@ function tvLista(ctx, vista) {
       return `<div class="tvf ${m.t === "CARGA" ? "c" : "d"}"><span class="tvd">${dia(m.d)}${m.h && m.h !== "—" ? `<small>${esc(m.h)}</small>` : ""}</span><span class="tvt">${m.t}</span><b>${esc(m.p.nombre || m.p.codigo)}</b>${m.t === "CARGA" && e.length ? `<span class="tvn ${lis === e.length ? "ok" : "ko"}">${lis}/${e.length} listos</span>` : "<span></span>"}</div>`; }).join("") || `<div class="tvv">Sin cargas ni descargas esta semana</div>`;
   } else {
     titulo = "Listos para cargar";
-    const ps = vivos.filter(p => p.fecha_carga && p.fecha_carga >= suma(hoy, -3)).map(p => { const e = els(p.id); return { p, e, lis: e.filter(x => x.estado_fab === "Hecho" && x.estado_carga !== "Cargado"), falt: e.filter(x => x.estado_fab !== "Hecho") }; })
+    const ps = vivos.filter(p => p.fecha_carga && p.fecha_carga >= suma(hoy, -30) && p.hay_carga !== false).map(p => { const e = els(p.id); return { p, e, lis: e.filter(x => x.estado_fab === "Hecho" && x.estado_carga !== "Cargado"), falt: e.filter(x => x.estado_fab !== "Hecho") }; })
       .filter(x => x.e.length && x.e.some(y => y.estado_carga !== "Cargado")).sort((a, b) => a.p.fecha_carga.localeCompare(b.p.fecha_carga)).slice(0, 8);
-    filas = ps.map(x => `<div class="tvf l"><span class="tvd">${dia(x.p.fecha_carga)}</span><b>${esc(x.p.nombre || x.p.codigo)}</b><span class="tvn ok">${x.lis.length} listos</span><span class="tvn ${x.falt.length ? "ko" : "ok"}">${x.falt.length ? x.falt.length + " por fabricar" : "Todo fabricado"}</span></div>`).join("") || `<div class="tvv">Nada pendiente de cargar</div>`;
+    filas = ps.map(x => `<div class="tvf l ${x.p.fecha_carga < hoy ? "venc" : ""}"><span class="tvd">${x.p.fecha_carga < hoy ? `VENCIDA<small>${dia(x.p.fecha_carga)}</small>` : dia(x.p.fecha_carga)}</span><b>${esc(x.p.nombre || x.p.codigo)}</b><span class="tvn ok">${x.lis.length} listos</span><span class="tvn ${x.falt.length ? "ko" : "ok"}">${x.falt.length ? x.falt.length + " por fabricar" : "Todo fabricado"}</span></div>`).join("") || `<div class="tvv">Nada pendiente de cargar</div>`;
   }
   $app.innerHTML = `<div class="tvs"><div class="tvh"><h1>${titulo}</h1><span class="tvr">${reloj}</span></div>${filas}</div>`;
 }

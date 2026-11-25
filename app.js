@@ -178,9 +178,11 @@ function vPendiente() {
 // Incidencias abiertas que le tocan al usuario: OT ve las de «Oficina técnica», cada Front las de sus proyectos, SuperAdmin todas
 // Aviso a dirección (SuperAdmin): proyectos cuya fecha de carga ya pasó con elementos sin escanear como cargados
 function sinCargar() {
-  if (!puede("superadmin")) return "";
+  // Lo ven SuperAdmin (todos), el encargado/team leader (todos) y cada Front (sus proyectos)
+  const yo = S.perfil && S.perfil.operario_id, todo = puede("superadmin") || !!(S.perfil && S.perfil.gestiona_taller);
+  if (!todo && !yo) return "";
   const hoy = new Date().toLocaleDateString("sv-SE"), d = new Date(); d.setDate(d.getDate() - 30); const lim = d.toLocaleDateString("sv-SE");
-  const ps = S.proyectos.filter(p => !p.archivado && p.estado_com !== "Cancelado" && p.hay_carga !== false && p.fecha_carga && p.fecha_carga < hoy && p.fecha_carga >= lim)
+  const ps = S.proyectos.filter(p => !p.archivado && p.estado_com !== "Cancelado" && p.hay_carga !== false && p.fecha_carga && p.fecha_carga < hoy && p.fecha_carga >= lim && (todo || p.front_id === yo))
     .map(p => ({ p, n: S.elementos.filter(e => e.proyecto_id === p.id && e.estado_carga !== "Cargado").length })).filter(x => x.n).sort((a, b) => b.p.fecha_carga.localeCompare(a.p.fecha_carga));
   if (!ps.length) return "";
   return `<div class="card incaviso carav"><div class="pj-top"><b>🚚 Sin cargar tras la fecha de carga · ${ps.length} proyecto${ps.length > 1 ? "s" : ""}</b></div>

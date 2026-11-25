@@ -958,3 +958,19 @@ body::before{content:"";position:fixed;top:0;left:0;right:0;height:env(safe-area
 .cam{position:relative}
 .linterna{position:absolute;right:14px;top:14px;z-index:3;width:46px;height:46px;border-radius:50%;border:0;background:rgba(19,30,41,.7);font-size:22px;cursor:pointer}
 .linterna.on{background:var(--lime)}
+.tvf.venc{border-left-color:#E62643;background:#2A1A20}
+.g3>*{min-width:0}.fl .inp,.fl select{width:100%;min-width:0}
+.cart-top{flex-wrap:wrap}.cart-top .row{flex-wrap:wrap}
+@media (max-width:640px){.cart-top .row{margin-left:0!important;width:100%}.cart-top .row .btn{flex:1 1 auto}}
+/* Contraste AA en textos de estado y objetivos táctiles ≥44 px para el taller */
+:root{--ok-t:#3B7414;--run-t:#9A5208}
+[data-theme=dark]{--ok-t:#A6DB6E;--run-t:#F5B864}
+.ftab.done>span small,.sf.done small{color:var(--ok-t)}.ftab.run>span small,.sf.run small{color:var(--run-t)}
+.fpanel .code,.f3s .code{color:var(--muted2)}
+@media (max-width:760px){
+  .fpanel .btn.sm,.pza .btn.sm,.incn .btn.sm,.plano .btn,.lr-ctl .fzb,.invop .btn,.invscan .btn{min-height:44px}
+  .inc .link,.ires .link{padding:12px 0;min-height:44px}
+  .pzdet summary{padding:14px 0}
+  .chipr span{padding:0 14px;min-height:44px;display:inline-flex;align-items:center}
+  .incpara select{height:44px}
+}

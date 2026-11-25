@@ -139,7 +139,7 @@ export function vFicha(ctx, p) {
   $("ff").onsubmit = async ev => {
     ev.preventDefault();
     const codigo = MAY($("codigo").value);
-    if (!/^\d{6}\.\d{2}$/.test(codigo)) return err("codigo", "El código debe ser AAMMDD.NN, por ejemplo 261123.01 (pulsa «Proponer»)");
+    if ((nuevo || codigo !== MAY(p.codigo)) && !/^\d{6}\.\d{2}$/.test(codigo)) return err("codigo", "El código debe ser AAMMDD.NN, por ejemplo 261123.01 (pulsa «Proponer»)");
     if (S.proyectos.some(x => x.codigo === codigo && x.id !== p.id)) return err("codigo", "Ya existe un proyecto con ese código");
     if (!MAY($("nombre").value)) return err("nombre", "Falta el nombre del proyecto");
     if (!$("front_id").value) return err("front_id", "Elige el Front del proyecto");
@@ -161,7 +161,7 @@ export function vFicha(ctx, p) {
       row[h] = on && $(h).value !== "—" ? $(h).value : null;
       if (t) row[t] = on ? MAY($(t).value) || null : null;
     }
-    if (row.hay_carga && !row.fecha_carga) return err("fecha_carga", "Falta la fecha de carga");
+    if (nuevo && row.hay_carga && !row.fecha_carga) return err("fecha_carga", "Falta la fecha de carga");
     if (!row.transporte_vuelta) row.transporte_vuelta = row.transporte_ida;
     $("bsave").disabled = true;
     const r = nuevo ? await sb.from("proyectos").insert(row).select().single() : await sb.from("proyectos").update(row).eq("id", p.id).select().single();
