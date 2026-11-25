@@ -153,7 +153,8 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
   const COLW = tv ? Math.floor((($app.clientWidth || 1600) - NW - 4) / 14) : Math.max(ANCHO, Math.floor((($app.clientWidth || 1000) - NW - 2) / NDIAS));
   const scroll0 = opt.scroll;
   if (!opt.silencioso) $app.innerHTML = `<div class="loading">Cargando planificación…</div>`;
-  let D; try { D = await cargaPlan(sb); } catch (e) { $app.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
+  // Pantalla de taller: rota cada 5 s, así que reutiliza los datos durante 1 minuto
+  let D; try { D = tv && S._tvD && Date.now() - S._tvT < 60000 ? S._tvD : await cargaPlan(sb); if (tv) { S._tvD = D; S._tvT = Date.now(); } } catch (e) { $app.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
   S.planFront = S.planFront || "";
   S.planEst = S.planEst || lsGet("doinn_plan_estados", ["Pendiente", "Confirmado"]).filter(e => ESTADOS_COM.includes(e));
   if (!S.planEst.length) S.planEst = ["Pendiente", "Confirmado"];
@@ -232,10 +233,11 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
     leyenda = `<div class="ley1"><span class="code">Producción:</span>${lg(COD_PROD)}</div><div class="ley2"><span class="code">Ausencias y formación:</span>${lg(COD_OTROS)}</div>`;
     if (marca) ayuda = `<div class="ayuda">✎ Pulsa un día (o arrastra sobre varios días y personas) y elige qué marcar. ${superA ? "Puedes marcar a cualquier persona." : admin || gestor ? "Puedes marcar al personal de taller y externos, y tus propios días." : "Puedes marcar tus vacaciones, licencias y bajas en tu fila."}</div>`;
     else if (!tv && taller && !yo) ayuda = `<div class="ayuda">Tu usuario aún no está vinculado a tu ficha de operario. Pide al administrador que lo vincule para poder marcar tus vacaciones y permisos.</div>`;
-    filas = GRUPOS_PER.filter(([g]) => !S.perGrupo || S.perGrupo === g).map(([g, fn]) => {
+    // En la pantalla de taller solo Taller y montaje y Externos (sin subcontratas), todos visibles
+    filas = GRUPOS_PER.filter(([g]) => tv ? ["Taller y montaje", "Externos"].includes(g) : !S.perGrupo || S.perGrupo === g).map(([g, fn]) => {
       const ops = activos.filter(fn).sort(orden);
       if (!ops.length) return "";
-      const cerr = CERR[g] && !q;
+      const cerr = !tv && CERR[g] && !q;
       return `<div class="gg" data-g="${g}"><span>${cerr ? "▸" : "▾"} ${g} <small class="code">${ops.length}</small></span></div>` + (cerr ? "" : ops.map(o => {
         const info = dias.map(d => dia(o, d));
         let n = 0;
@@ -278,8 +280,16 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
   else { const h = $app.querySelector(".gd.hoy"); if (w && h && !tv && w.scrollWidth - w.clientWidth > COLW * 4) w.scrollLeft = Math.min(w.scrollWidth - w.clientWidth, Math.max(0, h.offsetLeft - NW - (COLW * 3))); }
   const bm = $("bmas"); if (bm) bm.onclick = () => { S.verInfo = !S.verInfo; const pi = $app.querySelector(".pinfo"); if (pi) pi.classList.toggle("ver", S.verInfo); ajustaAlto(); };
   if (tv) {
-    // En la pantalla de taller los grupos también se pliegan y despliegan
-    $app.querySelectorAll(".gg").forEach(g => g.onclick = () => { CERR[g.dataset.g] = !CERR[g.dataset.g]; re({ silencioso: true, scrollTop: w.scrollTop }); });
+    // Se ajusta al alto de la pantalla para que se vea a todo el personal sin hacer scroll
+    const gt = w.querySelector(".gantt"); w.style.maxHeight = "none"; w.style.overflow = "hidden";
+    const disp = innerHeight - w.getBoundingClientRect().top - 8, alto = gt.scrollHeight;
+    const z = alto > disp ? disp / alto : 1;
+    if (modo === "personal") {
+      // Personal: reparte el alto disponible entre todas las filas (crecen si hay pocas, se compactan si hay muchas)
+      const rs = gt.querySelectorAll(".gr"), n = rs.length || 1, resto = alto - [...rs].reduce((t, r) => t + r.offsetHeight, 0);
+      const h = Math.max(20, Math.min(110, Math.floor((disp - resto) / n)));
+      gt.style.setProperty("--tvh", h + "px"); gt.classList.add("fit"); gt.classList.toggle("comp", h < 38);
+    } else if (z >= 0.6) gt.style.zoom = z.toFixed(3); else { w.style.overflow = ""; w.style.maxHeight = disp + "px"; }
     return D;
   }
 
@@ -460,15 +470,13 @@ async function vStats(ctx, anio) {
 // ---------- Pantalla de taller (TV) ----------
 export function vTv(ctx) {
   document.body.classList.add("tv");
-  // Pantalla del taller: Personal y, si la rotación está activa, Cargas de la semana y Listos para cargar.
-  // Personal se queda 60 s; las otras dos, 30 s. Datos frescos cada ~5 min.
-  const SEC = ["personal", "personal", "cargas", "listos"];
+  // Pantalla del taller: alterna cada 5 s la planificación de Proyectos y la de Personal. Datos frescos cada minuto.
+  const SEC = ["proyectos", "personal"];
   let t = 0, k = 0;
   const rota = () => lsGet("doinn_tv_rota", true);
   const pinta = () => {
     const vista = rota() ? SEC[k % SEC.length] : "personal";
-    if (vista === "personal") { const g = document.querySelector(".gwrap"); vPlan(ctx, "personal", "", { tv: true, silencioso: t > 0, scrollTop: g ? g.scrollTop : 0 }); }
-    else tvLista(ctx, vista);
+    vPlan(ctx, vista, "", { tv: true, silencioso: t > 0 });
     marcaRota();
   };
   // botón para activar/desactivar la rotación (esquina inferior derecha)
@@ -476,15 +484,15 @@ export function vTv(ctx) {
     let b = document.getElementById("tvrota");
     if (!b) { b = document.createElement("button"); b.id = "tvrota"; b.className = "tvrota"; document.body.appendChild(b); b.onclick = () => { lsSet("doinn_tv_rota", !rota()); k = 0; pinta(); }; }
     const vista = rota() ? SEC[k % SEC.length] : "personal";
-    b.innerHTML = `${["personal", "cargas", "listos"].map(v => `<i class="${v === vista ? "on" : ""}"></i>`).join("")} ${rota() ? "Rotación activa" : "Solo Personal"}`;
+    b.innerHTML = `${SEC.map(v => `<i class="${v === vista ? "on" : ""}"></i>`).join("")} ${rota() ? "Rotación activa" : "Solo Personal"}`;
   };
   pinta();
   const id = setInterval(async () => {
     if (location.hash !== "#/tv") return fin();
     t++; k++;
-    if (t % 10 === 0) { try { await ctx.recargar(); } catch { } }
+    if (t % 12 === 0) { try { await ctx.recargar(); } catch { } }
     pinta();
-  }, 30000);
+  }, 5000);
   const fin = () => { clearInterval(id); document.body.classList.remove("tv"); const b = document.getElementById("tvrota"); if (b) b.remove(); window.removeEventListener("hashchange", sal); };
   const sal = () => { if (location.hash !== "#/tv") fin(); };
   window.addEventListener("hashchange", sal);
