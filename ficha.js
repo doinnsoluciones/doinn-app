@@ -129,7 +129,7 @@ export function vFicha(ctx, p) {
   const filaVeh = (x = {}) => {
     const i = nVeh++, tipos = x.tipo && !VEHICULOS.includes(x.tipo) ? [...VEHICULOS, x.tipo] : VEHICULOS;
     const d = document.createElement("div"); d.className = "vh-row"; d.dataset.i = i;
-    d.innerHTML = `<span class="vh-n">Vehículo ${i + 1}</span><select id="veh_t_${i}"><option value="">Elige tipo…</option>${tipos.map(t => `<option ${t === x.tipo ? "selected" : ""}>${esc(t)}</option>`).join("")}</select>${sel("veh_h_" + i, HORAS, x.hora)}<button type="button" class="vh-x" title="Quitar vehículo" aria-label="Quitar vehículo">×</button>`;
+    d.innerHTML = `<span class="vh-n">Vehículo ${$("vehs").children.length + 1}</span><select id="veh_t_${i}"><option value="">Elige tipo…</option>${tipos.map(t => `<option ${t === x.tipo ? "selected" : ""}>${esc(t)}</option>`).join("")}</select>${sel("veh_h_" + i, HORAS, x.hora)}<button type="button" class="vh-x" title="Quitar vehículo" aria-label="Quitar vehículo">×</button>`;
     d.querySelector(".vh-x").onclick = () => { d.remove(); [...$("vehs").children].forEach((r, k) => r.querySelector(".vh-n").textContent = `Vehículo ${k + 1}`); $("ff").dispatchEvent(new Event("change")); };
     $("vehs").appendChild(d);
   };
