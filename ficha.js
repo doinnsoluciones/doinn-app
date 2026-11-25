@@ -6,7 +6,7 @@ const MAY = s => (s ?? "").trim().toUpperCase();
 // Tipos de vehículo (tarifa de transporte): un proyecto puede llevar varios, cada uno con su hora
 const VEHICULOS = ["FURGONETA 12 M³", "CAMIÓN 4 M", "CAMIÓN 6 M", "CAMIÓN 7 M", "CAMIÓN 8 M", "CAMIÓN 9 M", "TRÁILER 13 M", "TRÁILER 13 M CON TRAMPILLA"];
 const FASES_VEH = ["Carga", "Desmontaje"];
-export const vehTxt = vs => (vs || []).filter(x => x && x.tipo).map(x => x.tipo + (x.hora ? " · " + x.hora : "")).join(" + ");
+export const vehTxt = vs => (vs || []).filter(x => x && (x.tipo || x.proveedor)).map(x => { const b = [x.tipo, x.hora].filter(Boolean).join(" · "); return b && x.proveedor ? `${b} (${x.proveedor})` : b || x.proveedor; }).join(" + ");
 const vehResumen = vs => FASES_VEH.map(f => { const t = vehTxt((vs || []).filter(x => (x.fase || "Carga") === f)); return t ? `${f.toUpperCase()}: ${t}` : ""; }).filter(Boolean).join(" | ");
 const sumaDias = (s, n) => { if (!s) return null; const d = new Date(s + "T00:00:00"); d.setDate(d.getDate() + n); return d.toLocaleDateString("sv-SE"); };
 
@@ -58,6 +58,8 @@ export function vFicha(ctx, p) {
   const frontSel = p.front_id || (yoFront ? yoFront.id : null);
   const v = k => esc(p[k] ?? "");
   const sel = (id, ops, val) => `<select id="${id}">${ops.map(o => `<option ${o === (val || "—") ? "selected" : ""}>${esc(o)}</option>`).join("")}</select>`;
+  // Vehículos debajo de Carga y de Desmontaje: la fase la da el sitio donde se ponen
+  const VEHF = { carga: ["Carga", "vc", "hay_carga", "hora_carga"], desmontaje: ["Desmontaje", "vd", "hay_desmontaje", "hora_desmontaje"] };
   const filas = FASES.map(([k, l, hay, d1, d2, h, t]) => `
     <div class="g-row" data-k="${k}">
       <div class="g-l">${l}${k === "carga" ? ' <span class="req">*</span>' : ""}</div>
@@ -65,7 +67,7 @@ export function vFicha(ctx, p) {
       <input type="date" id="${d1}" value="${v(d1)}">
       <input type="date" id="${d2}" value="${v(d2)}" placeholder="Hasta">
       ${sel(h, HORAS, p[h])}
-    </div>`).join("");
+    </div>${VEHF[k] ? `<div class="g-veh" id="gv_${VEHF[k][1]}"><div id="vehs_${VEHF[k][1]}" class="vh-list"></div><button type="button" class="btn sm ghost" id="bveh_${VEHF[k][1]}">+ Vehículo de ${VEHF[k][0].toLowerCase()}</button></div>` : ""}`).join("");
 
   $app.innerHTML = `
   <a class="back" href="${nuevo ? "#/" : `#/p/${p.id}`}">‹ ${nuevo ? "Proyectos" : "Ficha"}</a>
@@ -86,17 +88,16 @@ export function vFicha(ctx, p) {
     <label>Carpeta del proyecto <small>pega el enlace de SharePoint</small><input id="carpeta" value="${v("carpeta")}" placeholder="https://somosfirm.sharepoint.com/…"></label>
   </div>
   <div class="card frm">
-    <h2>2 · Fechas</h2>
-    <p class="ok-hint">Pon la fecha de carga y se proponen las demás. Cambia solo lo que no encaje.</p>
+    <h2>2 · Fechas y transporte</h2>
+    <p class="ok-hint">Pon la fecha de carga y se proponen las demás. Debajo de Carga y de Desmontaje elige los vehículos con su hora.</p>
     <div class="grid-f">
       <div class="g-row g-h"><div></div><div>Sí / No</div><div>Desde</div><div>Hasta</div><div>Hora</div></div>
       ${filas}
     </div>
   </div>
   <div class="card frm">
-    <h2>3 · Transporte y destino</h2>
+    <h2>3 · Destino</h2>
     <label>Ubicación del evento<input id="ubicacion" value="${v("ubicacion")}"></label>
-    <div class="vehs"><div class="vh-t">Vehículos <small>carga o desmontaje, tipo y hora de cada uno</small></div><div id="vehs"></div><button type="button" class="btn sm ghost" id="bveh">+ Añadir vehículo</button></div>
     <label>Necesidades especiales<textarea id="necesidades" rows="3">${v("necesidades")}</textarea></label>
   </div>
   <div class="acts">
@@ -108,7 +109,7 @@ export function vFicha(ctx, p) {
   const $ = id => document.getElementById(id);
   // Sí/No: activa o desactiva la fila
   FASES.forEach(([k, , hay, d1, d2, h, t]) => {
-    const pinta = () => { const on = $(hay).checked; $(hay).nextElementSibling.nextElementSibling.textContent = on ? "Sí" : "No"; [d1, d2, h, t].forEach(f => f && ($(f).disabled = !on)); };
+    const pinta = () => { const on = $(hay).checked; $(hay).nextElementSibling.nextElementSibling.textContent = on ? "Sí" : "No"; [d1, d2, h, t].forEach(f => f && ($(f).disabled = !on)); if (VEHF[k]) $("gv_" + VEHF[k][1]).hidden = !on; };
     $(hay).onchange = pinta; pinta();
   });
   // Propuesta de fechas a partir de la carga
@@ -122,21 +123,27 @@ export function vFicha(ctx, p) {
     pon("fecha_descarga", sumaDias($("fecha_desmontaje").value, 1));
     proponCod();
   };
-  // Vehículos: filas «Vehículo N» con tipo (desplegable) y hora
-  const vehIni = Array.isArray(p.vehiculos) && p.vehiculos.length ? p.vehiculos : p.tipo_vehiculo ? [{ tipo: p.tipo_vehiculo, hora: null }] : [{ tipo: "", hora: null }];
+  // Vehículos por fase: filas «Vehículo N» con tipo (desplegable) y hora; la hora propuesta es la de la fase
+  const conVeh = Array.isArray(p.vehiculos) && p.vehiculos.length;
   const bPrev = lsB.get(BKEY(nuevo ? null : p));
-  const nPrev = bPrev && bPrev.d ? Math.max(0, ...Object.keys(bPrev.d).filter(k => /^veh_t_\d+$/.test(k)).map(k => +k.slice(6) + 1)) : 0;
-  let nVeh = 0;
-  const filaVeh = (x = {}) => {
-    const i = nVeh++, tipos = x.tipo && !VEHICULOS.includes(x.tipo) ? [...VEHICULOS, x.tipo] : VEHICULOS;
+  const nVeh = { vc: 0, vd: 0 };
+  const filaVeh = (pf, x = {}) => {
+    const i = nVeh[pf]++, tipos = x.tipo && !VEHICULOS.includes(x.tipo) ? [...VEHICULOS, x.tipo] : VEHICULOS, L = $("vehs_" + pf);
     const d = document.createElement("div"); d.className = "vh-row"; d.dataset.i = i;
-    d.innerHTML = `<span class="vh-n">Vehículo ${$("vehs").children.length + 1}</span><select id="veh_f_${i}" class="vh-f" aria-label="Fase">${FASES_VEH.map(f => `<option ${f === (x.fase || "Carga") ? "selected" : ""}>${f}</option>`).join("")}</select><select id="veh_t_${i}"><option value="">Elige tipo…</option>${tipos.map(t => `<option ${t === x.tipo ? "selected" : ""}>${esc(t)}</option>`).join("")}</select>${sel("veh_h_" + i, HORAS, x.hora)}<button type="button" class="vh-x" title="Quitar vehículo" aria-label="Quitar vehículo">×</button>`;
-    d.querySelector(".vh-x").onclick = () => { d.remove(); [...$("vehs").children].forEach((r, k) => r.querySelector(".vh-n").textContent = `Vehículo ${k + 1}`); $("ff").dispatchEvent(new Event("change")); };
-    $("vehs").appendChild(d);
+    d.innerHTML = `<span class="vh-n">Vehículo ${L.children.length + 1}</span><select id="${pf}_t_${i}"><option value="">Elige tipo…</option>${tipos.map(t => `<option ${t === x.tipo ? "selected" : ""}>${esc(t)}</option>`).join("")}</select>${sel(pf + "_h_" + i, HORAS, x.hora)}<input id="${pf}_p_${i}" class="vh-p" placeholder="Proveedor" value="${esc(x.proveedor || "")}" aria-label="Proveedor"><button type="button" class="vh-x" title="Quitar vehículo" aria-label="Quitar vehículo">×</button>`;
+    d.querySelector(".vh-x").onclick = () => { d.remove(); [...L.children].forEach((r, k) => r.querySelector(".vh-n").textContent = `Vehículo ${k + 1}`); $("ff").dispatchEvent(new Event("change")); };
+    L.appendChild(d);
   };
-  vehIni.forEach(filaVeh); while (nVeh < nPrev) filaVeh();
-  $("bveh").onclick = () => { filaVeh(); $("veh_t_" + (nVeh - 1)).focus(); };
-  const leeVeh = () => [...$("vehs").children].map(r => { const i = r.dataset.i, t = $("veh_t_" + i).value, h = $("veh_h_" + i).value; return t ? { fase: $("veh_f_" + i).value, tipo: t, hora: h !== "—" ? h : null } : null; }).filter(Boolean);
+  for (const [k, [fase, pf, , hf]] of Object.entries(VEHF)) {
+    // Proyectos antiguos: el tipo pasa a Carga y el texto de Transporte (ida / vuelta) pasa a Proveedor
+    const ant = k === "carga" ? p.transporte_ida : (p.transporte_vuelta || p.transporte_ida);
+    const ini = conVeh ? p.vehiculos.filter(x => (x.fase || "Carga") === fase) : (k === "carga" && p.tipo_vehiculo) || ant ? [{ tipo: k === "carga" ? p.tipo_vehiculo : "", proveedor: ant || "" }] : [];
+    (ini.length ? ini : [{}]).forEach(x => filaVeh(pf, x));
+    const re = new RegExp(`^${pf}_t_(\\d+)$`), nPrev = bPrev && bPrev.d ? Math.max(0, ...Object.keys(bPrev.d).map(x => (x.match(re) || [])[1]).filter(Boolean).map(n => +n + 1)) : 0;
+    while (nVeh[pf] < nPrev) filaVeh(pf);
+    $("bveh_" + pf).onclick = () => { filaVeh(pf, { hora: $(hf).value !== "—" ? $(hf).value : null }); $(`${pf}_t_${nVeh[pf] - 1}`).focus(); };
+  }
+  const leeVeh = () => Object.values(VEHF).flatMap(([fase, pf, hay]) => !$(hay).checked ? [] : [...$("vehs_" + pf).children].map(r => { const i = r.dataset.i, t = $(`${pf}_t_${i}`).value, h = $(`${pf}_h_${i}`).value; const pr = $(`${pf}_p_${i}`).value.trim(); return t || pr ? { fase, tipo: t || null, hora: h !== "—" ? h : null, proveedor: pr || null } : null; }).filter(Boolean));
   const limpiaBorrador = borrador($("ff"), BKEY(nuevo ? null : p), $("borr"));
   // Código propuesto: AAMMDD de la fecha del evento + siguiente número libre de ese día
   let codAuto = nuevo && !p.codigo ? "" : null;

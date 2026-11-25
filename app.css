@@ -990,3 +990,9 @@ body::before{content:"";position:fixed;top:0;left:0;right:0;height:env(safe-area
 @media (max-width:400px){.g-row{grid-template-areas:"l t" "d1 d1" "d2 d2" "h ."}}
 .vh-row{grid-template-columns:84px 132px minmax(0,1fr) 104px 40px}
 @media (max-width:520px){.vh-row{grid-template-columns:minmax(0,1fr) 96px 40px;grid-template-areas:"n n n" "t t t" "f h x"}.vh-row .vh-n{grid-area:n}.vh-row .vh-f{grid-area:f}.vh-row select[id^=veh_t_]{grid-area:t}.vh-row select[id^=veh_h_]{grid-area:h}.vh-row .vh-x{grid-area:x}}
+/* Vehículos dentro de la cuadrícula de fechas (debajo de Carga y Desmontaje) */
+.g-veh{margin:2px 0 10px 182px;padding-left:12px;border-left:2px solid var(--line)}
+.g-veh .vh-list:empty{display:none}.g-veh .vh-row{grid-template-columns:76px minmax(0,1.2fr) 96px minmax(0,1fr) 40px;margin-bottom:6px}
+.g-veh .vh-p{margin:0;height:44px;padding:0 12px;font-size:14px;border:1px solid var(--line);border-radius:22px;width:100%;min-width:0;background:var(--card)}
+.g-veh .btn{margin-top:2px}
+@media (max-width:640px){.g-veh{margin:-4px 0 10px 10px;padding-left:10px}.g-veh .vh-row{grid-template-columns:minmax(0,1fr) 96px 40px;grid-template-areas:"n n n" "t t t" "p h x"}.g-veh .vh-row .vh-n{grid-area:n}.g-veh .vh-row select[id*="_t_"]{grid-area:t}.g-veh .vh-row select[id*="_h_"]{grid-area:h}.g-veh .vh-row .vh-p{grid-area:p}.g-veh .vh-row .vh-x{grid-area:x}}
