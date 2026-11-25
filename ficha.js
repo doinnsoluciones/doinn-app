@@ -167,7 +167,8 @@ export function vFicha(ctx, p) {
     ev.preventDefault();
     const codigo = MAY($("codigo").value);
     if ((nuevo || codigo !== MAY(p.codigo)) && !/^\d{6}\.\d{2}$/.test(codigo)) return err("codigo", "El código debe ser AAMMDD.NN, por ejemplo 261123.01 (pulsa «Proponer»)");
-    if (S.proyectos.some(x => x.codigo === codigo && x.id !== p.id)) return err("codigo", "Ya existe un proyecto con ese código");
+    const dup = S.proyectos.find(x => x.codigo === codigo && x.id !== p.id);
+    if (dup) return err("codigo", `Ya lo usa «${dup.nombre || "otro proyecto"}»${dup.estado_com === "Cancelado" ? " (cancelado, no sale en la lista)" : dup.archivado ? " (archivado)" : ""}. Pulsa «Proponer» para el siguiente libre.`);
     if (!MAY($("nombre").value)) return err("nombre", "Falta el nombre del proyecto");
     if (!$("front_id").value) return err("front_id", "Elige el Front del proyecto");
     const front = fronts.find(o => o.id === +$("front_id").value);
