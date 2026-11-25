@@ -135,7 +135,7 @@ const GRUPOS_PER = [["Fronts", o => o.grupo === "Fronts"], ["Oficina técnica", 
 export async function vPlan(ctx, modo, ini, opt = {}) {
   const { $app, S, sb, esc, puede, toast } = ctx;
   // Estadísticas: por defecto solo SuperAdmin
-  const verStats = S.perfil && S.perfil.rol === "superadmin";
+  const verStats = ctx.can("stats");
   modo = ["personal", "stats"].includes(modo) ? modo : "proyectos";
   if (modo === "stats" && !verStats) modo = "proyectos";
   if (modo === "stats") return vStats(ctx, ini);
@@ -168,10 +168,13 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
   const fronts = S.operarios.filter(o => o.grupo === "Fronts" && o.activo !== false).sort((a, b) => a.nombre.localeCompare(b.nombre));
   const neon = neonOn();
   // Permisos de marcado en Personal
-  const yo = S.perfil && S.perfil.operario_id, gestor = !!(S.perfil && S.perfil.gestiona_taller);
-  const misCodigos = superA || admin || gestor ? [...COD_PROD, ...COD_OTROS] : taller && yo ? COD_AUSENCIA : [];
-  const puedeFila = o => superA || ((admin || gestor) && (o.grupo === "Taller" || o.grupo === "Externos" || o.grupo === "Subcontratas" || o.id === yo)) || (taller && o.id === yo);
-  const marca = !tv && modo === "personal" && misCodigos.length > 0;
+  // Permisos de marcado: superadmin todo · Front/encargado/TL producción en taller, externos y subcontratas · cada uno sus vacaciones y bajas
+  const yo = S.perfil && S.perfil.operario_id, gestor = ctx.can("marcarProd"), propio = ctx.can("escaner");
+  const PROD_G = ["Taller", "Externos", "Subcontratas"], COD_P = [...COD_PROD, "FO"];
+  const codigosFila = o => superA ? [...COD_PROD, ...COD_OTROS] : [...(gestor && PROD_G.includes(o.grupo) ? COD_P : []), ...(propio && yo && o.id === yo ? COD_AUSENCIA : [])];
+  const puedeFila = o => codigosFila(o).length > 0;
+  const misCodigos = ids => { const ls = ids.map(id => codigosFila(S.operarios.find(o => o.id === id) || {})); return [...COD_PROD, ...COD_OTROS].filter(c => ls.every(l => l.includes(c))); };
+  const marca = !tv && modo === "personal" && (superA || gestor || (propio && !!yo));
   const largo = ANCHO >= 40 ? 18 : ANCHO >= 30 ? 12 : 6;
 
   const nav = tv ? "" : `<div class="pnav">
@@ -227,11 +230,11 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
     if (!tv) filtros = `<div class="pfil">
       <input id="perq" class="perq" placeholder="Buscar persona…" value="${esc(S.perQ)}">
       <div class="ests"><button class="chip sm ${!S.perGrupo ? "on" : ""}" data-pg="">Todos</button>${GRUPOS_PER.map(([g]) => `<button class="chip sm ${S.perGrupo === g ? "on" : ""}" data-pg="${g}">${g}</button>`).join("")}</div>
-      ${superA || admin ? `<button class="chip sm" id="bsub">+ Subcontrata</button>` : ""}
+      ${superA || ctx.can("equipo") ? `<button class="chip sm" id="bsub">+ Subcontrata</button>` : ""}
     </div>`;
     const lg = cs => cs.map(k => `<span><i style="background:${COD[k][1]}"></i>${COD[k][0]}</span>`).join("");
     leyenda = `<div class="ley1"><span class="code">Producción:</span>${lg(COD_PROD)}</div><div class="ley2"><span class="code">Ausencias y formación:</span>${lg(COD_OTROS)}</div>`;
-    if (marca) ayuda = `<div class="ayuda">✎ Pulsa un día (o arrastra sobre varios días y personas) y elige qué marcar. ${superA ? "Puedes marcar a cualquier persona." : admin || gestor ? "Puedes marcar al personal de taller y externos, y tus propios días." : "Puedes marcar tus vacaciones, licencias y bajas en tu fila."}</div>`;
+    if (marca) ayuda = `<div class="ayuda">✎ Pulsa un día (o arrastra sobre varios días y personas) y elige qué marcar. ${superA ? "Puedes marcar a cualquier persona." : gestor ? "Puedes marcar producción al personal de taller, externos y subcontratas, y tus vacaciones y bajas en tu fila." : "Puedes marcar tus vacaciones, licencias y bajas en tu fila."}</div>`;
     else if (!tv && taller && !yo) ayuda = `<div class="ayuda">Tu usuario aún no está vinculado a tu ficha de operario. Pide al administrador que lo vincule para poder marcar tus vacaciones y permisos.</div>`;
     // En la pantalla de taller solo Taller y montaje y Externos (sin subcontratas), todos visibles
     filas = GRUPOS_PER.filter(([g]) => tv ? ["Taller y montaje", "Externos"].includes(g) : !S.perGrupo || S.perGrupo === g).map(([g, fn]) => {
@@ -337,6 +340,8 @@ function activaMarcado(ctx, D, codigos, fin) {
   function menu(x, y, sel) {
     document.querySelectorAll(".mmenu").forEach(m => m.remove());
     const ops = [...new Set(sel.map(h => +h.dataset.o))];
+    const cods = typeof codigos === "function" ? codigos(ops) : codigos;
+    if (!cods.length) { toast("No puedes marcar a esas personas a la vez."); ini = null; pinta(); return; }
     const ds = sel.map(h => h.dataset.d).sort();
     const nom = ops.length === 1 ? ((S.operarios.find(o => o.id === ops[0]) || {}).nombre || "") : `${ops.length} personas`;
     const fdc = s => s.split("-").reverse().slice(0, 2).join("/");
@@ -344,8 +349,8 @@ function activaMarcado(ctx, D, codigos, fin) {
     const m = document.createElement("div"); m.className = "mmenu";
     m.innerHTML = `<div class="mm-h"><b>${esc(nom)}</b><span>${ds.length === 1 || ds[0] === ds[ds.length - 1] ? fdc(ds[0]) : `${fdc(ds[0])} → ${fdc(ds[ds.length - 1])}`}</span></div>
       ${ops.length === 1 ? `<div class="mm-r"><label>Hasta <input type="date" id="mmh" value="${ds[ds.length - 1]}" min="${ds[0]}"></label></div>` : ""}
-      ${codigos.some(c => CON_PROY.includes(c)) ? `<div class="mm-r"><select id="mmp"><option value="">Proyecto (opcional)</option>${proys.map(p => `<option value="${p.id}" ${String(p.id) === String(S.ultProy || "") ? "selected" : ""}>${esc(p.codigo)} · ${esc(corto(p.nombre, 28))}</option>`).join("")}</select></div>` : ""}
-      <div class="mm-g">${codigos.map(c => `<button data-c="${c}" style="--c:${COD[c][1]}" >${COD[c][0]}</button>`).join("")}</div>
+      ${cods.some(c => CON_PROY.includes(c)) ? `<div class="mm-r"><select id="mmp"><option value="">Proyecto (opcional)</option>${proys.map(p => `<option value="${p.id}" ${String(p.id) === String(S.ultProy || "") ? "selected" : ""}>${esc(p.codigo)} · ${esc(corto(p.nombre, 28))}</option>`).join("")}</select></div>` : ""}
+      <div class="mm-g">${cods.map(c => `<button data-c="${c}" style="--c:${COD[c][1]}" >${COD[c][0]}</button>`).join("")}</div>
       <div class="mm-f"><button class="link" id="mmq">Quitar marca</button><button class="link" id="mmx">Cancelar</button></div>`;
     document.body.appendChild(m);
     const r = m.getBoundingClientRect();
@@ -395,7 +400,7 @@ function panelProyecto(ctx, p, D, fin) {
     <div class="row" style="justify-content:space-between"><span class="code">${esc(p.codigo)}</span><button class="link" id="dx">Cerrar ✕</button></div>
     <h2 style="margin:4px 0 6px">${esc(p.nombre || "")}</h2>
     <span class="pill" style="background:${COL_COM[est]}26;color:var(--ink)"><i class="dot" style="background:${COL_COM[est]}"></i>${est}</span>
-    ${puede("admin") ? `<button class="pill ${p.coordinacion_ok ? "ok" : "warn"} pbtn" id="dcoord" title="Pulsa para ${p.coordinacion_ok ? "quitar" : "marcar"} la coordinación OK">${p.coordinacion_ok ? "✓ Coordinado" : "Sin coordinar · marcar OK"}</button>` : p.coordinacion_ok ? `<span class="pill ok">✓ Coordinado</span>` : `<span class="pill warn">Sin coordinar</span>`}
+    ${ctx.can("coord") ? `<button class="pill ${p.coordinacion_ok ? "ok" : "warn"} pbtn" id="dcoord" title="Pulsa para ${p.coordinacion_ok ? "quitar" : "marcar"} la coordinación OK">${p.coordinacion_ok ? "✓ Coordinado" : "Sin coordinar · marcar OK"}</button>` : p.coordinacion_ok ? `<span class="pill ok">✓ Coordinado</span>` : `<span class="pill warn">Sin coordinar</span>`}
     ${rs.length ? `<div class="avisos">${rs.map(r => `<div>⚠ ${esc(r)}</div>`).join("")}</div>` : ""}
     <dl class="kv">
       <dt>Cliente</dt><dd>${esc(p.cliente || "—")}</dd>
@@ -408,7 +413,7 @@ function panelProyecto(ctx, p, D, fin) {
     ${equipo.map(a => `<div class="crow"><span>${esc(opN(a.operario_id))}</span><span class="code">${esc(a.fase)} · ${fd(a.fecha_inicio)}${a.fecha_fin && a.fecha_fin !== a.fecha_inicio ? "→" + fd(a.fecha_fin) : ""}</span></div>`).join("") || `<div class="code">Nadie asignado.</div>`}
     <div class="acts" style="margin-top:14px;flex-wrap:wrap">
       <a class="btn lime" href="#/p/${p.id}">Abrir proyecto</a>
-      ${puede("admin") ? `<a class="btn ghost" href="#/p/${p.id}/editar">Editar ficha</a><a class="btn ghost" href="#/p/${p.id}/equipo">Asignar equipo</a>` : ""}
+      ${ctx.can("proyEditar") ? `<a class="btn ghost" href="#/p/${p.id}/editar">Editar ficha</a>` : ""}${ctx.can("equipo") ? `<a class="btn ghost" href="#/p/${p.id}/equipo">Asignar equipo</a>` : ""}
       <button class="btn ghost" id="doc">Ocultar del Gantt</button>
     </div>
   </aside>`;
@@ -427,7 +432,7 @@ function panelProyecto(ctx, p, D, fin) {
 // ---------- Estadísticas anuales por persona ----------
 async function vStats(ctx, anio) {
   const { $app, S, sb, esc, puede } = ctx;
-  if (!puede("admin")) { $app.innerHTML = `<div class="empty">Solo administradores.</div>`; return; }
+  if (!ctx.can("stats")) { $app.innerHTML = `<div class="empty">Solo el SuperAdmin ve las estadísticas.</div>`; return; }
   const y = +anio || new Date().getFullYear();
   $app.innerHTML = `<div class="loading">Calculando…</div>`;
   let D; try { D = await cargaPlan(sb); } catch (e) { $app.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
@@ -601,7 +606,7 @@ function formAusencia(ctx, fin, D) {
 // ---------- pestaña Equipo del proyecto ----------
 export async function vEquipo(ctx, p, cont) {
   const { S, sb, esc, toast, puede, fd } = ctx;
-  const edita = puede("admin");
+  const edita = ctx.can("equipo");
   cont.innerHTML = `<div class="loading">Cargando…</div>`;
   let D; try { D = await cargaPlan(sb); } catch (e) { cont.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
   const mias = D.asig.filter(a => a.proyecto_id === p.id).sort((a, b) => FASES.indexOf(a.fase) - FASES.indexOf(b.fase) || (a.fecha_inicio || "").localeCompare(b.fecha_inicio || ""));

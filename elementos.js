@@ -87,10 +87,10 @@ export async function vElemento(ctx, p, eid) {
   let incs = [];
   try { const r = await sb.from("incidencias").select("*").eq("elemento_id", x.id).order("fecha", { ascending: false }); incs = r.data || []; } catch { }
   const yo = (S.perfil && S.perfil.nombre) || (S.user.email || "").split("@")[0];
-  const edita = puede("admin", "taller");
+  const edita = ctx.can("fabricar");
   // La documentación técnica solo la cambian Oficina Técnica y administración (el taller la ve en solo lectura)
   // Documentación técnica y qué fases lleva cada elemento: solo Oficina Técnica (ficha OT vinculada) y SuperAdmin
-  const editaDoc = puede("superadmin") || (S.operarios || []).some(o => o.id === (S.perfil && S.perfil.operario_id) && o.grupo === "OT");
+  const editaDoc = ctx.can("despiece");
   const recarga = () => vElemento(ctx, p, eid);
   const upd = async (tabla, id, cambios, msg) => {
     const { error } = await sb.from(tabla).update(cambios).eq("id", id);
@@ -135,7 +135,7 @@ export async function vElemento(ctx, p, eid) {
     det = `
       ${subs.length ? subs.map(s => `<div class="sfsub"><div class="pj-top"><div><b>${esc(s.desc_sub || s.titulo)}</b><div class="code">${[`${s.cantidad || 1} pieza${(s.cantidad || 1) > 1 ? "s" : ""}`, origenTxt(s.origen), s.acabado].filter(Boolean).map(esc).join(" · ")} ${ralChips(s.ral, esc)}</div></div>${origenTxt(s.origen) === "Almacén" ? `<span class="pill info">📦 De almacén · sin fabricación</span>` : fasesDe(s).length || editF ? "" : `<button class="fzb ${s.terminado ? "on" : ""}" data-term="${s.id}" ${edita && !lock ? "" : "disabled"}>${s.terminado ? "✓ Listo" : "Marcar listo"}</button>`}</div>${origenTxt(s.origen) !== "Almacén" && (fasesDe(s).length || editF) ? subfases(s, "s", lock) : ""}</div>`).join("") : origenTxt(x.origen) === "Almacén" ? `<div class="f3s">📦 Sale del almacén (inventario): no pasa por fabricación. Se valida escaneando al cargar.</div>` : subfases(x, "e", lock)}
       <div class="f3s ${lock ? "lk" : ""}">${lock ? "🔒 Se desbloquea cuando la documentación esté hecha" : fabH ? `✓ Fabricado${x.operario_fab ? " · " + esc(x.operario_fab) : ""}` : editF ? "Toca una fase para añadirla o quitarla de este elemento." : faltan.length ? `Falta: <b>${faltan.map(f => esc(LBL(f))).join(" · ")}</b> <span class="code">· toca una fase: 1 vez en curso, 2 veces hecha</span>` : `<span class="ok-t">✓ Fases terminadas · escanea el QR de cada unidad</span>`}</div>
-      <div class="row">${editaDoc && !fabH ? `<button class="btn sm ghost" data-a="editf">${editF ? "✓ Listo" : "✎ Editar fases"}</button>` : ""}${fabH && puede("admin") ? `<button class="btn sm ghost" data-a="fab-undo">Deshacer fabricado</button>` : ""}</div>`;
+      <div class="row">${editaDoc && !fabH ? `<button class="btn sm ghost" data-a="editf">${editF ? "✓ Listo" : "✎ Editar fases"}</button>` : ""}${fabH && ctx.can("fabDeshacer") ? `<button class="btn sm ghost" data-a="fab-undo">Deshacer fabricado</button>` : ""}</div>`;
   }
   if (sel === "car") det = !fabH ? `<div class="f3s lk">🔒 Se desbloquea cuando esté fabricado</div>` : `<div class="f3s">${carH ? `✓ Cargado${x.operario_carga ? " · " + esc(x.operario_carga) : ""}` : x.estado_carga === "Parcial" ? `Carga parcial · ${x.piezas_cargadas || 0}/${pzs.length || x.cantidad || 1} unidades` : "Pendiente de cargar"}${x.camion ? ` · Camión ${esc(x.camion)}` : ""}</div>
       ${carH ? "" : `<div class="f3s">📷 Se valida escaneando cada unidad al subirla al camión.</div>`}
@@ -165,8 +165,8 @@ export async function vElemento(ctx, p, eid) {
     ${incs.map(i => `<div class="inc ${i.resuelta ? "res" : ""}">
       ${i.foto ? `<a class="incf" data-foto="${esc(i.foto)}" target="_blank" rel="noopener"><img alt="Foto de la incidencia"></a>` : ""}
       <div class="incb"><div class="code">${i.tipo ? `<span class="pill bad">${esc(i.tipo)}</span> ` : ""}${i.para && i.para !== "Nadie" ? `<span class="pill">→ ${esc(i.para)}</span> ` : ""}${fh(i.fecha)}${i.usuario ? " · " + esc(i.usuario) : ""}${i.resuelta ? " · ✓ Resuelta" : ""}</div><div>${esc(i.texto || "(sin comentario)")}</div>
-      ${edita ? `<button class="link" data-incres="${i.id}">${i.resuelta ? "Reabrir" : "✓ Marcar resuelta"}</button>` : ""}</div></div>`).join("")}
-    ${edita ? `<div class="incn"><div class="inct">${TIPOS_INC.map(([t], i) => `<label class="chipr"><input type="radio" name="inctipo" value="${t}" ${i === 0 ? "checked" : ""}><span>${t}</span></label>`).join("")}</div>
+      ${ctx.can("incidencias") ? `<button class="link" data-incres="${i.id}">${i.resuelta ? "Reabrir" : "✓ Marcar resuelta"}</button>` : ""}</div></div>`).join("")}
+    ${ctx.can("incidencias") ? `<div class="incn"><div class="inct">${TIPOS_INC.map(([t], i) => `<label class="chipr"><input type="radio" name="inctipo" value="${t}" ${i === 0 ? "checked" : ""}><span>${t}</span></label>`).join("")}</div>
       <label class="incpara">Avisar a <select id="incpara">${["Oficina técnica", "Front", "Taller", "Nadie"].map(x => `<option>${x}</option>`).join("")}</select></label>
       <textarea id="inctx" rows="2" placeholder="Describe la incidencia (qué pasa, qué falta…)"></textarea>
       <div class="row"><label class="btn sm ghost incfoto">📷 Foto<input type="file" id="incfile" accept="image/*" capture="environment" hidden></label><span class="code" id="incfn"></span><span style="flex:1"></span><button class="btn sm lime" id="incok">Guardar incidencia</button></div>

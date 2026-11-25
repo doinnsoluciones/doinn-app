@@ -206,6 +206,9 @@ async function procesa(ctx, raw) {
   const now = new Date().toISOString();
 
   if (paso === "hecho") return vaFicha(true, "Ya estaba cargada", nom);
+  // Cada perfil solo marca su paso; el resto consulta la ficha (y puede abrir una incidencia)
+  if ((paso === "corte" || paso === "fab") && ctx.can && !ctx.can("fabricar")) return vaFicha(false, "Tu perfil no marca fabricación", `${nom} · puedes consultar la ficha o abrir una incidencia`);
+  if (paso === "carga" && ctx.can && !ctx.can("cargar")) return vaFicha(false, "Tu perfil no marca la carga", `${nom} · puedes consultar la ficha o abrir una incidencia`);
 
   if (paso === "corte") {
     if (x.estado_doc !== "Hecho") return vaFicha(false, "Esta pieza no se puede marcar como cortada · falta: documentación técnica", `${nom} · Oficina Técnica debe marcarla como hecha`);

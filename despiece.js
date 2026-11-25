@@ -68,7 +68,7 @@ async function leer(sb, pid) {
 // ---------- lista ----------
 export async function vDespiece(ctx, p, cont, reordenar = false) {
   const { sb, esc, toast, puede } = ctx;
-  const edita = puede("admin");
+  const edita = ctx.can("despiece");
   cont.innerHTML = `<div class="loading">Cargando despiece…</div>`;
   let d; try { d = await leer(sb, p.id); } catch (e) { cont.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
   const totalQR = d.els.reduce((a, x) => a + (x.cantidad || 1), 0);
@@ -132,7 +132,7 @@ function modoOrden(ctx, p, cont, d) {
 // ---------- formulario de elemento ----------
 export async function vElementoForm(ctx, p, eid) {
   const { $app, sb, esc, toast, puede } = ctx;
-  if (!puede("admin")) { $app.innerHTML = `<div class="empty">Solo Fronts y oficina técnica editan el despiece.</div>`; return; }
+  if (!ctx.can("despiece")) { $app.innerHTML = `<div class="empty">Solo oficina técnica edita el despiece.</div>`; return; }
   $app.innerHTML = `<div class="loading">Cargando…</div>`;
   const d = await leer(sb, p.id);
   // «copia-ID»: elemento nuevo con los datos de otro, para editar solo lo que cambia

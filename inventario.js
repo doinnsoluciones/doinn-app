@@ -173,7 +173,7 @@ const finCab = `</div></div>`;
 
 function vLista(ctx, d) {
   const { $app, S, esc, puede } = ctx;
-  const edita = puede("admin", "taller");
+  const edita = ctx.can("invEditar");
   S.invF = S.invF || { q: "", cat: "", est: "" };
   const F = S.invF;
   const n = e => d.uds.filter(u => u.estado === e).length;
@@ -218,7 +218,7 @@ function vModelo(ctx, d, id) {
   const m = d.mods.find(k => k.id === id);
   if (!m) { $app.innerHTML = `<div class="empty">Elemento no encontrado.</div>`; return; }
   if (m.granel) return vGranel(ctx, d, m);
-  const edita = puede("admin", "taller");
+  const edita = ctx.can("invEditar");
   const us = d.uds.filter(u => u.modelo_id === id), activas = us.filter(u => u.estado !== "Baja");
   const cnt = e => us.filter(u => u.estado === e).length;
   const h = hoy();
@@ -271,7 +271,7 @@ function vModelo(ctx, d, id) {
     let r = await sacar(ctx, d, sel(), P, $("op_n").value.trim());
     if (!r.ok && r.reservado) {
       msg(false, r.msg, r.det);
-      if (puede("admin") && confirm(`${r.msg}\n${r.det}\n\n¿Sacarlo igualmente? Quedará anotado como salida forzada.`)) r = await sacar(ctx, d, sel(), P, $("op_n").value.trim(), true); else return;
+      if (ctx.can("invForzar") && confirm(`${r.msg}\n${r.det}\n\n¿Sacarlo igualmente? Quedará anotado como salida forzada.`)) r = await sacar(ctx, d, sel(), P, $("op_n").value.trim(), true); else return;
     }
     if (!r.ok) return msg(false, r.msg, r.det || "");
     toast(r.msg); recarga();
@@ -322,7 +322,7 @@ function vUnidad(ctx, d, codigo) {
   const u = d.uds.find(k => k.codigo === codigo.toUpperCase());
   if (!u) { $app.innerHTML = `<a class="back" href="#/inventario">‹ Inventario</a><div class="empty">No existe ninguna unidad con el código ${esc(codigo)}.</div>`; return; }
   const m = d.mods.find(k => k.id === u.modelo_id) || {};
-  const edita = puede("admin", "taller");
+  const edita = ctx.can("invEditar");
   const P = (S.proyectos || []).find(p => p.id === u.proyecto_id);
   const [t, c] = EST[u.estado] || [u.estado, ""];
   // Proyecto sugerido: el que tenga reserva de este elemento más próxima
@@ -337,8 +337,8 @@ function vUnidad(ctx, d, codigo) {
       <button class="btn lime big wide" id="usal">⬆ Sacar a proyecto</button>`
       : u.estado === "Fuera" ? `<h2>Registrar entrada</h2><input id="un" class="inp wide" placeholder="Nota (opcional): qué le pasa, qué falta…">
       <div class="row"><button class="btn lime big" id="uok">⬇ Vuelve bien</button><button class="btn ghost big" id="udan">⬇ Vuelve dañado</button></div>`
-      : u.estado === "Dañado" ? `<h2>Unidad dañada</h2><input id="un" class="inp wide" placeholder="Nota (opcional)"><div class="row"><button class="btn lime" id="urep">✓ Reparada · vuelve al almacén</button>${puede("admin") ? `<button class="btn ghost" id="ubaja">Dar de baja</button>` : ""}</div>`
-      : `<h2>Dada de baja</h2>${puede("admin") ? `<button class="btn ghost" id="urep">Recuperar · vuelve al almacén</button>` : ""}`}
+      : u.estado === "Dañado" ? `<h2>Unidad dañada</h2><input id="un" class="inp wide" placeholder="Nota (opcional)"><div class="row"><button class="btn lime" id="urep">✓ Reparada · vuelve al almacén</button>${ctx.can("invForzar") ? `<button class="btn ghost" id="ubaja">Dar de baja</button>` : ""}</div>`
+      : `<h2>Dada de baja</h2>${ctx.can("invForzar") ? `<button class="btn ghost" id="urep">Recuperar · vuelve al almacén</button>` : ""}`}
       <div id="umsg"></div></div>
     <div class="card"><h2>Datos de la unidad</h2>
       <label class="fl">Ubicación en nave<input id="uub" class="inp" value="${esc(u.ubicacion || "")}" placeholder="Ej. E3-B2"></label>
@@ -353,7 +353,7 @@ function vUnidad(ctx, d, codigo) {
   if ($("usal")) $("usal").onclick = async () => {
     const P2 = (S.proyectos || []).find(p => p.id === +$("up").value); if (!P2) return toast("Elige el proyecto");
     let r = await sacar(ctx, d, [u], P2, nota());
-    if (!r.ok && r.reservado) { msg(false, r.msg, r.det); if (puede("admin") && confirm(`${r.msg}\n${r.det}\n\n¿Sacarlo igualmente? Quedará anotado como salida forzada.`)) r = await sacar(ctx, d, [u], P2, nota(), true); else return; }
+    if (!r.ok && r.reservado) { msg(false, r.msg, r.det); if (ctx.can("invForzar") && confirm(`${r.msg}\n${r.det}\n\n¿Sacarlo igualmente? Quedará anotado como salida forzada.`)) r = await sacar(ctx, d, [u], P2, nota(), true); else return; }
     if (!r.ok) return msg(false, r.msg, r.det || "");
     toast(r.msg); recarga();
   };
@@ -377,7 +377,7 @@ function vUnidad(ctx, d, codigo) {
 // Elemento por cantidad: stock total, lo que está fuera por proyecto, salidas y devoluciones por número de unidades
 function vGranel(ctx, d, m) {
   const { $app, S, esc, puede, toast } = ctx;
-  const edita = puede("admin", "taller"), id = m.id, h = hoy(), um = m.unidad_medida || "uds";
+  const edita = ctx.can("invEditar"), id = m.id, h = hoy(), um = m.unidad_medida || "uds";
   const fg = fueraGranel(d, id), fueraT = fg.reduce((a, x) => a + x.n, 0);
   const pn = pid => { const p = (S.proyectos || []).find(k => k.id === pid); return p ? p.nombre : "—"; };
   const lh = libres(S, d, id, h, h, -1), res = d.res.filter(r => r.modelo_id === id && r.hasta >= h);
@@ -403,7 +403,7 @@ function vGranel(ctx, d, m) {
     if (tipo === "Salida") {
       if (m.stock == null) return toast("Primero pon la cantidad total del elemento");
       const l = libres(S, d, id, h, fin(P) || h, P.id), suyo = (fg.find(x => x.proyecto_id === P.id) || {}).n || 0;
-      if (l.libres - suyo < n && !(puede("admin") && confirm(`Solo hay ${Math.max(0, l.libres - suyo)} ${um} libres para esas fechas (contando reservas). ¿Sacar ${n} igualmente?`))) return;
+      if (l.libres - suyo < n && !(ctx.can("invForzar") && confirm(`Solo hay ${Math.max(0, l.libres - suyo)} ${um} libres para esas fechas (contando reservas). ¿Sacar ${n} igualmente?`))) return;
     } else { const suyo = (fg.find(x => x.proyecto_id === P.id) || {}).n || 0; if (n > suyo) return toast(`${P.nombre} solo tiene fuera ${suyo} ${um}`); }
     const { error } = await ctx.sb.from("inv_movimientos").insert({ modelo_id: id, unidad_id: null, cantidad: n, tipo, proyecto_id: P.id, estado_retorno: tipo === "Entrada" ? (dan ? "Dañado" : "Bueno") : null, nota: $("g_t").value.trim() || null, usuario: quien(S) });
     if (error) return toast("No se pudo: " + error.message);
@@ -425,7 +425,7 @@ function vGranel(ctx, d, m) {
 
 function vForm(ctx, d, m) {
   const { $app, esc, puede, toast, sb } = ctx;
-  if (!puede("admin", "taller")) { $app.innerHTML = `<div class="empty">No tienes permiso para editar el inventario.</div>`; return; }
+  if (!ctx.can("invEditar")) { $app.innerHTML = `<div class="empty">No tienes permiso para editar el inventario.</div>`; return; }
   const nuevo = !m; m = m || { categoria: CATS[0][0] };
   const f = (k, t, extra = "") => `<label class="fl">${t}<input id="f_${k}" class="inp" value="${esc(m[k] == null ? "" : m[k])}" ${extra}></label>`;
   $app.innerHTML = `<a class="back" href="${nuevo ? "#/inventario" : "#/inv/m/" + m.id}">‹ ${nuevo ? "Inventario" : esc(m.nombre)}</a>
@@ -440,7 +440,7 @@ function vForm(ctx, d, m) {
     <label class="fl">Observaciones<textarea id="f_observaciones" class="inp" rows="3" placeholder="Cómo se monta, piezas que lo componen, cuidados…">${esc(m.observaciones || "")}</textarea></label>
     ${nuevo ? `<div class="g3" id="f_qr">${`<label class="fl">Unidades a crear<input id="f_n" class="inp" type="number" min="1" max="200" value="1"></label>`}<label class="fl">Ubicación en nave<input id="f_ub" class="inp" placeholder="Ej. E3-B2"></label></div>
     <div class="code">Cada unidad recibe un código propio (p. ej. MOS-0001) y su etiqueta QR.</div>` : ""}
-    <div class="row"><button class="btn lime" id="fok">${nuevo ? "Crear elemento" : "Guardar"}</button>${!nuevo && puede("admin") ? `<button class="btn ghost" id="fdel">Eliminar elemento</button>` : ""}</div>
+    <div class="row"><button class="btn lime" id="fok">${nuevo ? "Crear elemento" : "Guardar"}</button>${!nuevo && ctx.can("invForzar") ? `<button class="btn ghost" id="fdel">Eliminar elemento</button>` : ""}</div>
   </div>`;
   const $ = k => document.getElementById(k);
   const num = k => { const v = $("f_" + k).value; return v === "" ? null : +v; };
@@ -480,7 +480,7 @@ function vReservas(ctx, d) {
   const porP = {};
   rs.forEach(r => (porP[r.proyecto_id] = porP[r.proyecto_id] || []).push(r));
   const grupos = Object.entries(porP).map(([pid, l]) => ({ p: (S.proyectos || []).find(k => k.id === +pid), l })).sort((a, b) => (a.l[0].desde).localeCompare(b.l[0].desde));
-  $app.innerHTML = `${cab("reservas", puede("admin", "taller"))}
+  $app.innerHTML = `${cab("reservas", ctx.can("invEditar"))}
   ${grupos.length ? grupos.map(g => `<div class="card"><div class="pj-top"><div><b>${esc(g.p ? g.p.nombre : "Proyecto")}</b><div class="code">${g.p && ini(g.p) ? "Carga " + fdc(ini(g.p)) : ""}${g.p && fin(g.p) ? " · vuelta " + fdc(fin(g.p)) : ""}</div></div></div>
     ${g.l.map(r => { const m = d.mods.find(k => k.id === r.modelo_id) || {}; const ya = m.granel ? ((fueraGranel(d, m.id).find(x => x.proyecto_id === r.proyecto_id) || {}).n || 0) : d.uds.filter(u => u.modelo_id === r.modelo_id && u.estado === "Fuera" && u.proyecto_id === r.proyecto_id).length; return `<a class="ires" href="#/inv/m/${m.id}"><div><b>${esc(m.nombre || "?")}</b><div class="code">${r.cantidad} ud · ${fdc(r.desde)} → ${fdc(r.hasta)}${r.nota ? " · " + esc(r.nota) : ""}</div></div><span class="pill ${ya >= r.cantidad ? "ok" : ya ? "warn" : "info"}">${ya}/${r.cantidad} servidas</span></a>`; }).join("")}</div>`).join("")
     : `<div class="empty">No hay reservas próximas. Se reserva desde la ficha de cada elemento.</div>`}${finCab}`;
@@ -488,7 +488,7 @@ function vReservas(ctx, d) {
 
 async function vMovs(ctx, d) {
   const { $app, esc, puede, sb } = ctx;
-  $app.innerHTML = `${cab("movimientos", puede("admin", "taller"))}<div class="card" id="imv"><div class="code">Cargando…</div></div>${finCab}`;
+  $app.innerHTML = `${cab("movimientos", ctx.can("invEditar"))}<div class="card" id="imv"><div class="code">Cargando…</div></div>${finCab}`;
   const { data, error } = await sb.from("inv_movimientos").select("*").order("fecha", { ascending: false }).limit(300);
   const el = document.getElementById("imv"); if (!el) return;
   el.innerHTML = error ? esc(error.message) : (data || []).map(v => movFila(ctx, d, v)).join("") || `<div class="code">Aún no hay movimientos.</div>`;

@@ -102,7 +102,7 @@ export function vFicha(ctx, p) {
   </div>
   <div class="acts">
     <button class="btn lime" id="bsave" type="submit">Guardar</button>
-    ${!nuevo && puede("admin") ? `<button class="btn red" id="bdel" type="button">Eliminar</button>` : ""}
+    ${!nuevo && ctx.can("proyBorrar") ? `<button class="btn red" id="bdel" type="button">Eliminar</button>` : ""}
   </div>
   </form>`;
 

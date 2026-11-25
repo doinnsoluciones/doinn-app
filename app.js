@@ -28,30 +28,43 @@ const fd = s => s ? pd(s).toLocaleDateString("es-ES", { day: "2-digit", month: "
 const dias = s => s ? Math.round((pd(s) - hoy()) / 864e5) : null;
 const pct = (a, b) => b ? Math.round(100 * a / b) : 0;
 function toast(m) { const t = document.getElementById("toast"); t.textContent = m; t.classList.add("on"); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove("on"), 2600); }
-// Roles: superadmin (todo) · admin (Fronts y OT: proyectos) · taller (estado de producción) · lectura
-// puede("admin") incluye al superadmin.
-const puede = (...roles) => !!(S.perfil && S.perfil.aprobado && (roles.includes(S.perfil.rol) || (S.perfil.rol === "superadmin" && roles.includes("admin"))));
-// Páginas que se pueden ocultar por persona
-const PAGINAS = [["proyectos", "Proyectos"], ["plan", "Planificación"], ["escanear", "Escanear"], ["muelle", "Muelle"], ["panel", "Panel"],
-  ["ficha", "Ficha"], ["elementos", "Elementos"], ["despiece", "Despiece"], ["carga", "Carga"], ["retorno", "Retorno"], ["equipo", "Equipo"]];
-const TODAS = PAGINAS.map(x => x[0]);
-const DEF_PAG = {
-  superadmin: TODAS, admin: TODAS,
-  taller: ["proyectos", "plan", "escanear", "ficha", "elementos"],
-  lectura: TODAS.filter(x => x !== "escanear"),
+// Perfiles de usuario: deciden qué ve y qué hace cada persona. El rol técnico (para la base de datos) se deriva del perfil.
+const PERFILES = [
+  ["superadmin", "SuperAdmin", "Control total: usuarios, borrar proyectos, cualquier marca"],
+  ["front", "Front", "Crea y edita proyectos, equipo, retorno, extras de carga, cartera y presupuestos"],
+  ["ot", "Oficina técnica", "Coordinación, despiece, documentación y fases"],
+  ["encargado", "Encargado de taller", "Fabricación, carga, inventario y producción del personal de taller"],
+  ["team_leader", "Team leader", "Mismos permisos que el encargado"],
+  ["logistica", "Logística", "Carga (escanear, camiones, ubicación) e inventario"],
+  ["administracion", "Administración", "Cartera, presupuestador, calculadora e inventario"],
+  ["operario", "Operario de taller", "Marca su fabricación y sus vacaciones o bajas"],
+  ["lectura", "Lectura", "Solo consulta"],
+];
+const PERFIL_TXT = Object.fromEntries(PERFILES.map(([k, l]) => [k, l]));
+const DERIVA = { superadmin: ["superadmin", true, true], front: ["admin", false, true], ot: ["admin", false, false], encargado: ["taller", true, false], team_leader: ["taller", true, false],
+  logistica: ["taller", false, false], administracion: ["lectura", false, true], operario: ["taller", false, false], lectura: ["lectura", false, false] };
+const deriva = pf => { const [rol, gestiona_taller, ve_cartera] = DERIVA[pf] || DERIVA.lectura; return { perfil: pf, rol, gestiona_taller, ve_cartera, paginas: null }; };
+const perfilDe = x => x ? x.perfil || ({ superadmin: "superadmin", admin: "front", taller: "operario" }[x.rol] || "lectura") : null;
+const miPerfil = () => S.perfil && S.perfil.aprobado ? perfilDe(S.perfil) : null;
+// Qué puede hacer cada perfil (el superadmin lo puede todo). "*" = todos menos lectura; "-op" = todos menos operario
+const CAP = {
+  proyEditar: ["front"], proyBorrar: [], coord: ["front", "ot"], despiece: ["ot"],
+  fabricar: ["encargado", "team_leader", "operario"], fabDeshacer: ["encargado", "team_leader"],
+  cargar: ["encargado", "team_leader", "logistica"], cargaExtras: ["front"], retorno: ["front"], equipo: ["front"],
+  incidencias: "*", escaner: "*", marcarProd: ["front", "encargado", "team_leader"],
+  panel: "-op", invVer: "-op", invEditar: ["front", "ot", "encargado", "team_leader", "logistica", "administracion"], invForzar: ["front", "encargado", "team_leader"],
+  cartera: ["front", "administracion"], presupuestos: ["front", "administracion"], calculadora: ["front", "administracion", "ot", "encargado", "team_leader"],
+  usuarios: [], stats: [],
 };
-const ROLES = [["superadmin", "SuperAdmin · control total"], ["admin", "Admin · proyectos (Fronts y OT)"], ["taller", "Taller · estado de producción"], ["lectura", "Lectura · solo consulta"]];
-// El encargado y el team leader («gestiona taller») ven además Muelle, Panel y Carga
-const pagsDe = (rol, pags, gt) => { if (rol === "superadmin") return TODAS; const b = pags && pags.length ? pags : DEF_PAG[rol] || []; return gt ? [...new Set([...b, "muelle", "panel", "carga"])] : b; };
-const verCartera = () => !!S.perfil && S.perfil.aprobado && (S.perfil.rol === "superadmin" || !!S.perfil.ve_cartera);
-// Despiece: solo Oficina Técnica (ficha del grupo OT) y SuperAdmin
-const verDespiece = () => !!S.perfil && S.perfil.aprobado && (S.perfil.rol === "superadmin" || (S.operarios || []).some(o => o.id === S.perfil.operario_id && o.grupo === "OT"));
-// Herramientas de oficina (calculadora de paneles): Oficina Técnica, administración y superadmin
-const verHerr = () => verDespiece() || puede("admin");
-// Inventario: lo ve cualquier usuario aprobado (escriben administración y taller). Presupuestador: administración.
-const verInv = () => !!(S.perfil && S.perfil.aprobado);
-const verPres = () => puede("admin");
-const ver = pg => pg === "cartera" ? verCartera() : pg === "despiece" ? verDespiece() : pg === "melamina" ? verHerr() : pg === "inventario" || pg === "inv" ? verInv() : pg === "presupuestos" ? verPres() : !!S.perfil && pagsDe(S.perfil.rol, S.perfil.paginas, S.perfil.gestiona_taller).includes(pg);
+const can = k => { const p = miPerfil(); if (!p) return false; if (p === "superadmin") return true; const v = CAP[k]; return v === "*" ? p !== "lectura" : v === "-op" ? p !== "operario" : (v || []).includes(p); };
+// Compatibilidad: puede("admin") incluye al superadmin (rol técnico)
+const puede = (...roles) => !!(S.perfil && S.perfil.aprobado && (roles.includes(S.perfil.rol) || (S.perfil.rol === "superadmin" && roles.includes("admin"))));
+// Pestañas y páginas según el perfil
+const TODAS = ["proyectos", "plan", "escanear", "muelle", "panel", "ficha", "elementos", "despiece", "carga", "retorno", "equipo"];
+const VER = { escanear: "escaner", panel: "panel", despiece: "despiece", retorno: "panel", equipo: "panel", cartera: "cartera", presupuestos: "presupuestos", melamina: "calculadora", inventario: "invVer", inv: "invVer", usuarios: "usuarios" };
+const NOM_PAG = { escanear: "Escanear", panel: "Panel", despiece: "Despiece", retorno: "Retorno", equipo: "Equipo", cartera: "Cartera", presupuestos: "Presupuestador", melamina: "Calculadora de paneles", inventario: "Inventario", inv: "Inventario" };
+const ver = pg => !!miPerfil() && (VER[pg] ? can(VER[pg]) : true);
+const verCartera = () => can("cartera"), verHerr = () => can("calculadora"), verInv = () => can("invVer"), verPres = () => can("presupuestos");
 // Proyectos en producción: confirmados o pre-confirmados (o con trabajo ya hecho); el resto solo se ve en Cartera y Planificación
 const enProduccion = p => (p.estado_com || "Confirmado") === "Confirmado" || (p.estado_com === "Pendiente" && !!p.fecha_carga) || S.elementos.some(e => e.proyecto_id === p.id);
 
@@ -79,7 +92,7 @@ async function autoArchivar() {
   const { error } = await sb.from("proyectos").update({ estado: "Cerrado" }).in("id", viejos.map(p => p.id));
   if (!error) viejos.forEach(p => p.estado = "Cerrado");
 }
-const ctx = () => ({ $app, S, sb, esc, toast, puede, recargar: cargar, stats, salud, fd, dias, cabNav: pintaNav, marcaCoordinacion });
+const ctx = () => ({ $app, S, sb, esc, toast, puede, can, recargar: cargar, stats, salud, fd, dias, cabNav: pintaNav, marcaCoordinacion });
 function stats(pid) {
   const els = S.elementos.filter(x => x.proyecto_id === pid);
   const n = els.length;
@@ -209,7 +222,7 @@ function vProyectos() {
   $app.innerHTML = `
   <p class="hint">Ordenados por fecha de carga (los que aún no la tienen, por código). Pulsa uno para ver su ficha, sus elementos y la carga.</p>
   <div class="search fija"><input id="q" placeholder="Buscar por código, proyecto, cliente o Front…" value="${esc(S.q)}">
-  ${puede("admin") ? `<button class="btn lime" id="nuevo">+ Nuevo</button>` : ""}</div>
+  ${can("proyEditar") ? `<button class="btn lime" id="nuevo">+ Nuevo</button>` : ""}</div>
   <div class="row" style="gap:14px">${S.verArch ? "" : `<button class="link" id="vc">${S.verCerrados ? "Ocultar" : "Ver"} proyectos terminados (${nCerr}) ▾</button>`}
   ${nArch || S.verArch ? `<button class="link" id="va">${S.verArch ? "‹ Volver a los proyectos activos" : `Ver archivados (${nArch})`}</button>` : ""}</div>
   ${S.verArch ? "" : sinCargar() + incidenciasParaMi()}
@@ -301,7 +314,7 @@ function fichaLectura(p) {
     <dt>Estado</dt><dd><span class="pill" style="background:${COL_COM[estadoCom(p)]}26;color:var(--ink)">${estadoCom(p)}</span></dd>
     <dt>Front</dt><dd>${esc(p.front_nombre || "—")}</dd>
     <dt>Coordinación</dt><dd class="coord">${p.coordinacion_ok ? `<span class="pill ok">✓ Coordinado</span> <span class="code">${esc(p.coordinacion_por || "")}${p.fecha_coordinacion ? " · " + new Date(p.fecha_coordinacion).toLocaleString("es-ES", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : ""}</span>` : `<span class="pill warn">Sin coordinar</span>`}
-      ${puede("admin") ? `<button class="btn sm ${p.coordinacion_ok ? "ghost" : "lime"}" id="bcoord">${p.coordinacion_ok ? "Quitar coordinación OK" : "Marcar coordinación OK"}</button>` : ""}</dd>
+      ${can("coord") ? `<button class="btn sm ${p.coordinacion_ok ? "ghost" : "lime"}" id="bcoord">${p.coordinacion_ok ? "Quitar coordinación OK" : "Marcar coordinación OK"}</button>` : ""}</dd>
     <dt>Cliente</dt><dd>${esc(p.cliente || "—")}</dd>
     <dt>Ubicación</dt><dd>${esc(p.ubicacion || "—")}</dd>
     <dt>Vehículos carga</dt><dd>${esc(p.transporte_ida || "—")}</dd>
@@ -317,49 +330,48 @@ function fichaLectura(p) {
     ${fila(p.hay_desmontaje, "Desmontaje", p.fecha_desmontaje, p.fecha_desmontaje_fin, p.hora_desmontaje)}
     ${fila(p.hay_retorno, "Descarga en fábrica", p.fecha_descarga, p.fecha_descarga_fin, p.hora_descarga)}
   </table></div>
-  ${puede("admin") ? `<a class="btn ghost wide" href="#/p/${p.id}/editar">Editar ficha del proyecto</a>
+  ${can("proyEditar") ? `<a class="btn ghost wide" href="#/p/${p.id}/editar">Editar ficha del proyecto</a>
   <button class="btn ${p.archivado ? "lime" : "ghost"} wide" id="barch" style="margin-top:8px">${p.archivado ? "Desarchivar proyecto" : "🗄 Archivar proyecto"}</button>
   ${p.archivado ? `<p class="hint" style="text-align:center">Archivado${p.archivado_por ? " por " + esc(p.archivado_por) : ""}${p.fecha_archivado ? " el " + new Date(p.fecha_archivado).toLocaleDateString("es-ES") : ""}</p>` : ""}` : ""}`;
 }
 async function vUsuarios() {
-  if (!puede("superadmin")) { $app.innerHTML = `<div class="empty">Solo el SuperAdmin gestiona usuarios.</div>`; return; }
+  if (!can("usuarios")) { $app.innerHTML = `<div class="empty">Solo el SuperAdmin gestiona usuarios.</div>`; return; }
   const [u, inv] = await Promise.all([sb.from("perfiles").select("*").order("email"), sb.from("invitaciones").select("*").is("usada", null).order("creada")]);
   if (u.error || inv.error) { $app.innerHTML = `<div class="empty">${esc((u.error || inv.error).message)}</div>`; return; }
-  const optRol = r => ROLES.map(([k, l]) => `<option value="${k}" ${k === r ? "selected" : ""}>${l}</option>`).join("");
-  const checks = (rol, pags, pref) => rol === "superadmin" ? `<div class="code">Ve todas las páginas.</div>` :
-    `<div class="pgs">${PAGINAS.map(([k, l]) => `<label class="pg"><input type="checkbox" data-${pref}="${k}" ${pagsDe(rol, pags).includes(k) ? "checked" : ""}> ${l}</label>`).join("")}</div>`;
+  const optPf = pf => PERFILES.map(([k, l]) => `<option value="${k}" ${k === pf ? "selected" : ""}>${l}</option>`).join("");
+  const desc = pf => (PERFILES.find(x => x[0] === pf) || [])[2] || "";
+  // Perfil sugerido según el grupo de su ficha en planificación
+  const sugerido = o => o && ({ Fronts: "front", OT: "ot", Taller: "operario", Externos: "operario" }[o.grupo]);
   const ops = S.operarios.filter(o => o.activo !== false).sort((a, b) => a.nombre.localeCompare(b.nombre));
   const selOp = (id, val) => `<select ${id}><option value="">— Sin vincular —</option>${ops.map(o => `<option value="${o.id}" ${o.id === val ? "selected" : ""}>${esc(o.nombre)} · ${esc(o.grupo || "")}</option>`).join("")}</select>`;
   const opNomU = id => (S.operarios.find(o => o.id === id) || {}).nombre;
-  const leeChecks = (el, pref) => [...el.querySelectorAll(`[data-${pref}]`)].filter(c => c.checked).map(c => c.dataset[pref]);
   const yo = S.user.id;
+  const orden = Object.fromEntries(PERFILES.map(([k], i) => [k, i]));
+  const lista = [...u.data].sort((a, b) => (orden[perfilDe(a)] - orden[perfilDe(b)]) || (a.nombre || a.email).localeCompare(b.nombre || b.email));
   $app.innerHTML = `<h1>Usuarios</h1>
-  <p class="hint">Solo entran las personas invitadas. Invita con su email, elige el rol y qué páginas ve. Al guardar se abre un correo en tu Outlook ya redactado con el enlace y las instrucciones: solo tienes que pulsar Enviar.</p>
+  <p class="hint">Solo entran las personas invitadas. Invita con su email y elige su perfil: el perfil decide qué ve y qué puede hacer. Al guardar se abre un correo en tu Outlook ya redactado con el enlace y las instrucciones: solo tienes que pulsar Enviar.</p>
+  <details class="card"><summary class="link">Qué puede hacer cada perfil</summary><div class="pfl">${PERFILES.map(([k, l, d]) => `<div class="crow"><b>${l}</b><span class="code">${d}</span></div>`).join("")}</div></details>
   <form id="finv" class="card frm"><h2>+ Invitar</h2>
     <div class="two"><label>Email<input id="iem" type="email" required placeholder="nombre@doinn.es"></label>
     <label>Nombre<input id="inom" placeholder="Nombre y primer apellido"></label></div>
-    <div class="two"><label>Rol<select id="irol">${optRol("taller")}</select></label>
-    <label>Su ficha en planificación${selOp('id="iop"', null)}</label></div>
-    <label class="pg" style="margin:4px 0 8px"><input type="checkbox" id="igt"> Gestiona al personal de taller (puede marcar días de todo el taller, como el encargado o el team leader)</label>
-    <label class="pg" style="margin:0 0 8px"><input type="checkbox" id="ivc"> Ve la cartera comercial (ventas y márgenes: Fronts y dirección)</label>
-    <div class="code" style="margin:6px 0 4px">Páginas que verá</div><div id="ipg">${checks("taller", null, "ip")}</div>
+    <div class="two"><label>Su ficha en planificación${selOp('id="iop"', null)}</label>
+    <label>Perfil<select id="ipf">${optPf("operario")}</select></label></div>
+    <div class="code" id="ipfd" style="margin:2px 0 10px">${desc("operario")}</div>
     <button class="btn lime wide">Guardar invitación y preparar correo</button></form>
-  ${inv.data.length ? `<div class="card"><h2>Invitaciones pendientes <small class="code">${inv.data.length}</small></h2>${inv.data.map(x => `<div class="crow"><div><b>${esc(x.email)}</b> <span class="pill">${esc(x.rol)}</span><div class="code">${esc(x.nombre || "")}${x.operario_id ? " · ficha: " + esc(opNomU(x.operario_id) || "") : ""}${x.gestiona_taller ? " · gestiona taller" : ""} · aún no ha creado su cuenta</div></div><div class="row" style="gap:10px"><button class="link" data-icor="${esc(x.email)}">✉ Enviar correo</button><button class="link" data-idel="${esc(x.email)}">Anular</button></div></div>`).join("")}</div>` : ""}
-  <h2 style="margin-top:18px">Con acceso</h2>
-  ${u.data.map(x => `<div class="card u" data-id="${x.user_id}"><div class="crow" style="border:0;padding:0"><div><b>${esc(x.nombre || x.email)}</b><div class="code">${esc(x.email)} · ${x.aprobado ? "Activo" : "Sin acceso"}${x.operario_id ? " · ficha: " + esc(opNomU(x.operario_id) || "") : " · sin ficha vinculada"}${x.gestiona_taller ? " · gestiona taller" : ""}</div></div>
+  ${inv.data.length ? `<div class="card"><h2>Invitaciones pendientes <small class="code">${inv.data.length}</small></h2>${inv.data.map(x => `<div class="crow"><div><b>${esc(x.email)}</b> <span class="pill">${esc(PERFIL_TXT[perfilDe(x)] || "")}</span><div class="code">${esc(x.nombre || "")}${x.operario_id ? " · ficha: " + esc(opNomU(x.operario_id) || "") : ""} · aún no ha creado su cuenta</div></div><div class="row" style="gap:10px"><button class="link" data-icor="${esc(x.email)}">✉ Enviar correo</button><button class="link" data-idel="${esc(x.email)}">Anular</button></div></div>`).join("")}</div>` : ""}
+  <h2 style="margin-top:18px">Con acceso <small class="code">${u.data.length}</small></h2>
+  ${lista.map(x => { const pf = perfilDe(x); return `<div class="card u" data-id="${x.user_id}"><div class="crow" style="border:0;padding:0"><div><b>${esc(x.nombre || x.email)}</b> <span class="pill">${esc(PERFIL_TXT[pf] || pf)}</span><div class="code">${esc(x.email)} · ${x.aprobado ? "Activo" : "Sin acceso"}${x.operario_id ? " · ficha: " + esc(opNomU(x.operario_id) || "") : " · sin ficha vinculada"}</div></div>
     ${x.user_id === yo ? `<span class="pill">Tú</span>` : `<button class="btn sm ${x.aprobado ? "ghost" : "lime"}" data-acc>${x.aprobado ? "Quitar acceso" : "Dar acceso"}</button>`}</div>
-    ${x.user_id === yo ? "" : `<div class="two frm" style="margin-top:8px"><label>Rol<select data-rol>${optRol(x.rol)}</select></label><label>Su ficha en planificación${selOp("data-op", x.operario_id)}</label></div>
-    <label class="pg" style="margin:6px 0"><input type="checkbox" data-gt ${x.gestiona_taller ? "checked" : ""}> Gestiona al personal de taller</label>
-    <label class="pg" style="margin:0 0 6px"><input type="checkbox" data-vc ${x.ve_cartera ? "checked" : ""}> Ve la cartera comercial</label>
-    <details><summary class="link">Páginas que ve</summary><div data-pgs>${checks(x.rol, x.paginas, "up")}</div><button class="btn sm" data-gpg>Guardar páginas</button></details>`}</div>`).join("")}`;
+    ${x.user_id === yo ? "" : `<div class="two frm" style="margin-top:8px"><label>Perfil<select data-pf>${optPf(pf)}</select></label><label>Su ficha en planificación${selOp("data-op", x.operario_id)}</label></div>
+    <div class="code">${desc(pf)}</div>`}</div>`; }).join("")}`;
   const $ = id => document.getElementById(id);
-  $("irol").onchange = () => $("ipg").innerHTML = checks($("irol").value, null, "ip");
-  $("iop").onchange = () => { const o = S.operarios.find(x => x.id === +$("iop").value); if (o && o.grupo === "Fronts") $("ivc").checked = true; };
+  $("ipf").onchange = () => $("ipfd").textContent = desc($("ipf").value);
+  $("iop").onchange = () => { const s = sugerido(S.operarios.find(x => x.id === +$("iop").value)); if (s) { $("ipf").value = s; $("ipfd").textContent = desc(s); } };
   $("finv").onsubmit = async ev => {
     ev.preventDefault();
-    const rol = $("irol").value, pags = rol === "superadmin" ? null : leeChecks($("ipg"), "ip");
-    const row = { email: $("iem").value.trim().toLowerCase(), nombre: $("inom").value.trim() || null, rol, paginas: pags, invitado_por: S.user.email, usada: null, operario_id: $("iop").value ? +$("iop").value : null, gestiona_taller: $("igt").checked, ve_cartera: $("ivc").checked };
-    if (u.data.some(x => x.email === row.email)) return toast("Ese email ya tiene cuenta: cambia su rol abajo.");
+    const d = deriva($("ipf").value);
+    const row = { email: $("iem").value.trim().toLowerCase(), nombre: $("inom").value.trim() || null, ...d, invitado_por: S.user.email, usada: null, operario_id: $("iop").value ? +$("iop").value : null };
+    if (u.data.some(x => x.email === row.email)) return toast("Ese email ya tiene cuenta: cambia su perfil abajo.");
     const { error } = await sb.from("invitaciones").upsert(row);
     if (error) return toast(error.message);
     toast("Invitación guardada. Se abre tu correo para enviársela."); correoInvitacion(row); vUsuarios();
@@ -370,11 +382,8 @@ async function vUsuarios() {
     const id = el.dataset.id, x = u.data.find(z => z.user_id === id);
     const upd = async (c, msg) => { const { error } = await sb.from("perfiles").update(c).eq("user_id", id); toast(error ? error.message : msg); if (!error) vUsuarios(); };
     const a = el.querySelector("[data-acc]"); if (a) a.onclick = () => upd({ aprobado: !x.aprobado }, x.aprobado ? "Acceso retirado" : "Acceso activado");
-    const r = el.querySelector("[data-rol]"); if (r) r.onchange = () => upd({ rol: r.value, paginas: null }, "Rol guardado (páginas por defecto del rol)");
+    const r = el.querySelector("[data-pf]"); if (r) r.onchange = () => upd(deriva(r.value), `Perfil: ${PERFIL_TXT[r.value]}`);
     const so = el.querySelector("[data-op]"); if (so) so.onchange = () => upd({ operario_id: so.value ? +so.value : null }, "Ficha vinculada");
-    const vc = el.querySelector("[data-vc]"); if (vc) vc.onchange = () => upd({ ve_cartera: vc.checked }, vc.checked ? "Ahora ve la cartera comercial" : "Ya no ve la cartera comercial");
-    const gt = el.querySelector("[data-gt]"); if (gt) gt.onchange = () => upd({ gestiona_taller: gt.checked }, gt.checked ? "Ahora gestiona al personal de taller" : "Ya no gestiona al personal de taller");
-    const g = el.querySelector("[data-gpg]"); if (g) g.onclick = () => upd({ paginas: leeChecks(el.querySelector("[data-pgs]"), "up") }, "Páginas guardadas");
   });
 }
 function vProximamente(t) {
@@ -392,9 +401,9 @@ async function route() {
   document.querySelectorAll("#tabs a").forEach(a => a.classList.toggle("on", (a.dataset.t === (h[0] || "proyectos")) || (h[0] === "p" && a.dataset.t === "proyectos")));
   document.querySelectorAll("#tabs a").forEach(a => a.hidden = !ver(a.dataset.t));
   const pag = h[0] === "p" ? (h[2] && ["editar", "desp", "el"].includes(h[2]) ? (h[2] === "editar" ? "ficha" : h[2] === "desp" ? "despiece" : "elementos") : null) : (h[0] === "tv" ? "plan" : h[0] || "proyectos");
-  if (pag && pag !== "usuarios" && pag !== "nuevo" && !ver(pag)) { const pri = TODAS.find(x => ver(x) && ["proyectos", "plan", "escanear", "muelle", "panel"].includes(x)); if (pri && pri !== pag) { toast(`No tienes acceso a «${(PAGINAS.find(x => x[0] === pag) || [pag, pag])[1]}». Pide a dirección que te la active.`); location.hash = pri === "proyectos" ? "#/" : "#/" + pri; return; } $app.innerHTML = `<div class="empty">No tienes acceso a esta página.</div>`; return; }
-  if (h[0] === "nuevo") return puede("admin") ? vFicha(ctx(), null) : vProyectos();
-  if (h[0] === "p" && h[2] === "editar") { const p = S.proyectos.find(x => x.id === +h[1]); return p && puede("admin") ? vFicha(ctx(), p) : vProyecto(h[1]); }
+  if (pag && pag !== "usuarios" && pag !== "nuevo" && !ver(pag)) { const pri = TODAS.find(x => ver(x) && ["proyectos", "plan", "escanear", "muelle", "panel"].includes(x)); if (pri && pri !== pag) { toast(`Tu perfil no tiene acceso a «${NOM_PAG[pag] || pag}».`); location.hash = pri === "proyectos" ? "#/" : "#/" + pri; return; } $app.innerHTML = `<div class="empty">No tienes acceso a esta página.</div>`; return; }
+  if (h[0] === "nuevo") return can("proyEditar") ? vFicha(ctx(), null) : vProyectos();
+  if (h[0] === "p" && h[2] === "editar") { const p = S.proyectos.find(x => x.id === +h[1]); return p && can("proyEditar") ? vFicha(ctx(), p) : vProyecto(h[1]); }
   if (h[0] === "p" && h[2] === "desp") { const p = S.proyectos.find(x => x.id === +h[1]); return p ? vElementoForm(ctx(), p, h[3]) : vProyectos(); }
   if (h[0] === "p" && h[2] === "el") { const p = S.proyectos.find(x => x.id === +h[1]); S.dirty = true; return p ? vElemento(ctx(), p, h[3]) : vProyectos(); }
   if (h[0] === "p") return vProyecto(h[1], h[2] || "ficha");
@@ -413,7 +422,7 @@ async function route() {
   return vProyectos();
 }
 window.addEventListener("hashchange", route);
-iniciaCabecera({ S, sb, esc, toast, puede, verHerr, verInv, verPres, verCartera, verTv: () => ver("plan"), rerender: () => route() });
+iniciaCabecera({ S, sb, esc, toast, puede, perfilTxt: () => PERFIL_TXT[miPerfil()] || "", verHerr, verInv, verPres, verCartera, verTv: () => ver("plan"), rerender: () => route() });
 
 async function arrancar(session) {
   S.user = session?.user || null;

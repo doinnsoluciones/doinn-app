@@ -91,7 +91,7 @@ export function pintaUsuario() {
   if (!S.user || !S.perfil) { me.innerHTML = ""; return; }
   const nom = S.perfil.nombre || (S.user.email || "").split("@")[0];
   me.innerHTML = `<button class="hd-user" id="hperfil" title="Mi perfil"><span class="av">${esc((nom[0] || "?").toUpperCase())}</span>
-      <span class="hd-un"><b>${esc(nom)}</b><i class="rol">${ROL_TXT[S.perfil.rol] || S.perfil.rol}</i></span></button>
+      <span class="hd-un"><b>${esc(nom)}</b><i class="rol">${esc((api?.perfilTxt?.()) || ROL_TXT[S.perfil.rol] || S.perfil.rol)}</i></span></button>
     ${herrs().length ? `<span class="hd-tools"><button class="hd-dots" id="hdots" title="Más" aria-label="Más">⋯</button></span>` : ""}
     <button class="hd-out" id="hout" title="Cerrar sesión">${ic.salir}<span>Cerrar sesión</span></button>`;
   $("hperfil").onclick = miPerfil;
@@ -127,7 +127,7 @@ function menu() {
   m.innerHTML = `
     <div class="m-x m-clock"><b>${d.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}</b> ${d.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</div>
     ${nav ? `<div class="m-x m-nav"><a class="hd-ar" href="${nav.prev}">${ic.ant}</a><span>${nav.label}</span><a class="hd-ar" href="${nav.next}">${ic.sig}</a><a class="hd-hoy" href="${nav.hoy}">Hoy</a></div>` : ""}
-    ${S.perfil ? `<div class="m-x m-user"><div><b>${esc(nom)}</b> <i class="rol">${ROL_TXT[S.perfil.rol] || S.perfil.rol}</i><div class="code">${esc(S.user.email || "")}</div></div>
+    ${S.perfil ? `<div class="m-x m-user"><div><b>${esc(nom)}</b> <i class="rol">${esc((api?.perfilTxt?.()) || ROL_TXT[S.perfil.rol] || S.perfil.rol)}</i><div class="code">${esc(S.user.email || "")}</div></div>
       <div class="m-acts"><button class="m-btn" data-a="perfil">${ic.perfil} Mi perfil</button><button class="m-btn" data-a="salir">${ic.salir} Cerrar sesión</button></div></div>` : ""}
     ${S.perfil && herrs().length ? `<div class="m-x m-herr"><div class="code">Más</div>${herrs().map(([h, t]) => `<a class="m-btn" href="${h}">${t}</a>`).join("")}</div>` : ""}
     <div class="m-opts">
@@ -164,7 +164,7 @@ function miPerfil() {
   m.innerHTML = `<div class="card mbox perfil">
     <div class="row" style="justify-content:space-between"><h2 style="margin:0">Mi perfil</h2><button class="link" id="px">Cerrar ✕</button></div>
     <div class="pf-sec"><div class="code">USUARIO</div><b>${esc(S.user.email || "")}</b>${p.nombre ? `<div>${esc(p.nombre)}</div>` : ""}
-      <div style="margin-top:6px"><i class="rol">${ROL_TXT[p.rol] || p.rol || ""}</i>${p.gestiona_taller ? ` <i class="rol">Gestiona taller</i>` : ""}</div>
+      <div style="margin-top:6px"><i class="rol">${esc((api?.perfilTxt?.()) || ROL_TXT[p.rol] || p.rol || "")}</i></div>
       ${ficha ? `<div class="code" style="margin-top:6px">Ficha en planificación: ${esc(ficha)}</div>` : ""}</div>
     <form class="pf-sec frm" id="pfpw"><b>Contraseña</b>
       <label>Nueva contraseña<input type="password" id="pw1" minlength="8" required autocomplete="new-password"></label>
