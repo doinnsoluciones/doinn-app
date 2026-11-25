@@ -304,9 +304,9 @@ function fichaLectura(p) {
       ${puede("admin") ? `<button class="btn sm ${p.coordinacion_ok ? "ghost" : "lime"}" id="bcoord">${p.coordinacion_ok ? "Quitar coordinación OK" : "Marcar coordinación OK"}</button>` : ""}</dd>
     <dt>Cliente</dt><dd>${esc(p.cliente || "—")}</dd>
     <dt>Ubicación</dt><dd>${esc(p.ubicacion || "—")}</dd>
-    <dt>Ida</dt><dd>${esc(p.transporte_ida || "—")}</dd>
-    <dt>Vuelta</dt><dd>${esc(p.transporte_vuelta || p.transporte_ida || "—")}</dd>
-    <dt>Vehículo</dt><dd>${esc(p.tipo_vehiculo || "—")}</dd>
+    <dt>Vehículos carga</dt><dd>${esc(p.transporte_ida || "—")}</dd>
+    <dt>Vehículos desmontaje</dt><dd>${esc(p.transporte_vuelta || (Array.isArray(p.vehiculos) && p.vehiculos.length ? "" : p.transporte_ida) || "—")}</dd>
+    ${!(Array.isArray(p.vehiculos) && p.vehiculos.length) && p.tipo_vehiculo ? `<dt>Vehículo</dt><dd>${esc(p.tipo_vehiculo)}</dd>` : ""}
     <dt>Necesidades</dt><dd>${esc(p.necesidades || "—")}</dd>
     <dt>Carpeta</dt><dd>${p.carpeta ? `<a href="${esc(p.carpeta)}" target="_blank" rel="noopener" style="color:var(--lime-d)">Abrir en SharePoint ↗</a>` : "—"}</dd>
   </dl></div>

@@ -147,7 +147,7 @@ export function vMuelle(ctx, ini) {
     for (const p of S.proyectos) {
       if (p.archivado || !((p.estado_com || "Confirmado") === "Confirmado" || (p.estado_com === "Pendiente" && p.fecha_carga)) || (p.estado === "Cerrado" && !(p.fecha_descarga && p.fecha_descarga >= dias[0]))) continue;
       if (p.hay_carga !== false && enRango(dia, p.fecha_carga, p.fecha_carga_fin)) out.push({ t: "Carga", p, h: p.hora_carga, tr: p.transporte_ida });
-      if (p.hay_retorno !== false && enRango(dia, p.fecha_descarga, p.fecha_descarga_fin)) out.push({ t: "Descarga", p, h: p.hora_descarga, tr: p.transporte_vuelta || p.transporte_ida });
+      if (p.hay_retorno !== false && enRango(dia, p.fecha_descarga, p.fecha_descarga_fin)) out.push({ t: "Descarga", p, h: p.hora_descarga, tr: p.transporte_vuelta || (Array.isArray(p.vehiculos) && p.vehiculos.length ? null : p.transporte_ida) });
     }
     return out.sort((a, b) => (a.h || "99").localeCompare(b.h || "99"));
   };

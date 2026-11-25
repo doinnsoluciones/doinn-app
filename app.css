@@ -983,3 +983,10 @@ body::before{content:"";position:fixed;top:0;left:0;right:0;height:env(safe-area
 .vehs #vehs{margin-left:16px}.vehs #bveh{margin-left:30px}.vehs #vehs{padding-left:12px;border-left:2px solid var(--line)}.vehs #vehs:empty{display:none}
 .vh-n{font-weight:600;font-size:13px;color:var(--muted)}.vh-row{grid-template-columns:84px minmax(0,1fr) 104px 40px}
 @media (max-width:520px){.vehs #vehs{margin-left:8px}.vehs #bveh{margin-left:20px}.vehs #vehs{padding-left:10px}.vh-row{grid-template-columns:minmax(0,1fr) 96px 40px}}
+/* Fechas sin columna Transporte · vehículos con fase */
+.g-row{grid-template-columns:96px 78px 1fr 1fr 92px}
+@media (max-width:640px){.g-row{grid-template-areas:"l t" "d1 d2" "h ."}}
+@media (max-width:640px){.g-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
+@media (max-width:400px){.g-row{grid-template-areas:"l t" "d1 d1" "d2 d2" "h ."}}
+.vh-row{grid-template-columns:84px 132px minmax(0,1fr) 104px 40px}
+@media (max-width:520px){.vh-row{grid-template-columns:minmax(0,1fr) 96px 40px;grid-template-areas:"n n n" "t t t" "f h x"}.vh-row .vh-n{grid-area:n}.vh-row .vh-f{grid-area:f}.vh-row select[id^=veh_t_]{grid-area:t}.vh-row select[id^=veh_h_]{grid-area:h}.vh-row .vh-x{grid-area:x}}
