@@ -1003,7 +1003,7 @@ body::before{content:"";position:fixed;top:0;left:0;right:0;height:env(safe-area
 .cfl{font-size:12px;color:var(--muted);font-weight:600;align-self:center;margin-right:2px}
 .invok,.invko{font-size:13px;margin:-4px 0 8px;font-weight:600}.invok{color:var(--ok-t)}.invko{color:#B42318}
 /* Pantalla de taller · Personal ajustado al alto: todas las filas caben */
-body.tv .gantt.fit .gr,body.tv .gantt.fit .gr .gn{min-height:var(--tvh);height:var(--tvh)}
+body.tv .gantt.fit .gr:not(.gmov),body.tv .gantt.fit .gr:not(.gmov) .gn{min-height:var(--tvh);height:var(--tvh)}body.tv .gmov,body.tv .gmov .gn{background:#131E29;color:#AEB9B9;border-color:#24323f}
 body.tv .gantt.fit .gr .gn{padding-top:0;padding-bottom:0}
 body.tv .gantt.comp .gn b{font-size:12px}body.tv .gantt.comp .gn span{display:none}
 body.tv .gantt.comp .pl{height:calc(var(--tvh) - 6px);min-height:0;max-height:none;font-size:11px;line-height:1;padding-top:0;padding-bottom:0;display:flex;align-items:center}body.tv .gantt.comp .pl.l2 small{display:none}body.tv .gantt.comp .pc{align-self:center}

@@ -153,7 +153,7 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
   const COLW = tv ? Math.floor((($app.clientWidth || 1600) - NW - 4) / 14) : Math.max(ANCHO, Math.floor((($app.clientWidth || 1000) - NW - 2) / NDIAS));
   const scroll0 = opt.scroll;
   if (!opt.silencioso) $app.innerHTML = `<div class="loading">Cargando planificación…</div>`;
-  // Pantalla de taller: rota cada 5 s, así que reutiliza los datos durante 1 minuto
+  // Pantalla de taller: rota cada 15 s, así que reutiliza los datos durante 1 minuto
   let D; try { D = tv && S._tvD && Date.now() - S._tvT < 60000 ? S._tvD : await cargaPlan(sb); if (tv) { S._tvD = D; S._tvT = Date.now(); } } catch (e) { $app.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
   S.planFront = S.planFront || "";
   S.planEst = S.planEst || lsGet("doinn_plan_estados", ["Pendiente", "Confirmado"]).filter(e => ESTADOS_COM.includes(e));
@@ -283,13 +283,10 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
     // Se ajusta al alto de la pantalla para que se vea a todo el personal sin hacer scroll
     const gt = w.querySelector(".gantt"); w.style.maxHeight = "none"; w.style.overflow = "hidden";
     const disp = innerHeight - w.getBoundingClientRect().top - 8, alto = gt.scrollHeight;
-    const z = alto > disp ? disp / alto : 1;
-    if (modo === "personal") {
-      // Personal: reparte el alto disponible entre todas las filas (crecen si hay pocas, se compactan si hay muchas)
-      const rs = gt.querySelectorAll(".gr"), n = rs.length || 1, resto = alto - [...rs].reduce((t, r) => t + r.offsetHeight, 0);
-      const h = Math.max(20, Math.min(110, Math.floor((disp - resto) / n)));
-      gt.style.setProperty("--tvh", h + "px"); gt.classList.add("fit"); gt.classList.toggle("comp", h < 38);
-    } else if (z >= 0.6) gt.style.zoom = z.toFixed(3); else { w.style.overflow = ""; w.style.maxHeight = disp + "px"; }
+    // Reparte el alto disponible entre todas las filas (crecen si hay pocas, se compactan si hay muchas); el ancho no cambia
+    const rs = gt.querySelectorAll(".gr:not(.gmov)"), n = rs.length || 1, resto = alto - [...rs].reduce((t, r) => t + r.offsetHeight, 0);
+    const h = Math.max(20, Math.min(modo === "personal" ? 110 : 90, Math.floor((disp - resto) / n)));
+    gt.style.setProperty("--tvh", h + "px"); gt.classList.add("fit"); gt.classList.toggle("comp", h < 38);
     return D;
   }
 
@@ -470,7 +467,7 @@ async function vStats(ctx, anio) {
 // ---------- Pantalla de taller (TV) ----------
 export function vTv(ctx) {
   document.body.classList.add("tv");
-  // Pantalla del taller: alterna cada 5 s la planificación de Proyectos y la de Personal. Datos frescos cada minuto.
+  // Pantalla del taller: alterna cada 15 s la planificación de Proyectos y la de Personal. Datos frescos cada minuto.
   const SEC = ["proyectos", "personal"];
   let t = 0, k = 0;
   const rota = () => lsGet("doinn_tv_rota", true);
@@ -490,9 +487,9 @@ export function vTv(ctx) {
   const id = setInterval(async () => {
     if (location.hash !== "#/tv") return fin();
     t++; k++;
-    if (t % 12 === 0) { try { await ctx.recargar(); } catch { } }
+    if (t % 4 === 0) { try { await ctx.recargar(); } catch { } }
     pinta();
-  }, 5000);
+  }, 15000);
   const fin = () => { clearInterval(id); document.body.classList.remove("tv"); const b = document.getElementById("tvrota"); if (b) b.remove(); window.removeEventListener("hashchange", sal); };
   const sal = () => { if (location.hash !== "#/tv") fin(); };
   window.addEventListener("hashchange", sal);
