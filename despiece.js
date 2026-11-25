@@ -8,7 +8,9 @@ const fasesTxt = arr => arr.length ? "|" + arr.join("|") + "|" : null;
 const tiene = (l, f) => (l || "").includes("|" + f + "|");
 const ETIQ = "https://doinnsoluciones.github.io/Etiquetas/";
 const ORIGENES = ["Fabricación", "Almacén"];
-const ORI_TXT = { "Fabricación": "Fabricación ad hoc", "Almacén": "Almacén (inventario)" };
+const ORI_TXT = { "Fabricación": "Fabricación ad hoc", "Almacén": "Almacén (inventario)", "Mixto": "Mixto (ad hoc + inventario)" };
+// Con subelementos, el origen del elemento sale de ellos: todo almacén → Almacén; mezcla → Mixto; si no → Fabricación
+const origenDe = subs => !subs.length ? null : subs.every(s => esAlm(s.origen)) ? "Almacén" : subs.some(s => esAlm(s.origen)) ? "Mixto" : "Fabricación";
 const V = new URL(import.meta.url).search;
 const esAlm = o => origenTxt(o) === "Almacén";
 export const origenTxt = o => !o ? "Fabricación" : o === "Inventario" ? "Almacén" : o;
@@ -163,8 +165,8 @@ export async function vElementoForm(ctx, p, eid) {
     <form id="fe" class="card frm" autocomplete="off">
       <div class="two"><label>Nombre *<input id="e_nom" value="${v("elemento")}" required></label>
       <label>Unidades *<input id="e_cant" type="number" min="1" value="${x.cantidad || 1}" required></label></div>
-      <label>Origen<select id="e_ori">${ORIGENES.map(o => `<option value="${o}" ${o === (x.origen || "Fabricación") ? "selected" : ""}>${ORI_TXT[o]}</option>`).join("")}</select></label>
-      ${!conSub && esAlm(x.origen) ? `${selInv('id="e_inv"', x.inv_modelo_id)}<div data-av="e">${avisoInv(x.inv_modelo_id, x.cantidad || 1)}</div><p class="hint">De almacén: no pasa por fabricación. Al guardar se reserva en Inventario para las fechas del proyecto.</p>` : ""}
+      <label>Origen<select id="e_ori">${[...ORIGENES, "Mixto"].map(o => `<option value="${o}" ${o === (x.origen || "Fabricación") ? "selected" : ""}>${ORI_TXT[o]}</option>`).join("")}</select></label>
+      ${x.origen === "Mixto" ? `<p class="hint">Mixto: combina subelementos de almacén (sin fabricación) y de fabricación ad hoc. Elige el origen de cada subelemento abajo.</p>` : ""}${!conSub && esAlm(x.origen) ? `${selInv('id="e_inv"', x.inv_modelo_id)}<div data-av="e">${avisoInv(x.inv_modelo_id, x.cantidad || 1)}</div><p class="hint">De almacén: no pasa por fabricación. Al guardar se reserva en Inventario para las fechas del proyecto.</p>` : ""}
       <div class="code" style="margin-top:6px">Medidas en mm <small>(opcional)</small></div>
       <div class="three med"><label>Alto<input id="e_h" type="number" value="${v("alto")}"></label><label>Ancho<input id="e_a" type="number" value="${v("ancho")}"></label><label>Fondo<input id="e_l" type="number" value="${v("largo")}"></label></div>
       <label>Observaciones<textarea id="e_obs" rows="2">${v("observaciones")}</textarea></label>
@@ -190,11 +192,16 @@ export async function vElementoForm(ctx, p, eid) {
     if ($("e_ral")) cajaRal($("e_ral"), x.ral, t => x.ral = t);
     document.querySelectorAll("[data-sral]").forEach(b => { const s = subs[+b.dataset.sral]; cajaRal(b, s.ral, t => s.ral = t); });
     const leeSubs = () => document.querySelectorAll(".subf").forEach(el => { const s = subs[+el.dataset.i]; el.querySelectorAll("[data-s]").forEach(i => s[i.dataset.s] = i.value); if (esAlm(s.origen)) s.fases = null; else if (el.querySelector("input[data-f]")) s.fases = fasesTxt([...el.querySelectorAll("input[data-f]:checked")].map(c => c.value)); });
-    const guardaCampos = () => { x.elemento = $("e_nom").value; x.cantidad = +$("e_cant").value || 1; x.origen = $("e_ori").value; x.largo = $("e_l").value; x.ancho = $("e_a").value; x.alto = $("e_h").value; x.observaciones = $("e_obs").value; x.plano_url = $("e_plano").value; x.revision = $("e_rev").value; x.es_extra = $("e_extra").checked; if ($("e_inv")) x.inv_modelo_id = $("e_inv").value ? +$("e_inv").value : null; if ($("e_acab")) { x.acabado = $("e_acab").value; x.fases = fasesTxt([...document.querySelectorAll("input[data-f=e]:checked")].map(c => c.value)); } if (conSub) leeSubs(); };
-    $("e_sub").onchange = () => { guardaCampos(); conSub = $("e_sub").checked; if (conSub && !subs.length) subs.push({ cantidad: 1, origen: "Fabricación", fases: "|Corte|Carpintería|" }); pinta(); };
+    const guardaCampos = () => { x.elemento = $("e_nom").value; x.cantidad = +$("e_cant").value || 1; x.origen = $("e_ori").value; x.largo = $("e_l").value; x.ancho = $("e_a").value; x.alto = $("e_h").value; x.observaciones = $("e_obs").value; x.plano_url = $("e_plano").value; x.revision = $("e_rev").value; x.es_extra = $("e_extra").checked; if ($("e_inv")) x.inv_modelo_id = $("e_inv").value ? +$("e_inv").value : null; if ($("e_acab")) { x.acabado = $("e_acab").value; x.fases = fasesTxt([...document.querySelectorAll("input[data-f=e]:checked")].map(c => c.value)); } if (conSub) { leeSubs(); x.origen = origenDe(subs) || x.origen; } };
+    $("e_sub").onchange = () => { guardaCampos(); conSub = $("e_sub").checked; if (conSub && !subs.length) subs.push({ cantidad: 1, origen: esAlm(x.origen) ? "Almacén" : "Fabricación", fases: esAlm(x.origen) ? null : "|Corte|Carpintería|", inv_modelo_id: esAlm(x.origen) ? x.inv_modelo_id : null }); if (!conSub && x.origen === "Mixto") x.origen = "Fabricación"; pinta(); };
     // Cambiar origen o elegir del inventario repinta (muestra/oculta fases y la disponibilidad); el nombre se propone del inventario
     const nomInv = id => (modelos.find(m => m.id === +id) || {}).nombre || "";
-    $("e_ori").onchange = () => { guardaCampos(); if (!esAlm(x.origen) && !x.fases) x.fases = "|Corte|Carpintería|"; pinta(); };
+    $("e_ori").onchange = () => {
+      const o = $("e_ori").value; guardaCampos(); x.origen = o;
+      // Mixto: abre subelementos con uno de almacén y otro ad hoc; con subelementos, el origen elegido se aplica a todos
+      if (o === "Mixto") { conSub = true; if (!subs.some(s => esAlm(s.origen))) subs.push({ cantidad: 1, origen: "Almacén" }); if (!subs.some(s => !esAlm(s.origen))) subs.push({ cantidad: 1, origen: "Fabricación", fases: "|Corte|Carpintería|" }); }
+      else if (conSub) subs.forEach(s => { s.origen = o; if (!esAlm(o) && !s.fases) s.fases = "|Corte|Carpintería|"; });
+      if (!esAlm(x.origen) && !x.fases) x.fases = "|Corte|Carpintería|"; pinta(); };
     if ($("e_inv")) $("e_inv").onchange = () => { guardaCampos(); if (!x.elemento) x.elemento = nomInv(x.inv_modelo_id); pinta(); };
     document.querySelectorAll("[data-ori]").forEach(sl => sl.onchange = () => { guardaCampos(); const s = subs[+sl.dataset.ori]; if (!esAlm(s.origen) && !s.fases) s.fases = "|Corte|Carpintería|"; pinta(); });
     // Cambiar cantidades repinta la disponibilidad del almacén
@@ -222,6 +229,8 @@ export async function vElementoForm(ctx, p, eid) {
 async function guardar(ctx, p, d, x, subs, nuevo, revOrig = null) {
   const { sb, toast, S } = ctx;
   if (!MAY(x.elemento)) return toast("Falta el nombre");
+  if (subs.length) x.origen = origenDe(subs);
+  else if (x.origen === "Mixto") return toast("Un elemento mixto necesita subelementos de almacén y de fabricación");
   const almEl = esAlm(x.origen) && !subs.length;
   if (almEl && !x.inv_modelo_id) return toast("Elige el elemento del inventario");
   if (subs.some(s => esAlm(s.origen) && !s.inv_modelo_id)) return toast("Elige del inventario en los subelementos de almacén");
