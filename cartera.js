@@ -34,7 +34,7 @@ export async function vCartera(ctx) {
   const cF = p => colF.get(p.front_id) || "#A0A8B0";
   const corto = f => { const [n, a] = f.nombre.split(" "); return fronts.filter(x => x.nombre.split(" ")[0] === n).length > 1 && a ? `${n} ${a[0]}.` : n; };
   const yo = S.perfil.operario_id && fronts.find(f => f.id === S.perfil.operario_id);
-  S.cart = S.cart || { anio: String(new Date().getFullYear()), front: yo ? String(yo.id) : "", est: ls.get("doinn_cart_est", ["Confirmado", "Pendiente"]), q: "", cli: "", meses: [], desde: "", hasta: "", ord: "fecha", dir: 1, pleg: ls.get("doinn_cart_pleg", []) };
+  S.cart = S.cart || { anio: String(new Date().getFullYear()), front: "", est: ["Confirmado", "Pendiente"], q: "", cli: "", meses: [], desde: "", hasta: "", ord: "fecha", dir: 1, pleg: ls.get("doinn_cart_pleg", []) };
   const st = S.cart;
   if (st.verFront == null) st.verFront = ls.get("doinn_cart_vfront", false);
   const anios = [...new Set(S.proyectos.filter(p => C.has(p.id) && p.evento_inicio).map(p => p.evento_inicio.slice(0, 4)))].sort();

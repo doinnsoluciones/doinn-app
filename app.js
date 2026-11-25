@@ -387,6 +387,8 @@ async function route() {
   pintaNav(null);
   $app.classList.remove("ancho");
   const h = location.hash.replace(/^#\/?/, "").split("/");
+  // Cartera: al entrar desde otra página se abre sin filtros (todos los Fronts, sin cliente ni meses)
+  if (h[0] !== S._pagAnt) { if (h[0] === "cartera") S.cart = null; S._pagAnt = h[0]; }
   document.querySelectorAll("#tabs a").forEach(a => a.classList.toggle("on", (a.dataset.t === (h[0] || "proyectos")) || (h[0] === "p" && a.dataset.t === "proyectos")));
   document.querySelectorAll("#tabs a").forEach(a => a.hidden = !ver(a.dataset.t));
   const pag = h[0] === "p" ? (h[2] && ["editar", "desp", "el"].includes(h[2]) ? (h[2] === "editar" ? "ficha" : h[2] === "desp" ? "despiece" : "elementos") : null) : (h[0] === "tv" ? "plan" : h[0] || "proyectos");
