@@ -20,31 +20,44 @@ export function esCodigoInv(txt) {
 }
 
 async function datos(sb) {
-  const [m, u, r] = await Promise.all([
+  const [m, u, r, g] = await Promise.all([
     sb.from("inv_modelos").select("*").order("nombre").range(0, 4999),
     sb.from("inv_unidades").select("*").order("codigo").range(0, 9999),
     sb.from("inv_reservas").select("*").order("desde").range(0, 4999),
+    sb.from("inv_movimientos").select("*").is("unidad_id", null).order("fecha").range(0, 9999),
   ]);
   for (const q of [m, u, r]) if (q.error) throw q.error;
-  return { mods: m.data || [], uds: u.data || [], res: r.data || [] };
+  return { mods: m.data || [], uds: u.data || [], res: r.data || [], gmov: g.error ? [] : (g.data || []) };
+}
+
+// Material por cantidad (sin QR por unidad): lo que tiene fuera cada proyecto = salidas − devoluciones
+function fueraGranel(d, modeloId) {
+  const por = new Map();
+  for (const v of d.gmov || []) if (v.modelo_id === modeloId && v.proyecto_id) por.set(v.proyecto_id, (por.get(v.proyecto_id) || 0) + (v.tipo === "Salida" ? 1 : v.tipo === "Entrada" ? -1 : 0) * (v.cantidad || 0));
+  return [...por].filter(([, n]) => n > 0).map(([proyecto_id, n]) => ({ proyecto_id, n }));
 }
 
 // Unidades libres de un elemento entre d1 y d2 para el proyecto P (sus propias reservas no cuentan)
 function libres(S, d, modeloId, d1, d2, exceptP) {
-  const uds = d.uds.filter(u => u.modelo_id === modeloId && (u.estado === "Disponible" || u.estado === "Fuera"));
+  const m = d.mods.find(k => k.id === modeloId) || {}, gr = !!m.granel;
+  const uds = gr ? [] : d.uds.filter(u => u.modelo_id === modeloId && (u.estado === "Disponible" || u.estado === "Fuera"));
+  const fg = gr ? fueraGranel(d, modeloId) : [];
+  const llevado = pid => gr ? ((fg.find(x => x.proyecto_id === pid) || {}).n || 0) : uds.filter(u => u.estado === "Fuera" && u.proyecto_id === pid).length;
   const proy = id => (S.proyectos || []).find(p => p.id === id);
   let fuera = 0;
-  for (const u of uds) if (u.estado === "Fuera") { const p = proy(u.proyecto_id), f = p && fin(p); if (!f || f >= d1) fuera++; }
+  if (gr) for (const x of fg) { const p = proy(x.proyecto_id), f = p && fin(p); if (!f || f >= d1) fuera += x.n; }
+  else for (const u of uds) if (u.estado === "Fuera") { const p = proy(u.proyecto_id), f = p && fin(p); if (!f || f >= d1) fuera++; }
   const otras = d.res.filter(r => r.modelo_id === modeloId && r.proyecto_id !== exceptP && r.desde <= d2 && r.hasta >= d1);
   // Reserva pendiente = reservado − lo que ese proyecto ya se ha llevado (eso ya cuenta como «fuera»)
-  const pend = otras.map(r => ({ r, n: Math.max(0, r.cantidad - uds.filter(u => u.estado === "Fuera" && u.proyecto_id === r.proyecto_id).length) }));
+  const pend = otras.map(r => ({ r, n: Math.max(0, r.cantidad - llevado(r.proyecto_id)) }));
   // Pico diario de reservas dentro del periodo
   let pico = 0;
   const t = new Date(d1 + "T00:00"), tope = new Date(d2 + "T00:00");
   for (let k = 0; t <= tope && k < 400; k++, t.setDate(t.getDate() + 1)) {
     const dia = iso(t); pico = Math.max(pico, pend.filter(x => x.r.desde <= dia && x.r.hasta >= dia).reduce((a, x) => a + x.n, 0));
   }
-  return { total: uds.length, libres: uds.length - fuera - pico, otras };
+  const total = gr ? (m.stock || 0) : uds.length;
+  return { total, libres: total - fuera - pico, otras };
 }
 
 // Proyectos a los que se puede sacar o reservar material
@@ -169,14 +182,15 @@ function vLista(ctx, d) {
     const q = F.q.trim().toUpperCase();
     const mods = d.mods.filter(m => m.activo !== false && (!F.cat || m.categoria === F.cat) && (!q || (m.nombre || "").toUpperCase().includes(q) || d.uds.some(u => u.modelo_id === m.id && u.codigo.includes(q)) || (m.observaciones || "").toUpperCase().includes(q)));
     const filas = mods.map(m => {
-      const us = d.uds.filter(u => u.modelo_id === m.id), alm = us.filter(u => u.estado === "Disponible").length, fue = us.filter(u => u.estado === "Fuera").length, dan = us.filter(u => u.estado === "Dañado").length;
+      const us = d.uds.filter(u => u.modelo_id === m.id), fgT = m.granel ? fueraGranel(d, m.id).reduce((a, x) => a + x.n, 0) : 0;
+      const alm = m.granel ? Math.max(0, (m.stock || 0) - fgT) : us.filter(u => u.estado === "Disponible").length, fue = m.granel ? fgT : us.filter(u => u.estado === "Fuera").length, dan = us.filter(u => u.estado === "Dañado").length;
       const prox = d.res.filter(r => r.modelo_id === m.id && r.hasta >= h).slice(0, 2);
       if (F.est === "fuera" && !fue) return ""; if (F.est === "reservado" && !prox.length) return ""; if (F.est === "danado" && !dan) return "";
       const cods = us.filter(u => u.estado !== "Baja").map(u => u.codigo);
       return `<a class="invr card" href="#/inv/m/${m.id}">
         <div class="invn"><b>${esc(m.nombre)}</b><div class="code">${[m.categoria, med(m)].filter(Boolean).map(esc).join(" · ")}${cods.length ? ` · ${esc(cods[0])}${cods.length > 1 ? "…" + esc(cods[cods.length - 1].slice(-4)) : ""}` : ""}</div>
           <div class="invp">${fue ? `<span class="pill warn">${fue} fuera</span>` : ""}${dan ? `<span class="pill bad">${dan} dañad${dan > 1 ? "as" : "a"}</span>` : ""}${prox.map(r => { const p = (S.proyectos || []).find(k => k.id === r.proyecto_id); return `<span class="pill info">Reserva ${r.cantidad} · ${esc(p ? p.nombre : "?")} ${fdc(r.desde)}</span>`; }).join("")}</div></div>
-        <div class="invc"><b>${alm}<small>/${us.filter(u => u.estado !== "Baja").length}</small></b><span>en almacén</span></div></a>`;
+        <div class="invc">${m.granel && m.stock == null ? `<b>—</b><span>sin contar</span>` : `<b>${alm}<small>/${m.granel ? m.stock : us.filter(u => u.estado !== "Baja").length}</small></b><span>${m.granel ? esc(m.unidad_medida || "uds") + " · por cantidad" : "en almacén"}</span>`}</div></a>`;
     }).join("");
     document.getElementById("invl").innerHTML = filas || `<div class="empty">${d.mods.length ? "Nada coincide con el filtro." : "Aún no hay elementos. Pulsa «+ Nuevo elemento» para dar de alta el primero."}</div>`;
   };
@@ -203,6 +217,7 @@ function vModelo(ctx, d, id) {
   const { $app, S, esc, puede, toast } = ctx;
   const m = d.mods.find(k => k.id === id);
   if (!m) { $app.innerHTML = `<div class="empty">Elemento no encontrado.</div>`; return; }
+  if (m.granel) return vGranel(ctx, d, m);
   const edita = puede("admin", "taller");
   const us = d.uds.filter(u => u.modelo_id === id), activas = us.filter(u => u.estado !== "Baja");
   const cnt = e => us.filter(u => u.estado === e).length;
@@ -295,7 +310,8 @@ function vModelo(ctx, d, id) {
 
 function movFila(ctx, d, v) {
   const { S, esc } = ctx;
-  const u = d.uds.find(k => k.id === v.unidad_id) || {}, m = d.mods.find(k => k.id === u.modelo_id) || {};
+  const u = d.uds.find(k => k.id === v.unidad_id) || {}, m = d.mods.find(k => k.id === (u.modelo_id || v.modelo_id)) || {};
+  if (!v.unidad_id && v.modelo_id) { const p = (S.proyectos || []).find(k => k.id === v.proyecto_id); const c = { Salida: "warn", Entrada: "ok", Alta: "info", Estado: "" }[v.tipo] || ""; return `<div class="imov"><span class="code">${fh(v.fecha)}</span><span class="pill ${c}">${v.tipo}${v.estado_retorno === "Dañado" ? " · dañado" : ""}</span><a href="#/inv/m/${m.id}"><b>${v.cantidad || 0} ${esc(m.unidad_medida || "uds")}</b></a><span>${esc(m.nombre || "")}</span><span class="code">${p ? esc(p.nombre) : ""}${v.usuario ? " · " + esc(v.usuario) : ""}${v.nota ? " · " + esc(v.nota) : ""}</span></div>`; }
   const p = (S.proyectos || []).find(k => k.id === v.proyecto_id);
   const c = { Salida: "warn", Entrada: "ok", Alta: "info", Estado: "" }[v.tipo] || "";
   return `<div class="imov"><span class="code">${fh(v.fecha)}</span><span class="pill ${c}">${v.tipo}${v.estado_retorno === "Dañado" ? " · dañado" : ""}</span><a href="#/inv/u/${encodeURIComponent(u.codigo || "")}"><b>${esc(u.codigo || "?")}</b></a><span>${esc(m.nombre || "")}</span><span class="code">${p ? esc(p.nombre) : ""}${v.usuario ? " · " + esc(v.usuario) : ""}${v.nota ? " · " + esc(v.nota) : ""}</span></div>`;
@@ -358,6 +374,55 @@ function vUnidad(ctx, d, codigo) {
   };
 }
 
+// Elemento por cantidad: stock total, lo que está fuera por proyecto, salidas y devoluciones por número de unidades
+function vGranel(ctx, d, m) {
+  const { $app, S, esc, puede, toast } = ctx;
+  const edita = puede("admin", "taller"), id = m.id, h = hoy(), um = m.unidad_medida || "uds";
+  const fg = fueraGranel(d, id), fueraT = fg.reduce((a, x) => a + x.n, 0);
+  const pn = pid => { const p = (S.proyectos || []).find(k => k.id === pid); return p ? p.nombre : "—"; };
+  const lh = libres(S, d, id, h, h, -1), res = d.res.filter(r => r.modelo_id === id && r.hasta >= h);
+  $app.innerHTML = `<a class="back" href="#/inventario">‹ Inventario</a>
+  <div class="code">${esc(m.categoria || "")} · por cantidad</div><h1>${esc(m.nombre)}</h1>
+  ${edita ? `<div class="row" style="margin-bottom:10px"><a class="btn sm ghost" href="#/inv/m/${id}/editar">✎ Editar elemento (cantidad total)</a></div>` : ""}
+  ${m.stock == null ? `<div class="card avisos"><div>⚠ Falta la cantidad total: edita el elemento y ponla para poder controlar salidas y reservas.</div></div>` : ""}
+  <div class="kpis ikp">${[["Total", m.stock ?? "—"], ["En almacén", m.stock == null ? "—" : Math.max(0, m.stock - fueraT)], ["Fuera", fueraT], ["Libres hoy", m.stock == null ? "—" : Math.max(0, lh.libres)]].map(([t, v]) => `<div class="kpi"><span>${t} <small>${esc(um)}</small></span><b>${v}</b></div>`).join("")}</div>
+  ${m.observaciones ? `<div class="card"><div class="code">Observaciones</div><div style="white-space:pre-wrap">${esc(m.observaciones)}</div></div>` : ""}
+  <div class="card"><h2>Fuera por proyecto</h2>
+    ${fg.length ? fg.map(x => `<div class="ires"><div><b>${esc(pn(x.proyecto_id))}</b></div><span class="pill warn">${x.n} ${esc(um)}</span></div>`).join("") : `<div class="code">Todo en almacén.</div>`}
+    ${edita ? `<div class="iresf"><select id="g_p">${optsProy(S, esc)}</select><input id="g_n" type="number" min="1" value="1" class="inp" title="Cantidad"><input id="g_t" class="inp" placeholder="Nota (opcional)"><button class="btn sm" id="g_s">⬆ Salida</button><button class="btn sm ghost" id="g_e">⬇ Devolución</button><button class="btn sm ghost" id="g_d">⬇ Vuelve dañado</button></div><div class="code">La salida comprueba las reservas de otros proyectos para esas fechas.</div>` : ""}
+  </div>
+  <div class="card"><div class="pj-top"><h2>Reservas</h2></div>
+    ${res.length ? res.map(r => { const ya = (fg.find(x => x.proyecto_id === r.proyecto_id) || {}).n || 0; return `<div class="ires"><div><b>${esc(pn(r.proyecto_id))}</b><div class="code">${r.cantidad} ${esc(um)} · ${fdc(r.desde)} → ${fdc(r.hasta)}${r.nota ? " · " + esc(r.nota) : ""}</div></div><span class="pill ${ya >= r.cantidad ? "ok" : ya ? "warn" : "info"}">${ya}/${r.cantidad} servidas</span>${edita ? `<button class="link" data-delres="${r.id}">Anular</button>` : ""}</div>`; }).join("") : `<div class="code">Sin reservas próximas.</div>`}
+    ${edita ? `<div class="iresf"><select id="r_p">${optsProy(S, esc)}</select><input id="r_n" type="number" min="1" value="1" class="inp" title="Cantidad"><input id="r_d" type="date" class="inp"><input id="r_h" type="date" class="inp"><button class="btn sm lime" id="r_ok">Reservar</button></div>` : ""}
+  </div>
+  <div class="card"><h2>Historial</h2>${d.gmov.filter(v => v.modelo_id === id).slice().reverse().slice(0, 60).map(v => movFila(ctx, d, v)).join("") || `<div class="code">Sin movimientos.</div>`}</div>`;
+  const $ = k => document.getElementById(k), recarga = () => vInventario(ctx, "m", id);
+  const mueve = (tipo, dan) => async () => {
+    const P = (S.proyectos || []).find(p => p.id === +$("g_p").value), n = Math.floor(+$("g_n").value || 0);
+    if (!P) return toast("Elige el proyecto"); if (n < 1) return toast("Pon la cantidad");
+    if (tipo === "Salida") {
+      if (m.stock == null) return toast("Primero pon la cantidad total del elemento");
+      const l = libres(S, d, id, h, fin(P) || h, P.id), suyo = (fg.find(x => x.proyecto_id === P.id) || {}).n || 0;
+      if (l.libres - suyo < n && !(puede("admin") && confirm(`Solo hay ${Math.max(0, l.libres - suyo)} ${um} libres para esas fechas (contando reservas). ¿Sacar ${n} igualmente?`))) return;
+    } else { const suyo = (fg.find(x => x.proyecto_id === P.id) || {}).n || 0; if (n > suyo) return toast(`${P.nombre} solo tiene fuera ${suyo} ${um}`); }
+    const { error } = await ctx.sb.from("inv_movimientos").insert({ modelo_id: id, unidad_id: null, cantidad: n, tipo, proyecto_id: P.id, estado_retorno: tipo === "Entrada" ? (dan ? "Dañado" : "Bueno") : null, nota: $("g_t").value.trim() || null, usuario: quien(S) });
+    if (error) return toast("No se pudo: " + error.message);
+    toast(`${n} ${um} · ${tipo === "Salida" ? "salen a" : "vuelven de"} ${P.nombre}${dan ? " (dañado)" : ""}`); recarga();
+  };
+  if ($("g_s")) { $("g_s").onclick = mueve("Salida"); $("g_e").onclick = mueve("Entrada"); $("g_d").onclick = mueve("Entrada", true); }
+  if ($("r_p")) {
+    $("r_p").onchange = () => { const P = (S.proyectos || []).find(p => p.id === +$("r_p").value); if (P) { $("r_d").value = ini(P) || ""; $("r_h").value = fin(P) || ""; } };
+    $("r_ok").onclick = async () => {
+      const pid = +$("r_p").value, n = +$("r_n").value || 1, d1 = $("r_d").value, d2 = $("r_h").value;
+      if (!pid || !d1 || !d2) return toast("Elige proyecto y fechas");
+      const l = libres(S, d, id, d1, d2, pid); if (l.libres < n) return toast(`Solo hay ${Math.max(0, l.libres)} ${um} libres en esas fechas`);
+      const { error } = await ctx.sb.from("inv_reservas").insert({ modelo_id: id, proyecto_id: pid, cantidad: n, desde: d1, hasta: d2, usuario: quien(S) });
+      if (error) return toast("No se pudo reservar: " + error.message); toast("Reserva guardada"); recarga();
+    };
+  }
+  $app.querySelectorAll("[data-delres]").forEach(b => b.onclick = async () => { if (!confirm("¿Anular esta reserva?")) return; const { error } = await ctx.sb.from("inv_reservas").delete().eq("id", +b.dataset.delres); if (error) return toast("No se pudo: " + error.message); toast("Reserva anulada"); recarga(); });
+}
+
 function vForm(ctx, d, m) {
   const { $app, esc, puede, toast, sb } = ctx;
   if (!puede("admin", "taller")) { $app.innerHTML = `<div class="empty">No tienes permiso para editar el inventario.</div>`; return; }
@@ -370,20 +435,24 @@ function vForm(ctx, d, m) {
     <label class="fl">Categoría<select id="f_categoria">${CATS.map(([c, p]) => `<option value="${c}" ${m.categoria === c ? "selected" : ""}>${c} (${p}-…)</option>`).join("")}</select></label>
     <div class="g3">${f("alto", "Alto (mm)", 'type="number" min="0"')}${f("ancho", "Ancho (mm)", 'type="number" min="0"')}${f("fondo", "Fondo (mm)", 'type="number" min="0"')}</div>
     <div class="g3">${f("peso", "Peso (kg)", 'type="number" min="0" step="0.1"')}${f("material", "Material / acabado", 'placeholder="Ej. ALUMINIO + DM LACADO"')}</div>
+    <label class="ck" style="margin:6px 0"><input type="checkbox" id="f_granel" ${m.granel ? "checked" : ""} ${nuevo ? "" : "disabled"}> Por cantidad, sin etiqueta QR por unidad (patas, tornillería, barandillas…)</label>
+    <div class="g3" id="f_gr" ${m.granel ? "" : "hidden"}>${f("stock", "Cantidad total", 'type="number" min="0"')}${f("unidad_medida", "Unidad", 'placeholder="Ej. juegos de 4 uds, uds, metros"')}</div>
     <label class="fl">Observaciones<textarea id="f_observaciones" class="inp" rows="3" placeholder="Cómo se monta, piezas que lo componen, cuidados…">${esc(m.observaciones || "")}</textarea></label>
-    ${nuevo ? `<div class="g3">${`<label class="fl">Unidades a crear<input id="f_n" class="inp" type="number" min="1" max="200" value="1"></label>`}<label class="fl">Ubicación en nave<input id="f_ub" class="inp" placeholder="Ej. E3-B2"></label></div>
+    ${nuevo ? `<div class="g3" id="f_qr">${`<label class="fl">Unidades a crear<input id="f_n" class="inp" type="number" min="1" max="200" value="1"></label>`}<label class="fl">Ubicación en nave<input id="f_ub" class="inp" placeholder="Ej. E3-B2"></label></div>
     <div class="code">Cada unidad recibe un código propio (p. ej. MOS-0001) y su etiqueta QR.</div>` : ""}
     <div class="row"><button class="btn lime" id="fok">${nuevo ? "Crear elemento" : "Guardar"}</button>${!nuevo && puede("admin") ? `<button class="btn ghost" id="fdel">Eliminar elemento</button>` : ""}</div>
   </div>`;
   const $ = k => document.getElementById(k);
   const num = k => { const v = $("f_" + k).value; return v === "" ? null : +v; };
+  $("f_granel").onchange = () => { $("f_gr").hidden = !$("f_granel").checked; if ($("f_qr")) $("f_qr").hidden = $("f_granel").checked; };
   $("fok").onclick = async () => {
-    const reg = { nombre: $("f_nombre").value.trim().toUpperCase(), categoria: $("f_categoria").value, alto: num("alto"), ancho: num("ancho"), fondo: num("fondo"), peso: num("peso"), material: $("f_material").value.trim().toUpperCase() || null, observaciones: $("f_observaciones").value.trim() || null };
+    const reg = { nombre: $("f_nombre").value.trim().toUpperCase(), categoria: $("f_categoria").value, alto: num("alto"), ancho: num("ancho"), fondo: num("fondo"), peso: num("peso"), material: $("f_material").value.trim().toUpperCase() || null, observaciones: $("f_observaciones").value.trim() || null, granel: $("f_granel").checked, stock: $("f_granel").checked ? num("stock") : null, unidad_medida: $("f_granel").checked ? ($("f_unidad_medida").value.trim() || null) : null };
     if (!reg.nombre) return toast("Falta el nombre del elemento");
     $("fok").disabled = true;
     if (nuevo) {
       const { data, error } = await sb.from("inv_modelos").insert(reg).select().single();
       if (error) { $("fok").disabled = false; return toast("No se pudo crear: " + error.message); }
+      if (reg.granel) { toast("Creado (por cantidad)"); location.hash = "#/inv/m/" + data.id; return; }
       const n = Math.min(200, Math.max(1, +$("f_n").value || 1));
       const r = await altaUnidades(ctx, d, data, n, $("f_ub").value.trim().toUpperCase());
       if (!r.ok) toast("Elemento creado, pero falló la creación de unidades: " + r.msg); else toast(`Creado con ${r.n} unidad${r.n > 1 ? "es" : ""}`);
@@ -413,7 +482,7 @@ function vReservas(ctx, d) {
   const grupos = Object.entries(porP).map(([pid, l]) => ({ p: (S.proyectos || []).find(k => k.id === +pid), l })).sort((a, b) => (a.l[0].desde).localeCompare(b.l[0].desde));
   $app.innerHTML = `${cab("reservas", puede("admin", "taller"))}
   ${grupos.length ? grupos.map(g => `<div class="card"><div class="pj-top"><div><b>${esc(g.p ? g.p.nombre : "Proyecto")}</b><div class="code">${g.p && ini(g.p) ? "Carga " + fdc(ini(g.p)) : ""}${g.p && fin(g.p) ? " · vuelta " + fdc(fin(g.p)) : ""}</div></div></div>
-    ${g.l.map(r => { const m = d.mods.find(k => k.id === r.modelo_id) || {}; const ya = d.uds.filter(u => u.modelo_id === r.modelo_id && u.estado === "Fuera" && u.proyecto_id === r.proyecto_id).length; return `<a class="ires" href="#/inv/m/${m.id}"><div><b>${esc(m.nombre || "?")}</b><div class="code">${r.cantidad} ud · ${fdc(r.desde)} → ${fdc(r.hasta)}${r.nota ? " · " + esc(r.nota) : ""}</div></div><span class="pill ${ya >= r.cantidad ? "ok" : ya ? "warn" : "info"}">${ya}/${r.cantidad} servidas</span></a>`; }).join("")}</div>`).join("")
+    ${g.l.map(r => { const m = d.mods.find(k => k.id === r.modelo_id) || {}; const ya = m.granel ? ((fueraGranel(d, m.id).find(x => x.proyecto_id === r.proyecto_id) || {}).n || 0) : d.uds.filter(u => u.modelo_id === r.modelo_id && u.estado === "Fuera" && u.proyecto_id === r.proyecto_id).length; return `<a class="ires" href="#/inv/m/${m.id}"><div><b>${esc(m.nombre || "?")}</b><div class="code">${r.cantidad} ud · ${fdc(r.desde)} → ${fdc(r.hasta)}${r.nota ? " · " + esc(r.nota) : ""}</div></div><span class="pill ${ya >= r.cantidad ? "ok" : ya ? "warn" : "info"}">${ya}/${r.cantidad} servidas</span></a>`; }).join("")}</div>`).join("")
     : `<div class="empty">No hay reservas próximas. Se reserva desde la ficha de cada elemento.</div>`}${finCab}`;
 }
 
