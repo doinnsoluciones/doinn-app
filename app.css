@@ -1008,3 +1008,25 @@ body.tv .gantt.fit .gr .gn{padding-top:0;padding-bottom:0}
 body.tv .gantt.comp .gn b{font-size:12px}body.tv .gantt.comp .gn span{display:none}
 body.tv .gantt.comp .pl{height:calc(var(--tvh) - 6px);min-height:0;max-height:none;font-size:11px;line-height:1;padding-top:0;padding-bottom:0;display:flex;align-items:center}body.tv .gantt.comp .pl.l2 small{display:none}body.tv .gantt.comp .pc{align-self:center}
 body.tv .gantt.fit .gg{padding-top:2px;padding-bottom:2px}
+/* Calculadora de paneles: píldoras de pieza y tableros dibujados con desperdicio */
+.mtgs{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:8px 0}.mtg{margin:0}.mtg b{min-width:22px;display:inline-block}
+.frm .mtgs .mrmm{display:flex;flex-direction:row;align-items:center;gap:6px;margin:0;font-size:14px;white-space:nowrap}.frm .mtgs .mrmm input{width:80px;margin:0}
+.msm{max-width:200px}
+.mpzs{display:flex;flex-direction:column;gap:8px}
+.mpill{display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap;border:1px solid var(--line);border-radius:22px;padding:6px 8px 6px 12px;background:var(--bg)}
+.mpill label{margin:0;display:flex;flex-direction:column;font-size:11px;color:var(--muted)}.mpill small{font-size:10px;text-transform:uppercase;letter-spacing:.03em;padding-left:10px}
+.mpill input{margin:0;height:38px;border:1px solid var(--line);border-radius:19px;padding:0 12px;background:var(--card);font-size:15px;min-width:0}
+.mpill input[data-f=l],.mpill input[data-f=a]{width:100px}.mpu input{width:70px}
+.mpnom{flex:1 1 160px}.mpmat{flex:0 1 190px;font-size:12px!important}
+.mpn{font-weight:700;color:var(--muted2);font-size:13px;align-self:center;min-width:18px}
+.mpx{align-self:center;padding-bottom:2px;color:var(--muted)}
+.mpdel{align-self:center;width:36px;height:36px;border-radius:18px;border:1px solid var(--line);background:transparent;font-size:18px;color:var(--muted);cursor:pointer}
+.mtot{margin-bottom:10px}.mtot .mbad{background:color-mix(in srgb,#E62643 12%,var(--bg))}
+.mtabs{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+.mtab svg{width:100%;height:auto;display:block;border-radius:6px}
+.mtab figcaption{margin-top:4px;text-align:left}
+.mrec{fill:#9aa5a5}.mdes{fill:#f3e3d3}.mdesl{stroke:#e0b48a;stroke-width:14}
+.mpz{fill:#d7ecb2;stroke:#5b7a1e;stroke-width:5}.mtx{fill:#2f4210;text-anchor:middle;dominant-baseline:middle;font-weight:700}
+[data-theme=dark] .mdes{fill:#3a2d22}[data-theme=dark] .mdesl{stroke:#6e4f33}[data-theme=dark] .mpz{fill:#53701f;stroke:#a6db6e}[data-theme=dark] .mtx{fill:#eef7dc}
+@media (max-width:640px){.mpill{border-radius:16px}.mpnom,.mpmat{flex:1 1 100%}}
+.frm .mtgs .mrmm[hidden]{display:none!important}
