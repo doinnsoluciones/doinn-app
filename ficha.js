@@ -66,7 +66,7 @@ export function vFicha(ctx, p) {
       <label class="tg"><input type="checkbox" id="${hay}" ${p[hay] !== false ? "checked" : ""}><span></span><b>${p[hay] !== false ? "Sí" : "No"}</b></label>
       <input type="date" id="${d1}" value="${v(d1)}">
       <input type="date" id="${d2}" value="${v(d2)}" placeholder="Hasta">
-      ${VEHF[k] ? `<div class="g-na g-hv"></div>` : sel(h, HORAS, p[h])}
+      ${VEHF[k] ? `<div class="g-na g-hv"></div>` : `<select id="${h}" aria-label="Hora"><option value="">Hora</option>${HORAS.slice(1).map(o => `<option ${o === p[h] ? "selected" : ""}>${o}</option>`).join("")}</select>`}
     </div>${VEHF[k] ? `<div class="g-veh" id="gv_${VEHF[k][1]}"><div id="vehs_${VEHF[k][1]}" class="vh-list"></div><div class="vh-add"><button type="button" class="btn sm ghost" id="bveh_${VEHF[k][1]}">+ Vehículo de ${VEHF[k][0].toLowerCase()}</button></div></div>` : ""}`).join("");
 
   $app.innerHTML = `
@@ -190,7 +190,7 @@ export function vFicha(ctx, p) {
       row[d1] = a; row[d2] = b;
       // Carga y Desmontaje: la hora es la del primer vehículo (sin horas en vehículos se conserva la anterior)
       if (!$(h)) { const hs = leeVeh().filter(x => x.fase === (k === "carga" ? "Carga" : "Desmontaje") && x.hora).map(x => x.hora).sort(); row[h] = on ? hs[0] || p[h] || null : null; }
-      else row[h] = on && $(h).value !== "—" ? $(h).value : null;
+      else row[h] = on && $(h).value && $(h).value !== "—" ? $(h).value : null;
       if (t) row[t] = on ? MAY($(t).value) || null : null;
     }
     if (nuevo && row.hay_carga && !row.fecha_carga) return err("fecha_carga", "Falta la fecha de carga");
