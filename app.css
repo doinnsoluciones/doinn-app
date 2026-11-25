@@ -1030,3 +1030,12 @@ body.tv .gantt.fit .gg{padding-top:2px;padding-bottom:2px}
 [data-theme=dark] .mdes{fill:#3a2d22}[data-theme=dark] .mdesl{stroke:#6e4f33}[data-theme=dark] .mpz{fill:#53701f;stroke:#a6db6e}[data-theme=dark] .mtx{fill:#eef7dc}
 @media (max-width:640px){.mpill{border-radius:16px}.mpnom,.mpmat{flex:1 1 100%}}
 .frm .mtgs .mrmm[hidden]{display:none!important}
+/* Píldoras de pieza con más aire */
+.mpzs{gap:12px;margin-top:14px}
+.mpill{gap:10px 12px;padding:10px 14px 12px;align-items:flex-end;border-radius:20px}
+.mpill .mpnl{flex:1 1 180px}.mpill .mpnl input{width:100%}
+.mpill .mpm{flex:0 1 200px}.mpill .mpm input{width:100%;font-size:14px!important}
+.mpill small{padding-left:12px;margin-bottom:3px}
+.mpn{align-self:center;margin-top:16px}.mpx{margin-bottom:10px}.mpdel{align-self:flex-end;margin-bottom:1px}
+@media (max-width:640px){.mpill .mpnl,.mpill .mpm{flex:1 1 100%}}
+.mpill label input,.mpill label .mpnom,.mpill label .mpmat{flex:none}

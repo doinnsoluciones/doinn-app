@@ -5,6 +5,7 @@
 const LSK = "doinn_melamina";
 const DEF = { L: 2800, A: 2050, kerf: 4.4, conRecorte: true, recorte: 10, desp: 10, veta: false, piezas: [] };
 const MAT_DEF = "MELAMINA BLANCA 19";
+const SIN_MAT = "MATERIAL SIN INDICAR";
 
 const lee = () => { try { return { ...DEF, ...(JSON.parse(localStorage.getItem(LSK)) || {}) }; } catch { return { ...DEF }; } };
 const guarda = st => { try { localStorage.setItem(LSK, JSON.stringify(st)); } catch { } };
@@ -83,7 +84,7 @@ export async function vMelamina(ctx) {
     guarda(st);
     const r0 = rec(), W = st.L - 2 * r0, H = st.A - 2 * r0, m2t = st.L * st.A / 1e6;
     const grupos = new Map();
-    st.piezas.filter(p => p.l > 0 && p.a > 0 && p.n > 0).forEach(p => { const k = (p.mat || MAT_DEF).toUpperCase(); if (!grupos.has(k)) grupos.set(k, []); grupos.get(k).push(p); });
+    st.piezas.filter(p => p.l > 0 && p.a > 0 && p.n > 0).forEach(p => { const k = (p.mat || SIN_MAT).toUpperCase(); if (!grupos.has(k)) grupos.set(k, []); grupos.get(k).push(p); });
     const res = [...grupos.entries()].map(([mat, ps]) => {
       const { tableros, noCaben } = W > 0 && H > 0 ? empaqueta(ps, W, H, st.kerf, !st.veta) : { tableros: [], noCaben: [] };
       const m2 = tableros.reduce((s, t) => s + t.puestas.reduce((a, c) => a + c.it.l * c.it.a, 0), 0) / 1e6;
@@ -111,7 +112,7 @@ export async function vMelamina(ctx) {
     const bc = $("m_csv"); if (bc) bc.onclick = () => {
       const filas = [["Material", "Piezas", "Tableros necesarios", "m2 tableros", "m2 desperdicio", "Desperdicio %", `Tableros a pedir (+${st.desp}%)`]];
       res.forEach(r => filas.push([r.mat, r.uds, r.nT, r.usado.toFixed(2).replace(".", ","), r.desp.toFixed(2).replace(".", ","), r.pDesp.toFixed(0), r.pedir]));
-      filas.push([], ["Tablero", `${st.L} x ${st.A} mm`, "Margen de corte", `${st.kerf} mm`, "Recorte perimetral", st.conRecorte ? `${st.recorte} mm por lado` : "No", "Veta", st.veta ? "Sí" : "No"]);
+      filas.push([], ["Tablero", `${st.L} x ${st.A} mm`, "Ancho de sierra", `${st.kerf} mm`, "Recorte perimetral", st.conRecorte ? `${st.recorte} mm por lado` : "No", "Veta", st.veta ? "Sí" : "No"]);
       filas.push([], ["Pieza", "Largo", "Ancho", "Uds", "Material"]); st.piezas.forEach(p => filas.push([p.nom || p.origen || "", p.l, p.a, p.n, p.mat || ""]));
       const csv = "﻿" + filas.map(f => f.map(v => `"${String(v ?? "").replace(/"/g, '""')}"`).join(";")).join("\n");
       const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); a.download = "paneles.csv"; a.click();
@@ -125,17 +126,17 @@ export async function vMelamina(ctx) {
     $("m_n").textContent = st.piezas.length;
     $("m_pz").innerHTML = st.piezas.length ? st.piezas.map((p, i) => `<div class="mpill" data-i="${i}">
         <span class="mpn">${i + 1}</span>
-        <input data-f="nom" class="mpnom" placeholder="Pieza (opcional)" value="${esc(p.nom || (p.origen && p.origen !== "A mano" ? p.origen : "") || "")}">
+        <label class="mpnl"><small>Pieza</small><input data-f="nom" class="mpnom" placeholder="Nombre (opcional)" value="${esc(p.nom || (p.origen && p.origen !== "A mano" ? p.origen : "") || "")}"></label>
         <label><small>${vt ? "Largo · veta" : "Largo"}</small><input data-f="l" type="number" inputmode="numeric" min="0" placeholder="mm" value="${p.l || ""}"></label>
         <span class="mpx">×</span>
         <label><small>Ancho</small><input data-f="a" type="number" inputmode="numeric" min="0" placeholder="mm" value="${p.a || ""}"></label>
         <label class="mpu"><small>Uds</small><input data-f="n" type="number" inputmode="numeric" min="1" value="${p.n || ""}"></label>
-        <input data-f="mat" class="mpmat" placeholder="${MAT_DEF}" value="${esc(p.mat && p.mat !== MAT_DEF ? p.mat : "")}" title="Material (solo si hay varios tableros distintos)">
+        <label class="mpm"><small>Material</small><input data-f="mat" class="mpmat" placeholder="Indica material" value="${esc(p.mat || "")}"></label>
         <button class="mpdel" data-x="${i}" type="button" title="Quitar pieza" aria-label="Quitar pieza">×</button></div>`).join("")
       : `<div class="empty">Aún no hay piezas. Pulsa «+ Añadir pieza».</div>`;
     $app.querySelectorAll(".mpill input").forEach(inp => inp.oninput = () => {
       const p = st.piezas[+inp.closest(".mpill").dataset.i], f = inp.dataset.f;
-      p[f] = f === "mat" ? (inp.value.trim().toUpperCase() || MAT_DEF) : f === "nom" ? inp.value : Math.max(0, n0(inp.value)); recalc();
+      p[f] = f === "mat" ? inp.value.trim().toUpperCase() : f === "nom" ? inp.value : Math.max(0, n0(inp.value)); recalc();
     });
     $app.querySelectorAll("[data-x]").forEach(b => b.onclick = () => { st.piezas.splice(+b.dataset.x, 1); pintaPiezas(); calcula(); });
   };
@@ -145,7 +146,7 @@ export async function vMelamina(ctx) {
     <p class="hint">Mete el tablero y las piezas: el corte se dibuja al momento con el desperdicio. Lo que metas se guarda en este dispositivo.</p>
     <div class="mgrid">
     <div class="card frm"><h2>1 · Tablero</h2>
-      <div class="three"><label>Largo (mm)<input id="m_L" type="number" value="${st.L}"></label><label>Ancho (mm)<input id="m_A" type="number" value="${st.A}"></label><label>Margen de corte (mm)<input id="m_k" type="number" step="0.1" value="${st.kerf}"></label></div>
+      <div class="three"><label>Largo (mm)<input id="m_L" type="number" value="${st.L}"></label><label>Ancho (mm)<input id="m_A" type="number" value="${st.A}"></label><label>Ancho de sierra (mm)<input id="m_k" type="number" step="0.1" value="${st.kerf}"></label></div>
       <div class="mtgs">${tg("m_rc", st.conRecorte, "Recorte perimetral")}<label class="mrmm" id="m_rbox" ${st.conRecorte ? "" : "hidden"}><input id="m_r" type="number" min="0" value="${st.recorte}"> mm por lado</label></div>
       <div class="mtgs">${tg("m_v", st.veta, "Respeta veta")}<span class="code" id="m_vtx">${st.veta ? "Las piezas no se giran: el largo va en el sentido de la veta (largo del tablero)." : "Las piezas se pueden girar para aprovechar mejor."}</span></div>
       <label class="msm">Margen de compra (%)<input id="m_d" type="number" min="0" value="${st.desp}"></label>
@@ -167,7 +168,7 @@ export async function vMelamina(ctx) {
   const tgl = (id, f) => { const el = $(id); el.onchange = () => { el.nextElementSibling.nextElementSibling.textContent = el.checked ? "Sí" : "No"; f(el.checked); calcula(); }; };
   tgl("m_rc", v => { st.conRecorte = v; $("m_rbox").hidden = !v; });
   tgl("m_v", v => { st.veta = v; $("m_vtx").textContent = v ? "Las piezas no se giran: el largo va en el sentido de la veta (largo del tablero)." : "Las piezas se pueden girar para aprovechar mejor."; pintaPiezas(); });
-  $("m_add").onclick = () => { st.piezas.push({ mat: (st.piezas.at(-1) || {}).mat || MAT_DEF, l: 0, a: 0, n: 1, nom: "" }); pintaPiezas(); const ins = $app.querySelectorAll('.mpill [data-f="l"]'); if (ins.length) ins[ins.length - 1].focus(); };
+  $("m_add").onclick = () => { st.piezas.push({ mat: (st.piezas.at(-1) || {}).mat || "", l: 0, a: 0, n: 1, nom: "" }); pintaPiezas(); const ins = $app.querySelectorAll('.mpill [data-f="l"]'); if (ins.length) ins[ins.length - 1].focus(); };
   $("m_clr").onclick = () => { if (st.piezas.length && confirm("¿Vaciar la lista de piezas?")) { st.piezas = []; pintaPiezas(); calcula(); } };
   $("m_peg").onclick = () => { $("m_pegbox").hidden = !$("m_pegbox").hidden; };
   $("m_pok").onclick = () => {
@@ -175,7 +176,7 @@ export async function vMelamina(ctx) {
     $("m_txt").value.split(/\r?\n/).forEach(fila => {
       const c = fila.split(/\t|;/).map(s => s.trim()); if (c.length < 2) return;
       const l = n0(c[0]), a = n0(c[1]), n = Math.round(n0(c[2]) || 1); if (!l || !a) return;
-      st.piezas.push({ mat: (c[3] || MAT_DEF).toUpperCase(), l, a, n, nom: "" }); k++;
+      st.piezas.push({ mat: (c[3] || "").toUpperCase(), l, a, n, nom: "" }); k++;
     });
     toast(k ? `${k} pieza${k > 1 ? "s" : ""} añadida${k > 1 ? "s" : ""}` : "No se ha reconocido ninguna fila (largo, ancho, unidades)"); $("m_txt").value = ""; pintaPiezas(); calcula();
   };
