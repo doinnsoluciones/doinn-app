@@ -1069,9 +1069,8 @@ body.tv .gantt.fit .gg{padding-top:2px;padding-bottom:2px}
 .pcol .ps.ok{background:var(--lime-bg);color:var(--lime-d)}
 [data-theme=dark] .pcol .ps.on{background:#3A2410;color:#FDBA74}
 @media (max-width:520px){.pcol{width:48px}}
-/* Proyectos: línea de datos en columnas de ancho fijo, separadas por · */
-.pj-meta{gap:4px 8px}
+/* Proyectos: línea de datos agrupada, separada por · centrado */
+.pj-meta{gap:4px 0}
 .pj-meta>*{flex:none}
-.pj-meta>*+*::before{content:"·";margin-right:8px;color:var(--muted2);font-weight:700}
-.pj-meta .m-cod{width:66px}.pj-meta .m-car{width:118px}.pj-meta .m-fr{width:142px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.pj-meta .m-el{width:70px}.pj-meta .m-cu{width:100px}
-@media (max-width:520px){.pj-meta .m-fr,.pj-meta .m-cu,.pj-meta .m-car,.pj-meta .m-el{width:auto}}
+.pj-meta>*+*::before{content:"·";margin:0 7px;color:var(--muted2);font-weight:700}
+.pj-meta .m-fr{max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
