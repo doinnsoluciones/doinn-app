@@ -24,6 +24,7 @@ export function vPanel(ctx, h) {
     ${tile("riesgo", riesgo.length, "Proyectos en riesgo", riesgo.length ? "badc" : "")}
     ${tile("inc", els.filter(grupos.inc.e).length, "Incidencias abiertas", els.some(grupos.inc.e) ? "badc" : "")}
   </div>
+  <div class="card" id="satcard"><h2>Saturación de taller</h2><p class="code">Calculando…</p></div>
   <div class="card"><h2>Proyectos</h2><table class="f kt2"><tr><th></th><th>Elementos</th><th>Proyectos</th></tr>
     ${fila("taller", grupos.taller)}${fila("carga", grupos.carga)}
     <tr data-k="riesgo" class="${h === "riesgo" ? "sel" : ""}"><td>Proyectos en riesgo</td><td>—</td><td>${riesgo.length}</td></tr>
@@ -31,5 +32,8 @@ export function vPanel(ctx, h) {
   ${sel ? `<div class="card"><h2>${esc(grupos[h] ? grupos[h].t : "Proyectos en riesgo")}</h2>${sel.map(p => `<a class="lrow" href="#/p/${p.id}/elementos"><b>${esc(p.nombre)}</b><span class="code">${esc(p.codigo)} · carga ${fd(p.fecha_carga)}</span></a>`).join("") || `<div class="code">Ninguno.</div>`}</div>` : ""}
   <div class="card"><h2>Próximas cargas <small class="code">14 días</small></h2>
   ${prox.map(p => { const st = stats(p.id); const d = dias(p.fecha_carga); return `<a class="lrow" href="#/p/${p.id}"><div><b>${esc(p.nombre)}</b><div class="code">${esc(p.codigo)} · ${esc(p.front_nombre || "")}</div></div><div class="r"><b>${d === 0 ? "Hoy" : fd(p.fecha_carga)}</b><div class="code">${st.av}% · ${st.n} elem.</div></div></a>`; }).join("") || `<div class="code">No hay cargas en los próximos 14 días.</div>`}</div>`;
+  // Saturación de taller (se calcula aparte: necesita fases, subelementos y personal)
+  const sat = document.getElementById("satcard");
+  if (sat) import("./saturacion.js" + V).then(async m => { try { const D = await m.cargaSaturacion(ctx); if (document.body.contains(sat)) m.pintaSaturacion(ctx, sat, D, null); } catch (e) { sat.innerHTML = `<h2>Saturación de taller</h2><p class="hint">No se pudo calcular: ${esc(e.message || String(e))}</p>`; } });
   $app.querySelectorAll("tr[data-k]").forEach(tr => tr.onclick = () => location.hash = `#/panel/${h === tr.dataset.k ? "" : tr.dataset.k}`);
 }

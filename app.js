@@ -54,7 +54,7 @@ const CAP = {
   incidencias: "*", escaner: "*", marcarProd: ["front", "encargado", "team_leader"],
   panel: "-op", invVer: "-op", invEditar: ["front", "ot", "encargado", "team_leader", "logistica", "administracion"], invForzar: ["front", "encargado", "team_leader"],
   cartera: ["front", "administracion"], presupuestos: ["front", "administracion"], calculadora: ["front", "administracion", "ot", "encargado", "team_leader"],
-  usuarios: [], stats: [],
+  capacidad: ["encargado", "team_leader"], usuarios: [], stats: [],
 };
 const can = k => { const p = miPerfil(); if (!p) return false; if (p === "superadmin") return true; const v = CAP[k]; return v === "*" ? p !== "lectura" : v === "-op" ? p !== "operario" : (v || []).includes(p); };
 // Compatibilidad: puede("admin") incluye al superadmin (rol técnico)

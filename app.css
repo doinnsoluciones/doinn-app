@@ -1039,3 +1039,22 @@ body.tv .gantt.fit .gg{padding-top:2px;padding-bottom:2px}
 .mpn{align-self:center;margin-top:16px}.mpx{margin-bottom:10px}.mpdel{align-self:flex-end;margin-bottom:1px}
 @media (max-width:640px){.mpill .mpnl,.mpill .mpm{flex:1 1 100%}}
 .mpill label input,.mpill label .mpnom,.mpill label .mpmat{flex:none}
+/* Saturación de taller (Panel) */
+.sat-h{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.sat{display:grid;gap:4px;margin-top:6px}
+.sat-r{display:grid;grid-template-columns:150px 1fr 52px minmax(120px,240px);gap:12px;align-items:center;padding:8px 6px;border-radius:10px;cursor:pointer}
+.sat-r:hover,.sat-r.sel{background:var(--lime-bg)}
+.sat-n{display:flex;flex-direction:column;line-height:1.2}
+.sat-b{position:relative;height:16px;border-radius:8px;background:var(--line);overflow:visible}
+.sat-b i{display:block;height:100%;border-radius:8px;min-width:2px}
+.sat-b em{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--ink);opacity:.45}
+.sat-p{font-weight:800;font-size:18px;text-align:right}
+.sat-d{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:2px;height:30px;align-items:end}
+.sat-d span{height:100%;display:flex;align-items:flex-end;background:var(--field);border-radius:3px}
+.sat-d i{display:block;width:100%;border-radius:3px;min-height:1px}
+.sat-ej{cursor:default;padding-top:0}.sat-ej:hover{background:none}
+.sat-ej>div:nth-child(2){position:relative}
+.sat-ej .sat-d{height:auto}.sat-ej .sat-d span{background:none;justify-content:center;font-size:10px}
+.sat-det{margin-top:8px;border-top:1px solid var(--line);padding-top:8px}
+.sat-det h3{margin:4px 0 6px;font-size:15px}
+@media (max-width:640px){.sat-r{grid-template-columns:1fr 52px;row-gap:6px}.sat-b{grid-column:1/-1;order:3}.sat-d{grid-column:1/-1;order:4}.sat-ej{display:none}}
