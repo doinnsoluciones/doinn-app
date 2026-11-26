@@ -132,8 +132,9 @@ export function pintaSaturacion(ctx, el, D, abierta) {
     <div class="sat-n"><b>${s.t}</b><span class="code">${r1(s.uds)} uds · cap. ${r1(s.cap)}</span></div>
     <div class="sat-b"><i style="width:${w}%;background:${color(s.pct)}"></i><em style="left:${100 / 1.5}%"></em></div>
     <div class="sat-p" style="color:${color(s.pct)}">${s.pct >= 999 ? "∞" : Math.round(s.pct) + "%"}</div>
-    <div class="sat-d">${s.diario.map(x => `<span title="${fd(x.d)} · ${r1(x.uds)} de ${r1(x.cap)} uds"><i style="height:${Math.min(x.pct, 150) / 150 * 100}%;background:${color(x.pct)}"></i></span>`).join("")}</div></div>`; }).join("")}
-    <div class="sat-r sat-ej"><div></div><div class="code"><span style="position:absolute;left:66.7%;transform:translateX(-50%)">100 %</span>&nbsp;</div><div></div><div class="sat-d">${D.dias.map(d => `<span class="code">${DS[pd(d).getUTCDay()]}</span>`).join("")}</div></div>
+    <div class="sat-dw"><div class="sat-d">${s.diario.map(x => `<span title="${fd(x.d)} · ${r1(x.uds)} de ${r1(x.cap)} uds"><i style="height:${Math.min(x.pct, 150) / 150 * 100}%;background:${color(x.pct)}"></i></span>`).join("")}</div>
+    <div class="sat-dl">${s.diario.map(x => `<span>${DS[pd(x.d).getUTCDay()]}</span>`).join("")}</div></div></div>`; }).join("")}
+    <div class="sat-r sat-ej"><div></div><div class="code"><span style="position:absolute;left:66.7%;transform:translateX(-50%)">100 %</span>&nbsp;</div><div></div><div class="sat-dl sat-dn">${D.dias.map(d => `<span>${pd(d).getUTCDate()}</span>`).join("")}</div></div>
   </div>
   ${abierta ? (() => { const s = D.res.find(x => x.k === abierta); return `<div class="sat-det"><h3>${s.t} · ${r1(s.pend)} uds pendientes${s.personas ? ` · ${s.personas} persona${s.personas > 1 ? "s" : ""} en la sección` : ""}</h3>
     ${s.proys.length ? s.proys.map(x => `<a class="lrow" href="#/p/${x.p.id}/elementos"><div><b>${esc(x.p.nombre)}</b><div class="code">${esc(x.p.codigo)} · carga ${fd(x.p.fecha_carga)}</div></div><div class="r"><b>${r1(x.uds)} uds</b><div class="code">${x.ini === x.fin ? fd(x.ini) : fd(x.ini) + " → " + fd(x.fin)}</div></div></a>`).join("") : `<p class="hint">Nada pendiente en esta sección.</p>`}</div>`; })() : ""}

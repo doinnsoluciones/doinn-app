@@ -1074,3 +1074,8 @@ body.tv .gantt.fit .gg{padding-top:2px;padding-bottom:2px}
 .pj-meta>*{flex:none;position:relative}
 .pj-meta>*+*::before{content:"·";position:absolute;left:-9px;color:var(--muted2);font-weight:700}
 .pj-meta .m-fr i{font-style:normal;display:block;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sat-dw{display:flex;flex-direction:column;gap:2px}
+.sat-dl{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:2px}
+.sat-dl span{font-size:10px;line-height:1;text-align:center;color:var(--muted2);font-weight:600}
+.sat-dn span{font-weight:400}
+@media (max-width:640px){.sat-dw{grid-column:1/-1;order:4}}
