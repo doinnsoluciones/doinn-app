@@ -1069,8 +1069,8 @@ body.tv .gantt.fit .gg{padding-top:2px;padding-bottom:2px}
 .pcol .ps.ok{background:var(--lime-bg);color:var(--lime-d)}
 [data-theme=dark] .pcol .ps.on{background:#3A2410;color:#FDBA74}
 @media (max-width:520px){.pcol{width:48px}}
-/* Proyectos: línea de datos agrupada, separada por · centrado */
-.pj-meta{gap:4px 0}
-.pj-meta>*{flex:none}
-.pj-meta>*+*::before{content:"·";margin:0 7px;color:var(--muted2);font-weight:700}
-.pj-meta .m-fr{max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Proyectos: línea de datos en columnas (ancho = texto más largo, lo calcula alineaMeta) con · centrado en el hueco */
+.pj-meta{gap:4px 16px}
+.pj-meta>*{flex:none;position:relative}
+.pj-meta>*+*::before{content:"·";position:absolute;left:-9px;color:var(--muted2);font-weight:700}
+.pj-meta .m-fr i{font-style:normal;display:block;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
