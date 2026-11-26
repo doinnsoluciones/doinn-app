@@ -1058,3 +1058,14 @@ body.tv .gantt.fit .gg{padding-top:2px;padding-bottom:2px}
 .sat-det{margin-top:8px;border-top:1px solid var(--line);padding-top:8px}
 .sat-det h3{margin:4px 0 6px;font-size:15px}
 @media (max-width:640px){.sat-r{grid-template-columns:1fr 52px;row-gap:6px}.sat-b{grid-column:1/-1;order:3}.sat-d{grid-column:1/-1;order:4}.sat-ej{display:none}}
+/* Proyectos: avance y fases en columnas de ancho fijo, etiqueta encima */
+.prog{align-items:flex-end;gap:8px}
+.prog .bar{margin-bottom:8px}
+.pcol{flex:none;width:58px;display:flex;flex-direction:column;align-items:center;gap:2px;line-height:1.2}
+.pcol small{font-size:11px;color:var(--muted2)}
+.pcol b{font-size:12px;font-weight:700;padding:2px 0}
+.pcol .ps{font-style:normal;font-size:11px;width:100%;text-align:center;border-radius:999px;padding:2px 0;background:var(--bg);color:var(--muted2)}
+.pcol .ps.on{background:#FFEDD5;color:#C2410C}
+.pcol .ps.ok{background:var(--lime-bg);color:var(--lime-d)}
+[data-theme=dark] .pcol .ps.on{background:#3A2410;color:#FDBA74}
+@media (max-width:520px){.pcol{width:48px}}

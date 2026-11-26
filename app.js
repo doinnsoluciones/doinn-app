@@ -241,8 +241,8 @@ function card(p) {
     <div class="pj-top"><div class="pj-name">${esc(p.nombre || p.codigo)}</div><span class="row" style="gap:6px">${p.archivado ? `<span class="pill">Archivado</span>` : ""}${!confirmado(p) ? `<span class="pill" style="background:${COL_COM[estadoCom(p)]}33;color:var(--ink)">${estadoCom(p)}</span>` : ""}<span class="pill ${sc}">${sl}</span></span></div>
     <div class="pj-meta"><b>${esc(p.codigo)}</b><span>carga ${fd(p.fecha_carga)}</span><span>${esc(p.front_nombre || "—")}</span><span>${st.n} elem.</span><span>${cuando}</span>
     <span style="color:${p.coordinacion_ok ? "var(--lime-d)" : "var(--amber)"}">${p.coordinacion_ok ? "✓ Coordinado" : "Sin coordinar"}</span></div>
-    <div class="prog"><div class="bar"><i style="width:${st.av}%"></i></div><span class="pc">${st.av}% avance</span>
-    <span class="mini"><span>Doc ${st.doc}%</span><span>Fab ${st.fab}%</span><span>Carga ${st.car}%</span></span></div>
+    <div class="prog"><div class="bar"><i style="width:${st.av}%"></i></div><span class="pcol"><small>Avance</small><b>${st.av}%</b></span>
+    ${[["Doc", st.doc], ["Fab", st.fab], ["Carga", st.car]].map(([t, v]) => `<span class="pcol"><small>${t}</small><i class="ps ${v >= 100 ? "ok" : v > 0 ? "on" : ""}">${v}%</i></span>`).join("")}</div>
     ${(rs => rs.length ? `<div class="pj-warn" title="${esc(rs.join("\n"))}">⚠ ${esc(rs[0])}${rs.length > 1 ? ` <b>+${rs.length - 1}</b>` : ""}</div>` : "")(riesgos(p, st.n))}</a>`;
 }
 function vProyecto(id, tab = "ficha") {
