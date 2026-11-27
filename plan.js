@@ -130,7 +130,7 @@ const ZOOM = [[14, 64], [28, 44], [42, 30], [84, 17]];
 // Qué códigos puede marcar cada rol (el resto, solo SuperAdmin)
 const COD_TRABAJO = [...COD_PROD, "FO"];
 const COD_AUSENCIA = ["VA", "BA"];
-const GRUPOS_PER = [["Fronts", o => o.grupo === "Fronts"], ["Oficina técnica", o => o.grupo === "OT"], ["Taller y montaje", o => o.grupo === "Taller"], ["Externos", o => o.grupo === "Externos"], ["Subcontratas", o => o.grupo === "Subcontratas"]];
+const GRUPOS_PER = [["Vehículos", o => o.grupo === "Vehículos"], ["Fronts", o => o.grupo === "Fronts"], ["Oficina técnica", o => o.grupo === "OT"], ["Taller y montaje", o => o.grupo === "Taller"], ["Externos", o => o.grupo === "Externos"], ["Subcontratas", o => o.grupo === "Subcontratas"]];
 
 export async function vPlan(ctx, modo, ini, opt = {}) {
   const { $app, S, sb, esc, puede, toast } = ctx;
@@ -170,7 +170,7 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
   // Permisos de marcado en Personal
   // Permisos de marcado: superadmin todo · Front/encargado/TL producción en taller, externos y subcontratas · cada uno sus vacaciones y bajas
   const yo = S.perfil && S.perfil.operario_id, gestor = ctx.can("marcarProd"), propio = ctx.can("escaner");
-  const PROD_G = ["Taller", "Externos", "Subcontratas"], COD_P = [...COD_PROD, "FO", "ND"];
+  const PROD_G = ["Vehículos", "Taller", "Externos", "Subcontratas"], COD_P = [...COD_PROD, "FO", "ND"];
   const codigosFila = o => superA ? [...COD_PROD, ...COD_OTROS] : [...(gestor && PROD_G.includes(o.grupo) ? COD_P : []), ...(propio && yo && o.id === yo ? COD_AUSENCIA : [])];
   const puedeFila = o => codigosFila(o).length > 0;
   const misCodigos = ids => { const ls = ids.map(id => codigosFila(S.operarios.find(o => o.id === id) || {})); return [...COD_PROD, ...COD_OTROS].filter(c => ls.every(l => l.includes(c))); };
@@ -234,7 +234,7 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
     </div>`;
     const lg = cs => cs.map(k => `<span><i style="background:${COD[k][1]}"></i>${COD[k][0]}</span>`).join("");
     leyenda = `<div class="ley1"><span class="code">Producción:</span>${lg(COD_PROD)}</div><div class="ley2"><span class="code">Ausencias y formación:</span>${lg(COD_OTROS)}</div>`;
-    if (marca) ayuda = `<div class="ayuda">✎ Pulsa un día (o arrastra sobre varios días y personas) y elige qué marcar. ${superA ? "Puedes marcar a cualquier persona." : gestor ? "Puedes marcar producción al personal de taller, externos y subcontratas, y tus vacaciones y bajas en tu fila." : "Puedes marcar tus vacaciones, licencias y bajas en tu fila."}</div>`;
+    if (marca) ayuda = `<div class="ayuda">✎ Pulsa un día (o arrastra sobre varios días y personas) y elige qué marcar. ${superA ? "Puedes marcar a cualquier persona." : gestor ? "Puedes marcar producción al personal de taller, externos, subcontratas y vehículos, y tus vacaciones y bajas en tu fila." : "Puedes marcar tus vacaciones, licencias y bajas en tu fila."}</div>`;
     else if (!tv && taller && !yo) ayuda = `<div class="ayuda">Tu usuario aún no está vinculado a tu ficha de operario. Pide al administrador que lo vincule para poder marcar tus vacaciones y permisos.</div>`;
     // En la pantalla de taller solo Taller y montaje y Externos (sin subcontratas), todos visibles
     filas = GRUPOS_PER.filter(([g]) => tv ? ["Taller y montaje", "Externos"].includes(g) : !S.perGrupo || S.perGrupo === g).map(([g, fn]) => {
