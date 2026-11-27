@@ -15,7 +15,7 @@ export const CAP_DEF = { corte: 10, carpinteria: 4, caldereria: 3, pintura: 6, c
 // Márgenes antes de la carga (días laborables). Pintura: secado 1 día; si es laca, 2.
 const M = { corte: 3, carp: 1, secado: 1, secadoLaca: 2 };
 const AUSENTE = ["VA", "BA", "LIC", "MO", "DM", "FO", "ND", "LB"];
-const HORIZ = 10; // días laborables que se muestran (2 semanas)
+const HORIZ = 15; // días laborables que se muestran (3 semanas)
 
 const tiene = (l, f) => (l || "").includes("|" + f + "|");
 const iso = d => d.toISOString().slice(0, 10);
@@ -164,10 +164,10 @@ export function pintaSaturacion(ctx, el, D, abierta) {
   const dia = d => `${DL[pd(d).getUTCDay()]} ${pd(d).getUTCDate()}`;
   const satur = R.filter(s => s.e === "sat"), just = R.filter(s => s.e === "jus");
   const resumen = satur.length
-    ? `<b class="t-sat">⚠ ${listaY(satur.map(s => s.t))} ${satur.length > 1 ? "van" : "va"} por encima de su capacidad</b> algún día de las próximas dos semanas.${just.length ? ` ${listaY(just.map(s => s.t))} ${just.length > 1 ? "van" : "va"} justo.` : ""} El resto, con holgura.`
+    ? `<b class="t-sat">⚠ ${listaY(satur.map(s => s.t))} ${satur.length > 1 ? "van" : "va"} por encima de su capacidad</b> algún día de las próximas tres semanas.${just.length ? ` ${listaY(just.map(s => s.t))} ${just.length > 1 ? "van" : "va"} justo.` : ""} El resto, con holgura.`
     : just.length ? `<b class="t-jus">${listaY(just.map(s => s.t))} ${just.length > 1 ? "van" : "va"} justo</b> algún día. El resto, con holgura.`
-    : `<b class="t-hol">✓ Todo el taller va con holgura</b> las próximas dos semanas.`;
-  el.innerHTML = `<div class="sat-h"><h2>Saturación de taller <small class="code">próximas 2 semanas</small></h2>${puedeAjustar ? `<button class="link" id="satcfg">⚙ Capacidad</button>` : ""}</div>
+    : `<b class="t-hol">✓ Todo el taller va con holgura</b> las próximas tres semanas.`;
+  el.innerHTML = `<div class="sat-h"><h2>Saturación de taller <small class="code">próximas 3 semanas</small></h2>${puedeAjustar ? `<button class="link" id="satcfg">⚙ Capacidad</button>` : ""}</div>
   <p class="sat-res">${resumen}</p>
   <div class="sat-ley"><span><i class="c-hol"></i>Con holgura · menos del 80 %</span><span><i class="c-jus"></i>Justo · 80-100 %</span><span><i class="c-sat"></i>Saturado · más del 100 %</span><span><i class="c-vac"></i>Sin trabajo</span></div>
   <div class="sat2">
@@ -190,7 +190,7 @@ export function pintaSaturacion(ctx, el, D, abierta) {
         <ul><li><b>Entre semana:</b> +${r.extra} persona${r.extra > 1 ? "s" : ""} de refuerzo los días saturados.</li>
         <li><b>${mTxt}:</b> ${o.ok ? `${o.p} persona${o.p > 1 ? "s" : ""} ${o.n > 1 ? `durante ${o.n} fines de semana` : "un fin de semana"}${o.p === r.gente && r.gente > 1 ? " (toda la sección)" : ""}.` : `<span class="t-sat">no llega</span>: ${r.finde ? `${r.finde === 1 ? "el único fin de semana disponible cubre" : `los ${r.finde} fines de semana disponibles cubren`} ${jor(r.finde * mF * r.gente)} de ${jor(r.total)}; el resto, con refuerzo entre semana.` : "no hay fin de semana antes de los días saturados; solo sirve el refuerzo entre semana."}`}</li></ul></div>`; }).join("")}
       <p class="code">Una jornada-persona = lo que saca una persona de la sección en un día (${SECC.filter(x => RF.some(y => y.s.k === x.k)).map(x => `${x.t.toLowerCase()} ${r1(x.k === "carpinteria" ? D.cap.carpinteria : D.cap[x.k] / Math.max(1, (R.find(y => y.k === x.k) || {}).personas || 0)).toLocaleString("es-ES")} uds`).join(", ")}). Los fines de semana cuentan desde hoy hasta el último día saturado.</p>`
-      : `<p class="hint">✓ No hace falta reforzar: ninguna sección pasa del 100 % en las próximas dos semanas.</p>`}</div>`;
+      : `<p class="hint">✓ No hace falta reforzar: ninguna sección pasa del 100 % en las próximas tres semanas.</p>`}</div>`;
   })()}
   ${abierta ? (() => { const s = R.find(x => x.k === abierta); return `<div class="sat-det"><h3>${s.t} · ${r1(s.pend)} unidades pendientes${s.personas ? ` · ${s.personas} persona${s.personas > 1 ? "s" : ""} en la sección` : ""}</h3>
     ${s.proys.length ? s.proys.map(x => `<a class="lrow" href="#/p/${x.p.id}/elementos"><div><b>${esc(x.p.nombre)}</b><div class="code">${esc(x.p.codigo)} · carga ${fd(x.p.fecha_carga)}</div></div><div class="r"><b>${r1(x.uds)} uds</b><div class="code">${x.ini === x.fin ? fd(x.ini) : fd(x.ini) + " → " + fd(x.fin)}</div></div></a>`).join("") : `<p class="hint">Nada pendiente en esta sección.</p>`}</div>`; })() : ""}
