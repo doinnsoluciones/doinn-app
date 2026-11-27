@@ -7,7 +7,7 @@ const FASES = ["Montaje", "Desmontaje", "Carga", "Descarga", "Fábrica"];
 const COL = { Carga: "#8A949C", Montaje: "#F2C230", Evento: "#2F8F83", Desmontaje: "#E8833A", Descarga: "#1F3A68", "Fábrica": "#CFE6A8", Ausencia: "#8E9C9C" };
 const ABR = { Carga: "C", Montaje: "M", Evento: "E", Desmontaje: "DS", Descarga: "DC", "Fábrica": "F" };
 const OSCURO = new Set(["#F2C230", "#CFE6A8", "#AEB9B9", "#D5DCDC"]); // fondos claros: texto oscuro
-const MOVS = ["Carga", "Montaje", "Desmontaje", "Descarga"];
+const MOVS = ["Carga", "Descarga"]; // movimientos de camión: solo cargas y descargas
 const TIPOS_AUS = ["Vacaciones", "Baja", "Curso", "Otros"];
 // Códigos de jornada (pincel)
 const COD = {
@@ -210,8 +210,8 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
       ${ocultosAqui.length ? ` · <button class="link" id="bocu">Ocultos (${ocultosAqui.length})</button>` : ""} · <button class="link" id="btodo">Ver todo</button></div>
     </div>`;
     leyenda = `<div class="ley1">${["Carga", "Montaje", "Evento", "Desmontaje", "Descarga"].map(f => `<span><i style="background:${COL[f]}"></i>${f}</span>`).join("")}<span><i class="prev-i"></i>Sin confirmar</span><span><b class="warn-i">⚠</b>Aviso</span></div>
-      <div class="ley2"><span class="code">Movimientos al día:</span>${["0", "1", "2", "3 o más"].map((t, k) => `<span><i class="mvk m${k}"></i>${t}</span>`).join("")}</div>`;
-    // Movimientos al día = inicios de carga, montaje, desmontaje y descarga de los proyectos visibles
+      <div class="ley2"><span class="code"><b>Movimientos al día</b> (cargas y descargas):</span>${["0", "1", "2", "3 o más"].map((t, k) => `<span><i class="mvk m${k}"></i>${t}</span>`).join("")}</div>`;
+    // Movimientos al día = cargas y descargas que empiezan ese día en los proyectos visibles
     const mov = dias.map(d => ps.reduce((n, { p, f }) => n + (caido(p) ? 0 : f.filter(([fa, a]) => MOVS.includes(fa) && a === d).length), 0));
     const filaMov = `<div class="gr gmov"><div class="gn glab">MOVIMIENTOS/DÍA</div>${fondo(dias, D.fest)}${mov.map((n, i) => `<div class="mv m${Math.min(n, 3)}" style="grid-column:${i + 2}">${n || "·"}</div>`).join("")}</div>`;
     filas = filaMov + ps.map(({ p, f }) => {
@@ -297,7 +297,7 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
   const cols = tv ? `${NW}px repeat(14,${COLW}px)` : `${NW}px repeat(${NDIAS},${COLW}px)`;
   $app.innerHTML = `${tv ? `<div class="tvhead"><b>Planificación · ${modo === "proyectos" ? "Proyectos" : "Recursos"}</b><span>${new Date().toLocaleString("es-ES", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}</span><a href="#/plan" class="btn sm ghost">Salir</a></div>` : ""}
   ${tv ? "" : navDe(filtros)}${S.planMin && !tv ? "" : `<div class="pinfo ver">${ayuda}<div class="ley">${leyenda}${ajustes}</div></div>`}
-  <div class="gwrap"><div class="gantt z${tv ? 1 : S.zoom} ${marca ? "marcable" : ""} ${modo === "personal" && !tv ? "celdas" : ""}" style="--cols:${cols};--nw:${NW}px">${cabecera(dias, D.fest, modo === "proyectos" ? (NW < 200 ? "PROYECTO" : "PROYECTO · Front · TRANSPORTE") : "RECURSO")}${filas}</div></div>`;
+  <div class="gwrap"><div class="gantt z${tv ? 1 : S.zoom} ${marca ? "marcable" : ""} ${modo === "personal" && !tv ? "celdas" : ""}" style="--cols:${cols};--nw:${NW}px">${cabecera(dias, D.fest, modo === "proyectos" ? (NW < 200 ? "PROYECTO" : "PROYECTO · FRONT · TRANSPORTE") : "RECURSO")}${filas}${modo === "personal" && !tv && dias.includes(iso(new Date())) ? `<div class="hoyline" style="left:${NW + dias.indexOf(iso(new Date())) * COLW}px;width:${COLW}px"></div>` : ""}</div></div>`;
 
   const $ = id => document.getElementById(id);
   const re = (o = {}) => vPlan(ctx, modo, d0, { ...opt, ...o });
