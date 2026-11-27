@@ -1111,3 +1111,11 @@ body.tv .gantt.fit .gg{padding-top:2px;padding-bottom:2px}
 @media(max-width:860px){.pfil .perp{flex:0 0 170px}}
 /* Planificación con filtros ocultos: también se oculta la barra inferior */
 body.plan-min #tabs{display:none}
+/* Saturación: propuesta de refuerzo */
+.sat-ref{margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
+.sat-ref h3{font-size:14px;margin:0 0 8px}
+.sat-fin{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:10px}
+.sat-refr{padding:8px 0;border-bottom:1px solid var(--line)}
+.sat-refr>b{margin-right:8px}
+.sat-refr ul{margin:4px 0 0;padding-left:18px;font-size:13px}
+.sat-refr li{margin:2px 0}

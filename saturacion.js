@@ -129,6 +129,27 @@ const r1 = x => x >= 10 ? Math.round(x) : Math.round(x * 10) / 10;
 const pctTxt = p => p >= 999 ? "sin personal" : Math.round(p) + " %";
 const listaY = l => l.length <= 1 ? l.join("") : l.slice(0, -1).join(", ") + " y " + l[l.length - 1];
 
+// Refuerzo: modos de fin de semana (jornadas por fin de semana por persona)
+const FINDE = [["s05", "Sábado ½ jornada", 0.5], ["s1", "Sábado completo", 1], ["s1d05", "Sábado + domingo ½", 1.5], ["s1d1", "Sábado + domingo completos", 2]];
+const lsG = (k, d) => { try { return localStorage.getItem(k) || d; } catch { return d; } };
+const lsS = (k, v) => { try { localStorage.setItem(k, v); } catch { } };
+// Para cada sección saturada: cuántas jornadas-persona faltan y cómo cubrirlas (más gente entre semana o fines de semana)
+function refuerzo(s, D) {
+  const gente = Math.max(1, s.personas || 0);
+  const capPP = s.k === "carpinteria" ? D.cap.carpinteria : D.cap[s.k] / gente; // unidades/día que saca una persona
+  const malos = s.diario.filter(x => x.uds > 0.05 && x.uds > x.cap);
+  if (!malos.length || !capPP) return null;
+  const jp = malos.map(x => (x.uds - x.cap) / capPP);
+  const total = jp.reduce((a, b) => a + b, 0);
+  const extra = Math.max(...jp.map(v => Math.ceil(v - 0.05)));
+  // Fines de semana disponibles desde hoy hasta el último día saturado
+  const hasta = malos[malos.length - 1].d, hoyS = new Date().toISOString().slice(0, 10);
+  let finde = 0; for (let d = pd(hoyS); iso(d) <= hasta; d.setUTCDate(d.getUTCDate() + 1)) if (d.getUTCDay() === 6) finde++;
+  // Turnos de fin de semana necesarios (una persona un fin de semana); se usan los menos fines de semana posibles y la menor gente para esos fines de semana
+  const opc = Object.fromEntries(FINDE.map(([k, , f]) => { const t = Math.ceil(total / f - 0.05), n = Math.ceil(t / gente), p = n ? Math.ceil(t / n) : 0; return [k, { n, p, ok: n <= finde }]; }));
+  return { total, extra, gente, finde, opc, hasta };
+}
+
 export function pintaSaturacion(ctx, el, D, abierta) {
   const { esc, fd, can } = ctx;
   const puedeAjustar = can && can("capacidad");
@@ -158,12 +179,26 @@ export function pintaSaturacion(ctx, el, D, abierta) {
     </div>`).join("")}
   </div>
   <p class="code sat-nota">Cada casilla es un día laborable; el número es el % de su capacidad que ocupa ese día. Pulsa una sección para ver qué proyectos la cargan.</p>
+  ${(() => {
+    const modo = FINDE.some(f => f[0] === lsG("doinn_sat_finde", "")) ? lsG("doinn_sat_finde", "") : "s05";
+    const [, mTxt, mF] = FINDE.find(f => f[0] === modo);
+    const RF = R.map(s => ({ s, r: refuerzo(s, D) })).filter(x => x.r);
+    const jor = v => `${r1(v).toLocaleString("es-ES")} jornada${r1(v) === 1 ? "" : "s"}`;
+    return `<div class="sat-ref"><h3>Propuesta de refuerzo</h3>
+      ${RF.length ? `<div class="sat-fin"><span class="code">Fin de semana:</span>${FINDE.map(([k, t]) => `<button class="chip sm ${k === modo ? "on" : ""}" data-fin="${k}">${t}</button>`).join("")}</div>
+      ${RF.map(({ s, r }) => { const o = r.opc[modo]; return `<div class="sat-refr"><b>${s.t}</b><span class="code">Faltan ${jor(r.total)}-persona hasta el ${dia(r.hasta)}</span>
+        <ul><li><b>Entre semana:</b> +${r.extra} persona${r.extra > 1 ? "s" : ""} de refuerzo los días saturados.</li>
+        <li><b>${mTxt}:</b> ${o.ok ? `${o.p} persona${o.p > 1 ? "s" : ""} ${o.n > 1 ? `durante ${o.n} fines de semana` : "un fin de semana"}${o.p === r.gente && r.gente > 1 ? " (toda la sección)" : ""}.` : `<span class="t-sat">no llega</span>: ${r.finde ? `${r.finde === 1 ? "el único fin de semana disponible cubre" : `los ${r.finde} fines de semana disponibles cubren`} ${jor(r.finde * mF * r.gente)} de ${jor(r.total)}; el resto, con refuerzo entre semana.` : "no hay fin de semana antes de los días saturados; solo sirve el refuerzo entre semana."}`}</li></ul></div>`; }).join("")}
+      <p class="code">Una jornada-persona = lo que saca una persona de la sección en un día (${SECC.filter(x => RF.some(y => y.s.k === x.k)).map(x => `${x.t.toLowerCase()} ${r1(x.k === "carpinteria" ? D.cap.carpinteria : D.cap[x.k] / Math.max(1, (R.find(y => y.k === x.k) || {}).personas || 0)).toLocaleString("es-ES")} uds`).join(", ")}). Los fines de semana cuentan desde hoy hasta el último día saturado.</p>`
+      : `<p class="hint">✓ No hace falta reforzar: ninguna sección pasa del 100 % en las próximas dos semanas.</p>`}</div>`;
+  })()}
   ${abierta ? (() => { const s = R.find(x => x.k === abierta); return `<div class="sat-det"><h3>${s.t} · ${r1(s.pend)} unidades pendientes${s.personas ? ` · ${s.personas} persona${s.personas > 1 ? "s" : ""} en la sección` : ""}</h3>
     ${s.proys.length ? s.proys.map(x => `<a class="lrow" href="#/p/${x.p.id}/elementos"><div><b>${esc(x.p.nombre)}</b><div class="code">${esc(x.p.codigo)} · carga ${fd(x.p.fecha_carga)}</div></div><div class="r"><b>${r1(x.uds)} uds</b><div class="code">${x.ini === x.fin ? fd(x.ini) : fd(x.ini) + " → " + fd(x.fin)}</div></div></a>`).join("") : `<p class="hint">Nada pendiente en esta sección.</p>`}</div>`; })() : ""}
   ${D.conDespiece < D.vivos || D.pasados.length ? `<p class="sat-av">${D.conDespiece < D.vivos ? `ⓘ ${D.vivos - D.conDespiece} de ${D.vivos} proyectos con fecha de carga aún no tienen despiece en la app y no cuentan.` : ""}${D.pasados.length ? ` ${D.pasados.length} proyecto${D.pasados.length > 1 ? "s" : ""} con la carga ya pasada no se cuentan.` : ""}</p>` : ""}
   <details class="sat-como"><summary class="link">¿Cómo se calcula?</summary><p class="hint">Cada unidad pendiente cuenta 1, sea simple o compleja. Se reparte entre los días que quedan hasta la carga respetando el orden de las fases: corte terminado ${M.corte} días antes de la carga, carpintería y calderería ${M.carp} día antes (o antes de pintar), y pintura con ${M.secado} día de secado (${M.secadoLaca} si es laca). La capacidad de cada día depende de quién está en fábrica: baja si hay vacaciones, bajas, montajes o personas no disponibles. Capacidad actual (unidades/día): corte ${D.cap.corte}, carpintería ${D.cap.carpinteria} por carpintero, calderería ${D.cap.caldereria}, pintura ${D.cap.pintura}, cargas ${D.cap.cargas}.</p></details>
   <div id="satform"></div>`;
   el.querySelectorAll("[data-s]").forEach(r => r.onclick = () => pintaSaturacion(ctx, el, D, abierta === r.dataset.s ? null : r.dataset.s));
+  el.querySelectorAll("[data-fin]").forEach(b => b.onclick = () => { lsS("doinn_sat_finde", b.dataset.fin); pintaSaturacion(ctx, el, D, abierta); });
   const b = el.querySelector("#satcfg");
   if (b) b.onclick = () => {
     const f = el.querySelector("#satform");
