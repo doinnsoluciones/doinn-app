@@ -296,7 +296,7 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
   const cols = tv ? `${NW}px repeat(14,${COLW}px)` : `${NW}px repeat(${NDIAS},${COLW}px)`;
   $app.innerHTML = `${tv ? `<div class="tvhead"><b>Planificación · ${modo === "proyectos" ? "Proyectos" : "Recursos"}</b><span>${new Date().toLocaleString("es-ES", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}</span><a href="#/plan" class="btn sm ghost">Salir</a></div>` : ""}
   ${tv ? "" : navDe(filtros)}${S.planMin && !tv ? "" : `<div class="pinfo ver">${ayuda}<div class="ley">${leyenda}${ajustes}</div></div>`}
-  <div class="gwrap"><div class="gantt z${tv ? 1 : S.zoom} ${marca ? "marcable" : ""} ${modo === "personal" && !tv ? "celdas" : ""}" style="--cols:${cols};--nw:${NW}px">${cabecera(dias, D.fest, modo === "proyectos" ? (NW < 200 ? "PROYECTO" : "PROYECTO · FRONT · TRANSPORTE") : "RECURSO")}${filas}${modo === "personal" && !tv && dias.includes(iso(new Date())) ? `<div class="hoyline" style="left:${NW + dias.indexOf(iso(new Date())) * COLW}px;width:${COLW}px"></div>` : ""}</div></div>`;
+  <div class="gwrap"><div class="gantt z${tv ? 1 : S.zoom} ${marca ? "marcable" : ""} ${modo === "personal" && !tv ? "celdas" : ""}" style="--cols:${cols};--nw:${NW}px">${cabecera(dias, D.fest, modo === "proyectos" ? (NW < 200 ? "PROYECTO" : "PROYECTO · FRONT · TRANSPORTE") : "RECURSO")}${filas}${!tv && dias.includes(iso(new Date())) ? `<div class="hoyline" style="left:${NW + dias.indexOf(iso(new Date())) * COLW}px;width:${COLW}px"></div>` : ""}</div></div>`;
 
   const $ = id => document.getElementById(id);
   const re = (o = {}) => vPlan(ctx, modo, d0, { ...opt, ...o });
