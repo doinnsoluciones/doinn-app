@@ -301,6 +301,8 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
   const $ = id => document.getElementById(id);
   const re = (o = {}) => vPlan(ctx, modo, d0, { ...opt, ...o });
   const w = $app.querySelector(".gwrap");
+  // Columna de hoy: el recuadro empieza en la fila de los días (encuadra también la fecha)
+  const hl = $app.querySelector(".hoyline"), gdi = $app.querySelector(".gdias"); if (hl && gdi) hl.style.top = gdi.offsetTop + "px";
   // Bocadillo al pasar por encima de una casilla: fila (data-tip) + columna del día según la posición del ratón
   if (!tv && w) {
     let tip = document.getElementById("gtip"); if (!tip) { tip = document.createElement("div"); tip.id = "gtip"; document.body.appendChild(tip); }
