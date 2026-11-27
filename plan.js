@@ -269,7 +269,8 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
         TIP["o" + o.id] = info.map((x, i) => { if (!x) return fab && fab[i] ? `${o.nombre}\n${diaTip(dias[i])}\nEn fábrica` : ""; const [lab] = COD[x.cod] || ["?"]; const h = x.p ? (x.cod === "MO" ? x.p.hora_montaje : x.cod === "DM" ? x.p.hora_desmontaje : "") : ""; return [o.nombre, diaTip(dias[i]), lab + (x.p ? " · " + x.p.nombre : "") + (h ? " · inicio " + h : ""), x.nota && (!x.p || x.nota !== x.p.nombre) ? x.nota : "", x.src, x.quien || x.cuando ? `${x.quien || "—"} · ${cuando(x.cuando)}` : ""].filter(Boolean).join("\n"); });
         let n = 0;
         const cel = info.map((x, i) => {
-          if (!x) return "";
+          // En fábrica: una píldora verde por día, con la misma forma que el resto de acciones y sin texto
+          if (!x) return fab && fab[i] ? barra(i, 1, [COD.FA[1]], { abr: "", full: "" }, COLW, "fabv") : "";
           if (["MO", "DM"].includes(x.cod)) n++;
           const [lab, col, ab] = COD[x.cod] || ["?", "#ccc", "?"];
           // Días seguidos con el mismo código (y el mismo proyecto) → una barra
@@ -286,7 +287,7 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
           return barra(i, span, [col], { abr: ab, full: esc(conProy ? x.p.nombre : conNota ? x.nota : ab), hora: conProy && ["MO", "DM"].includes(x.cod) ? (hora || "--:--") : "" }, COLW, pid && !(x.p && x.p.id === pid) ? "otro" : "", "", !!(conProy || conNota));
         }).join("");
         const hits = marca && puedeFila(o) ? dias.map((d, i) => `<div class="hit" data-o="${o.id}" data-d="${d}" style="grid-column:${i + 2}"></div>`).join("") : "";
-        return `<div class="gr" data-row="${o.id}" data-tip="o${o.id}"><div class="gn"><b>${esc(o.nombre)}</b><span>${esc(o.subgrupo === "Montaje" ? "Montaje" : o.puesto || "")}</span></div>${fondo(dias, D.fest, fab)}${cel}${hits}</div>`;
+        return `<div class="gr" data-row="${o.id}" data-tip="o${o.id}"><div class="gn"><b>${esc(o.nombre)}</b><span>${esc(o.subgrupo === "Montaje" ? "Montaje" : o.puesto || "")}</span></div>${fondo(dias, D.fest)}${cel}${hits}</div>`;
       }).join(""));
     }).join("") || `<div class="empty">${pid ? "Nadie tiene marcado ni asignado ese proyecto en estas fechas." : "Nadie coincide con el filtro."}</div>`;
   }
