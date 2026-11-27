@@ -1079,3 +1079,27 @@ body.tv .gantt.fit .gg{padding-top:2px;padding-bottom:2px}
 .sat-dl span{font-size:10px;line-height:1;text-align:center;color:var(--muted2);font-weight:600}
 .sat-dn span{font-weight:400}
 @media (max-width:640px){.sat-dw{grid-column:1/-1;order:4}}
+
+/* Saturación v2: resumen en lenguaje claro + calendario de casillas por estado */
+.sat-res{margin:4px 0 8px;font-size:15px;line-height:1.4}
+.t-sat{color:var(--red)}.t-jus{color:#C2410C}.t-hol{color:var(--lime-d)}
+.sat-ley{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--muted2);margin-bottom:8px}
+.sat-ley span{display:inline-flex;align-items:center;gap:5px}.sat-ley i{width:12px;height:12px;border-radius:3px;display:inline-block}
+.c-hol{background:#CFE6A8;color:#2F4A0E}.c-jus{background:#FDBA74;color:#7C2D12}.c-sat{background:#E62643;color:#fff}.c-vac{background:var(--line);opacity:.55}
+.sat2{display:grid;gap:4px}
+.sat2-r{display:grid;grid-template-columns:minmax(150px,210px) 1fr;gap:12px;align-items:center;padding:6px;border-radius:10px;cursor:pointer}
+.sat2-r:hover,.sat2-r.sel{background:var(--lime-bg)}
+.sat2-cab{cursor:default;padding-bottom:0}.sat2-cab:hover{background:none}
+.sat2-n{display:grid;grid-template-columns:auto 1fr;align-items:center;gap:2px 8px}
+.sat2-n b{font-size:15px}.sat2-n small{grid-column:1/-1;font-size:12px;color:var(--muted2)}
+.sat-pill{justify-self:start;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px}
+.p-hol{background:var(--lime-bg);color:var(--lime-d)}.p-jus{background:#FFEDD5;color:#C2410C}.p-sat{background:#FDE2E6;color:var(--red)}
+[data-theme=dark] .p-jus{background:#3A2410;color:#FDBA74}[data-theme=dark] .p-sat{background:#3A1218;color:#FF8A9A}
+.sat2-cal{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:3px}
+.sat2-cal span{height:30px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700}
+.sat2-cab .sat2-cal span{height:auto;flex-direction:column;font-size:11px;font-weight:400;color:var(--muted2);line-height:1.15}
+.sat2-cab .sat2-cal b{font-weight:700;color:var(--ink)}
+.sat-nota{margin:6px 0 0}
+.sat-av{font-size:12px;color:#9A6F0E;margin:8px 0 0}
+.sat-como{margin-top:6px}
+@media (max-width:640px){.sat2-r{grid-template-columns:1fr;gap:6px}.sat2-cab>div:first-child{display:none}.sat2-cal span{height:26px;font-size:10px}}

@@ -120,26 +120,48 @@ export function calcula({ S, hoy, vivos, pasados, els, subs, pzs, fest, jor, cap
   return { res, dias: dias.slice(0, H), cap, pasados, conDespiece: new Set(els.map(e => e.proyecto_id)).size, vivos: vivos.length };
 }
 
-const color = pct => pct >= 100 ? "var(--red)" : pct >= 80 ? "var(--amber)" : "var(--lime-d)";
+// Estado de un día o una sección: holgado (<80 %), justo (80-100 %), saturado (>100 %)
+const est = pct => pct > 100 ? "sat" : pct >= 80 ? "jus" : "hol";
+const EST_TXT = { hol: "Con holgura", jus: "Justo", sat: "Saturado" };
 const DS = ["D", "L", "M", "X", "J", "V", "S"];
+const DL = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
 const r1 = x => x >= 10 ? Math.round(x) : Math.round(x * 10) / 10;
+const pctTxt = p => p >= 999 ? "sin personal" : Math.round(p) + " %";
+const listaY = l => l.length <= 1 ? l.join("") : l.slice(0, -1).join(", ") + " y " + l[l.length - 1];
 
 export function pintaSaturacion(ctx, el, D, abierta) {
   const { esc, fd, can } = ctx;
   const puedeAjustar = can && can("capacidad");
-  el.innerHTML = `<div class="sat-h"><h2>Saturación de taller <small class="code">próximos ${D.dias.length} días laborables</small></h2>${puedeAjustar ? `<button class="link" id="satcfg">⚙ Capacidad</button>` : ""}</div>
-  <div class="sat">${D.res.map(s => { const w = Math.min(s.pct, 150) / 150 * 100; return `<div class="sat-r ${abierta === s.k ? "sel" : ""}" data-s="${s.k}">
-    <div class="sat-n"><b>${s.t}</b><span class="code">${r1(s.uds)} uds · cap. ${r1(s.cap)}</span></div>
-    <div class="sat-b"><i style="width:${w}%;background:${color(s.pct)}"></i><em style="left:${100 / 1.5}%"></em></div>
-    <div class="sat-p" style="color:${color(s.pct)}">${s.pct >= 999 ? "∞" : Math.round(s.pct) + "%"}</div>
-    <div class="sat-dw"><div class="sat-d">${s.diario.map(x => `<span title="${fd(x.d)} · ${r1(x.uds)} de ${r1(x.cap)} uds"><i style="height:${Math.min(x.pct, 150) / 150 * 100}%;background:${color(x.pct)}"></i></span>`).join("")}</div>
-    <div class="sat-dl">${s.diario.map(x => `<span>${DS[pd(x.d).getUTCDay()]}</span>`).join("")}</div></div></div>`; }).join("")}
-    <div class="sat-r sat-ej"><div></div><div class="code"><span style="position:absolute;left:66.7%;transform:translateX(-50%)">100 %</span>&nbsp;</div><div></div><div class="sat-dl sat-dn">${D.dias.map(d => `<span>${pd(d).getUTCDate()}</span>`).join("")}</div></div>
+  // Para cada sección: peor estado de los próximos días y qué días se pasa de capacidad
+  const R = D.res.map(s => {
+    const malos = s.diario.filter(x => x.uds > 0.05 && est(x.pct) === "sat");
+    const justos = s.diario.filter(x => x.uds > 0.05 && est(x.pct) === "jus");
+    const pico = s.diario.reduce((m, x) => x.pct > m.pct ? x : m, { pct: 0 });
+    const e = malos.length ? "sat" : justos.length ? "jus" : "hol";
+    return { ...s, malos, justos, pico, e };
+  });
+  const dia = d => `${DL[pd(d).getUTCDay()]} ${pd(d).getUTCDate()}`;
+  const satur = R.filter(s => s.e === "sat"), just = R.filter(s => s.e === "jus");
+  const resumen = satur.length
+    ? `<b class="t-sat">⚠ ${listaY(satur.map(s => s.t))} ${satur.length > 1 ? "van" : "va"} por encima de su capacidad</b> algún día de las próximas dos semanas.${just.length ? ` ${listaY(just.map(s => s.t))} ${just.length > 1 ? "van" : "va"} justo.` : ""} El resto, con holgura.`
+    : just.length ? `<b class="t-jus">${listaY(just.map(s => s.t))} ${just.length > 1 ? "van" : "va"} justo</b> algún día. El resto, con holgura.`
+    : `<b class="t-hol">✓ Todo el taller va con holgura</b> las próximas dos semanas.`;
+  el.innerHTML = `<div class="sat-h"><h2>Saturación de taller <small class="code">próximas 2 semanas</small></h2>${puedeAjustar ? `<button class="link" id="satcfg">⚙ Capacidad</button>` : ""}</div>
+  <p class="sat-res">${resumen}</p>
+  <div class="sat-ley"><span><i class="c-hol"></i>Con holgura · menos del 80 %</span><span><i class="c-jus"></i>Justo · 80-100 %</span><span><i class="c-sat"></i>Saturado · más del 100 %</span><span><i class="c-vac"></i>Sin trabajo</span></div>
+  <div class="sat2">
+    <div class="sat2-r sat2-cab"><div></div><div class="sat2-cal">${D.dias.map(d => `<span><b>${DS[pd(d).getUTCDay()]}</b>${pd(d).getUTCDate()}</span>`).join("")}</div></div>
+    ${R.map(s => `<div class="sat2-r ${abierta === s.k ? "sel" : ""}" data-s="${s.k}" title="Pulsa para ver qué proyectos cargan ${s.t}">
+      <div class="sat2-n"><b>${s.t}</b><span class="sat-pill p-${s.e}">${EST_TXT[s.e]}</span>
+        <small>${s.malos.length ? `Se pasa ${s.malos.length === 1 ? "el " + dia(s.malos[0].d) : s.malos.length + " días (desde el " + dia(s.malos[0].d) + ")"}` : s.pend > 0.05 ? `Pico ${pctTxt(s.pico.pct)} el ${dia(s.pico.d)}` : "Nada pendiente"}</small></div>
+      <div class="sat2-cal">${s.diario.map(x => { const v = x.uds <= 0.05; const e = v ? "vac" : est(x.pct); return `<span class="c-${e}" title="${s.t} · ${dia(x.d)}: ${v ? "sin trabajo" : `${r1(x.uds)} uds de ${r1(x.cap)} posibles (${pctTxt(x.pct)})`}">${v ? "" : x.pct >= 999 ? "!" : Math.round(x.pct)}</span>`; }).join("")}</div>
+    </div>`).join("")}
   </div>
-  ${abierta ? (() => { const s = D.res.find(x => x.k === abierta); return `<div class="sat-det"><h3>${s.t} · ${r1(s.pend)} uds pendientes${s.personas ? ` · ${s.personas} persona${s.personas > 1 ? "s" : ""} en la sección` : ""}</h3>
+  <p class="code sat-nota">Cada casilla es un día laborable; el número es el % de su capacidad que ocupa ese día. Pulsa una sección para ver qué proyectos la cargan.</p>
+  ${abierta ? (() => { const s = R.find(x => x.k === abierta); return `<div class="sat-det"><h3>${s.t} · ${r1(s.pend)} unidades pendientes${s.personas ? ` · ${s.personas} persona${s.personas > 1 ? "s" : ""} en la sección` : ""}</h3>
     ${s.proys.length ? s.proys.map(x => `<a class="lrow" href="#/p/${x.p.id}/elementos"><div><b>${esc(x.p.nombre)}</b><div class="code">${esc(x.p.codigo)} · carga ${fd(x.p.fecha_carga)}</div></div><div class="r"><b>${r1(x.uds)} uds</b><div class="code">${x.ini === x.fin ? fd(x.ini) : fd(x.ini) + " → " + fd(x.fin)}</div></div></a>`).join("") : `<p class="hint">Nada pendiente en esta sección.</p>`}</div>`; })() : ""}
-  <p class="hint">Cada unidad cuenta 1, sea simple o compleja. Lo pendiente se reparte entre los días que quedan hasta la carga respetando el orden (cada fase empieza después de la anterior): corte terminado ${M.corte} días antes, carpintería y calderería ${M.carp} día antes (o antes de pintura), pintura con ${M.secado} día de secado (${M.secadoLaca} si es laca). La capacidad baja cuando hay gente de vacaciones, baja o en montaje.
-  ${D.conDespiece < D.vivos ? ` Solo ${D.conDespiece} de ${D.vivos} proyectos con carga tienen despiece en la app.` : ""}${D.pasados.length ? ` ${D.pasados.length} proyecto${D.pasados.length > 1 ? "s" : ""} con fecha de carga ya pasada no se cuentan.` : ""}</p>
+  ${D.conDespiece < D.vivos || D.pasados.length ? `<p class="sat-av">${D.conDespiece < D.vivos ? `ⓘ ${D.vivos - D.conDespiece} de ${D.vivos} proyectos con fecha de carga aún no tienen despiece en la app y no cuentan.` : ""}${D.pasados.length ? ` ${D.pasados.length} proyecto${D.pasados.length > 1 ? "s" : ""} con la carga ya pasada no se cuentan.` : ""}</p>` : ""}
+  <details class="sat-como"><summary class="link">¿Cómo se calcula?</summary><p class="hint">Cada unidad pendiente cuenta 1, sea simple o compleja. Se reparte entre los días que quedan hasta la carga respetando el orden de las fases: corte terminado ${M.corte} días antes de la carga, carpintería y calderería ${M.carp} día antes (o antes de pintar), y pintura con ${M.secado} día de secado (${M.secadoLaca} si es laca). La capacidad de cada día depende de quién está en fábrica: baja si hay vacaciones, bajas, montajes o personas no disponibles. Capacidad actual (unidades/día): corte ${D.cap.corte}, carpintería ${D.cap.carpinteria} por carpintero, calderería ${D.cap.caldereria}, pintura ${D.cap.pintura}, cargas ${D.cap.cargas}.</p></details>
   <div id="satform"></div>`;
   el.querySelectorAll("[data-s]").forEach(r => r.onclick = () => pintaSaturacion(ctx, el, D, abierta === r.dataset.s ? null : r.dataset.s));
   const b = el.querySelector("#satcfg");
