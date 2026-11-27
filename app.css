@@ -1119,3 +1119,15 @@ body.plan-min #tabs{display:none}
 .sat-refr>b{margin-right:8px}
 .sat-refr ul{margin:4px 0 0;padding-left:18px;font-size:13px}
 .sat-refr li{margin:2px 0}
+/* Planificación: filtros en la misma línea que las pestañas */
+@media(min-width:861px){
+.pnav:has(>.pfil){flex-wrap:nowrap}
+.pnav>.pfil{flex:1 1 auto;justify-content:safe center;margin-bottom:0;min-width:0;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;gap:6px}
+.pnav>.pfil::-webkit-scrollbar{display:none}
+.pnav>.pfil>*,.pnav>.pfil .ests,.pnav>.pfil .chip{flex:none}
+.pnav>.pfil .ests{flex-wrap:nowrap}
+.pnav>.pfil .perq{width:170px}
+.pnav>.pfil .perp{width:210px}
+.pnav>.seg2,.pnav>.row{flex:none}
+}
+@media(max-width:860px){.pnav>.pfil{order:3;flex-basis:100%;justify-content:flex-start}}

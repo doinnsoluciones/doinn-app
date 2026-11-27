@@ -178,11 +178,12 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
   const marca = !tv && modo === "personal" && (superA || gestor || (propio && !!yo));
   const largo = ANCHO >= 40 ? 18 : ANCHO >= 30 ? 12 : 6;
 
-  const nav = tv ? "" : `<div class="pnav">
+  // Pestañas, filtros (en el centro, siempre visibles) y botones en una sola línea
+  const navDe = f => tv ? "" : `<div class="pnav">
     <div class="seg2"><a href="#/plan/proyectos/${d0}" class="${modo === "proyectos" ? "on" : ""}">Proyectos</a><a href="#/plan/personal/${d0}" class="${modo === "personal" ? "on" : ""}">Recursos</a>${verStats ? `<a href="#/plan/stats">Estadísticas</a>` : ""}</div>
+    ${f}
     <div class="row">
-      <button class="btn sm ghost" id="bmin" type="button" title="${S.planMin ? "Mostrar filtros y leyenda" : "Ocultar filtros y leyenda para ver más filas"}">${S.planMin ? `▾ Mostrar filtros${(modo === "personal" ? [S.perProy, S.perQ.trim(), S.perGrupo] : [S.planFront]).filter(Boolean).length ? " · filtro activo" : ""}` : "▴ Ocultar filtros"}</button>
-      ${S.planMin ? "" : `<button class="btn sm ghost pmas" id="bmas" type="button" title="Mostrar u ocultar la leyenda">ⓘ Leyenda</button>`}
+      <button class="btn sm ghost" id="bmin" type="button" title="${S.planMin ? "Mostrar leyenda y barra inferior" : "Ocultar leyenda y barra inferior para ver más filas"}">${S.planMin ? "▾ Mostrar leyenda" : "▴ Ocultar leyenda"}</button>
       <a class="btn sm ghost" href="#/tv" title="Pantalla de taller: a pantalla completa y se actualiza sola">📺</a></div>
   </div>`;
 
@@ -276,7 +277,7 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
   if (!tv && ctx.cabNav) ctx.cabNav({ label: rotuloMeses(d0, d1), prev: `#/plan/${modo}/${suma(d0, -paso)}`, next: `#/plan/${modo}/${suma(d0, paso)}`, hoy: `#/plan/${modo}`, zoom: true });
   const cols = tv ? `${NW}px repeat(14,${COLW}px)` : `${NW}px repeat(${NDIAS},${COLW}px)`;
   $app.innerHTML = `${tv ? `<div class="tvhead"><b>Planificación · ${modo === "proyectos" ? "Proyectos" : "Recursos"}</b><span>${new Date().toLocaleString("es-ES", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}</span><a href="#/plan" class="btn sm ghost">Salir</a></div>` : ""}
-  ${nav}${S.planMin && !tv ? "" : `${filtros}<div class="pinfo ${S.verInfo ? "ver" : ""}">${ayuda}<div class="ley">${leyenda}${ajustes}</div></div>`}
+  ${tv ? "" : navDe(filtros)}${S.planMin && !tv ? "" : `<div class="pinfo ver">${ayuda}<div class="ley">${leyenda}${ajustes}</div></div>`}
   <div class="gwrap"><div class="gantt z${tv ? 1 : S.zoom} ${marca ? "marcable" : ""}" style="--cols:${cols};--nw:${NW}px">${cabecera(dias, D.fest, modo === "proyectos" ? (NW < 200 ? "PROYECTO" : "PROYECTO · Front · TRANSPORTE") : "RECURSO")}${filas}</div></div>`;
 
   const $ = id => document.getElementById(id);
