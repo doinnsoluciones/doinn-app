@@ -1109,3 +1109,5 @@ body.tv .gantt.fit .gg{padding-top:2px;padding-bottom:2px}
 .pfil .perp{max-width:260px}
 .pl.otro{opacity:.3}
 @media(max-width:860px){.pfil .perp{flex:0 0 170px}}
+/* Planificación con filtros ocultos: también se oculta la barra inferior */
+body.plan-min #tabs{display:none}

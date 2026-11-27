@@ -407,7 +407,7 @@ function vProximamente(t) {
 async function route() {
   if (!S.user) return;
   pintaNav(null);
-  $app.classList.remove("ancho");
+  $app.classList.remove("ancho"); document.body.classList.remove("plan-min");
   const h = location.hash.replace(/^#\/?/, "").split("/");
   // Cartera: al entrar desde otra página se abre sin filtros (todos los Fronts, sin cliente ni meses)
   if (h[0] !== S._pagAnt) { if (h[0] === "cartera") S.cart = null; S._pagAnt = h[0]; }

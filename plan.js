@@ -283,6 +283,7 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
   const re = (o = {}) => vPlan(ctx, modo, d0, { ...opt, ...o });
   const w = $app.querySelector(".gwrap");
   // La rejilla ocupa el alto disponible y hace scroll dentro: meses, días y movimientos quedan fijos arriba
+  document.body.classList.toggle("plan-min", !!S.planMin && !tv);
   const ajustaAlto = () => { const g = document.querySelector(".gwrap.fija"); if (!g) return; const tb = document.getElementById("tabs"); g.style.maxHeight = Math.max(260, innerHeight - g.getBoundingClientRect().top - (tb ? tb.offsetHeight : 0) - 10) + "px"; };
   { w.classList.add("fija"); ajustaAlto(); if (!window.__altoPlan) { window.__altoPlan = 1; addEventListener("resize", () => { const g = document.querySelector(".gwrap.fija"); if (g) { ajustaAlto(); } }); } }
   if (opt.scrollTop) w.scrollTop = opt.scrollTop;

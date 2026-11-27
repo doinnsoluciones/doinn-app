@@ -7,7 +7,7 @@ const SECC = [
   { k: "corte", t: "Corte", fase: "Corte", sub: "CNC y seccionadora", pue: /CNC|SECCIONAD|CORTE/i },
   { k: "carpinteria", t: "Carpintería", fase: "Carpintería", sub: "por carpintero", pue: /CARPINT|MONTA/i },
   { k: "caldereria", t: "Calderería", fase: "Cerrajería", sub: "", pue: /CALDER|CERRAJ|SOLDAD/i },
-  { k: "pintura", t: "Pintura", fase: "Pintura", sub: "", pue: /PINT|LACA/i },
+  { k: "pintura", t: "Pintura", fase: "Pintura", sub: "", pue: /\bPINT|LACA/i },
   { k: "cargas", t: "Cargas", fase: null, sub: "", pue: /EXPEDIC|LOGIST|CARGA/i },
 ];
 // Capacidad provisional (unidades/día). Carpintería es por cada carpintero en fábrica; el resto, por sección con la plantilla completa.
