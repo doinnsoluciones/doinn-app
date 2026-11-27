@@ -12,10 +12,10 @@ const TIPOS_AUS = ["Vacaciones", "Baja", "Curso", "Otros"];
 // Códigos de jornada (pincel)
 const COD = {
   MO: ["Montaje", "#F2C230", "M"], DM: ["Desmontaje", "#E8833A", "DS"], PV: ["Previsión", "#F2C230", "M"], FA: ["Fábrica", "#CFE6A8", "F"],
-  RE: ["Reunión / visita", "#1DCAD3", "R"], FO: ["Formación", "#3B4955", "FO"], VA: ["Vacaciones", "#8E9C9C", "V"], LIC: ["Licencia / permiso", "#AEB9B9", "L"],
-  BA: ["Baja", "#E62643", "B"], ND: ["No disponible", "#5B6770", "ND"], LB: ["Libre", "#D5DCDC", "LB"],
+  RE: ["Reunión / visita", "#1DCAD3", "R"], FO: ["Formación", "#3B4955", "FORM"], VA: ["Vacaciones", "#8E9C9C", "VAC"], LIC: ["Licencia / permiso", "#AEB9B9", "L"],
+  BA: ["Baja", "#E62643", ""], ND: ["No disponible", "#5B6770", "N. D."], LB: ["Libre", "#D5DCDC", "LB"],
   // Viajes: dos violetas parecidos entre sí y distintos del resto
-  VI: ["Viaje ida", "#6D3FD1", "VI"], VV: ["Viaje vuelta", "#9B7BE6", "VV"],
+  VI: ["Viaje ida", "#6D3FD1", "V. I."], VV: ["Viaje vuelta", "#9B7BE6", "V. V."],
 };
 const CON_PROY = ["MO", "DM", "VI", "VV", "PV", "RE"];
 // Leyenda y marcado: producción y resto (ausencias y formación)
@@ -97,8 +97,8 @@ function barra(i, span, cols, txt, w, extra = "", attrs = "", izq = false) {
   const t = izq ? txt.full : txt.abr;
   const cabe = izq || t.length * cw + 6 <= ancho;
   // Con hora: siempre en dos líneas (la hora se ve aunque la barra sea corta)
-  if (txt.hora) return `<div class="pc pcs" style="grid-column:${i + 2}/span ${span}"><div class="pl larga l2 ${ancho >= 44 ? "izq" : ""} ${extra}" style="background:${bg};color:${fg}" ${attrs}><span>${t}</span><small>${txt.hora}</small></div></div>`;
-  return `<div class="pc pcs" style="grid-column:${i + 2}/span ${span}"><div class="pl larga ${izq && ancho >= 44 ? "izq" : ""} ${cols.length > 1 ? "dos" : ""} ${extra}" style="background:${bg};color:${fg}" ${attrs}>${cabe ? t : ""}</div></div>`;
+  if (txt.hora) return `<div class="pc pcs" style="grid-column:${i + 2}/span ${span}"><div class="pl larga l2 ${ancho >= 44 ? "izq" : ""} ${extra}" style="background:${bg};color:${fg};--cw:${w}px" ${attrs}><span>${t}</span><small>${txt.hora}</small></div></div>`;
+  return `<div class="pc pcs" style="grid-column:${i + 2}/span ${span}"><div class="pl larga ${izq && ancho >= 44 ? "izq" : ""} ${cols.length > 1 ? "dos" : ""} ${extra}" style="background:${bg};color:${fg};--cw:${w}px" ${attrs}>${cabe ? t : ""}</div></div>`;
 }
 // Píldora de un día: 1 o 2 colores, con abreviatura si cabe
 function pildora(cols, txt, w, extra = "", attrs = "") {
@@ -270,7 +270,7 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
         let n = 0;
         const cel = info.map((x, i) => {
           // En fábrica: una píldora verde por día, con la misma forma que el resto de acciones y sin texto
-          if (!x) return fab && fab[i] ? barra(i, 1, [COD.FA[1]], { abr: "", full: "" }, COLW, "fabv") : "";
+          if (!x) return "";
           if (["MO", "DM"].includes(x.cod)) n++;
           const [lab, col, ab] = COD[x.cod] || ["?", "#ccc", "?"];
           // Días seguidos con el mismo código (y el mismo proyecto) → una barra
@@ -287,7 +287,7 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
           return barra(i, span, [col], { abr: ab, full: esc(conProy ? x.p.nombre : conNota ? x.nota : ab), hora: conProy && ["MO", "DM"].includes(x.cod) ? (hora || "--:--") : "" }, COLW, pid && !(x.p && x.p.id === pid) ? "otro" : "", "", !!(conProy || conNota));
         }).join("");
         const hits = marca && puedeFila(o) ? dias.map((d, i) => `<div class="hit" data-o="${o.id}" data-d="${d}" style="grid-column:${i + 2}"></div>`).join("") : "";
-        return `<div class="gr" data-row="${o.id}" data-tip="o${o.id}"><div class="gn"><b>${esc(o.nombre)}</b><span>${esc(o.subgrupo === "Montaje" ? "Montaje" : o.puesto || "")}</span></div>${fondo(dias, D.fest)}${cel}${hits}</div>`;
+        return `<div class="gr" data-row="${o.id}" data-tip="o${o.id}"><div class="gn"><b>${esc(o.nombre)}</b><span>${esc(o.subgrupo === "Montaje" ? "Montaje" : o.puesto || "")}</span></div>${fondo(dias, D.fest, fab)}${cel}${hits}</div>`;
       }).join(""));
     }).join("") || `<div class="empty">${pid ? "Nadie tiene marcado ni asignado ese proyecto en estas fechas." : "Nadie coincide con el filtro."}</div>`;
   }
@@ -297,7 +297,7 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
   const cols = tv ? `${NW}px repeat(14,${COLW}px)` : `${NW}px repeat(${NDIAS},${COLW}px)`;
   $app.innerHTML = `${tv ? `<div class="tvhead"><b>Planificación · ${modo === "proyectos" ? "Proyectos" : "Recursos"}</b><span>${new Date().toLocaleString("es-ES", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}</span><a href="#/plan" class="btn sm ghost">Salir</a></div>` : ""}
   ${tv ? "" : navDe(filtros)}${S.planMin && !tv ? "" : `<div class="pinfo ver">${ayuda}<div class="ley">${leyenda}${ajustes}</div></div>`}
-  <div class="gwrap"><div class="gantt z${tv ? 1 : S.zoom} ${marca ? "marcable" : ""}" style="--cols:${cols};--nw:${NW}px">${cabecera(dias, D.fest, modo === "proyectos" ? (NW < 200 ? "PROYECTO" : "PROYECTO · Front · TRANSPORTE") : "RECURSO")}${filas}</div></div>`;
+  <div class="gwrap"><div class="gantt z${tv ? 1 : S.zoom} ${marca ? "marcable" : ""} ${modo === "personal" && !tv ? "celdas" : ""}" style="--cols:${cols};--nw:${NW}px">${cabecera(dias, D.fest, modo === "proyectos" ? (NW < 200 ? "PROYECTO" : "PROYECTO · Front · TRANSPORTE") : "RECURSO")}${filas}</div></div>`;
 
   const $ = id => document.getElementById(id);
   const re = (o = {}) => vPlan(ctx, modo, d0, { ...opt, ...o });
