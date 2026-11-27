@@ -264,12 +264,11 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
       const cerr = !tv && CERR[g] && !q && !pid;
       return `<div class="gg" data-g="${g}"><span>${cerr ? "▸" : "▾"} ${g} <small class="code">${ops.length}</small></span></div>` + (cerr ? "" : ops.map(o => {
         const info = dias.map(d => dia(o, d));
-        // Taller y montaje y Externos: un día laborable sin nada marcado = en fábrica (fondo verde)
-        const fab = ["Taller", "Externos"].includes(o.grupo) ? dias.map((d, i) => !info[i] && !esFestivo(d, D.fest)) : null;
-        TIP["o" + o.id] = info.map((x, i) => { if (!x) return fab && fab[i] ? `${o.nombre}\n${diaTip(dias[i])}\nEn fábrica` : ""; const [lab] = COD[x.cod] || ["?"]; const h = x.p ? (x.cod === "MO" ? x.p.hora_montaje : x.cod === "DM" ? x.p.hora_desmontaje : "") : ""; return [o.nombre, diaTip(dias[i]), lab + (x.p ? " · " + x.p.nombre : "") + (h ? " · inicio " + h : ""), x.nota && (!x.p || x.nota !== x.p.nombre) ? x.nota : "", x.src, x.quien || x.cuando ? `${x.quien || "—"} · ${cuando(x.cuando)}` : ""].filter(Boolean).join("\n"); });
+        // Todos menos subcontratas: un día laborable sin nada marcado = en fábrica / oficina / disponible (fondo verde)
+        const fab = ["Taller", "Externos", "Fronts", "OT", "Vehículos"].includes(o.grupo) ? dias.map((d, i) => !info[i] && !esFestivo(d, D.fest)) : null;
+        TIP["o" + o.id] = info.map((x, i) => { if (!x) return fab && fab[i] ? `${o.nombre}\n${diaTip(dias[i])}\n${o.grupo === "Vehículos" ? "Disponible" : ["Fronts", "OT"].includes(o.grupo) ? "En oficina" : "En fábrica"}` : ""; const [lab] = COD[x.cod] || ["?"]; const h = x.p ? (x.cod === "MO" ? x.p.hora_montaje : x.cod === "DM" ? x.p.hora_desmontaje : "") : ""; return [o.nombre, diaTip(dias[i]), lab + (x.p ? " · " + x.p.nombre : "") + (h ? " · inicio " + h : ""), x.nota && (!x.p || x.nota !== x.p.nombre) ? x.nota : "", x.src, x.quien || x.cuando ? `${x.quien || "—"} · ${cuando(x.cuando)}` : ""].filter(Boolean).join("\n"); });
         let n = 0;
         const cel = info.map((x, i) => {
-          // En fábrica: una píldora verde por día, con la misma forma que el resto de acciones y sin texto
           if (!x) return "";
           if (["MO", "DM"].includes(x.cod)) n++;
           const [lab, col, ab] = COD[x.cod] || ["?", "#ccc", "?"];
