@@ -80,10 +80,14 @@ function cabecera(dias, fest, etiqueta = "") {
 }
 const esc0 = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 // Fondo de cada fila: cuadrícula de días, findes/festivos en gris y el día de hoy resaltado
-function fondo(dias, fest) {
+function fondo(dias, fest, fab) {
   const hoy = iso(new Date());
-  return dias.map((d, i) => `<div class="bg ${esFestivo(d, fest) ? "we" : ""} ${d === hoy ? "hoy" : ""}" style="grid-column:${i + 2}"></div>`).join("");
+  return dias.map((d, i) => `<div class="bg ${esFestivo(d, fest) ? "we" : ""} ${d === hoy ? "hoy" : ""} ${fab && fab[i] ? "fab" : ""}" style="grid-column:${i + 2}"></div>`).join("");
 }
+// Día largo para el bocadillo: "lunes 30/11"
+const diaTip = d => { const x = pd(d); return `${["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"][x.getDay()]} ${x.getDate()}/${x.getMonth() + 1}`; };
+// Personal que cuenta como "en taller": Taller y montaje + Externos, sin jefe de taller, team leader ni expediciones
+const EN_TALLER = o => o.activo !== false && ["Taller", "Externos"].includes(o.grupo) && !/JEFE|TEAM LEADER|EXPEDIC/i.test(o.puesto || "");
 // Barra continua que ocupa varios días (mismo estilo en Proyectos y en Personal)
 function barra(i, span, cols, txt, w, extra = "", attrs = "", izq = false) {
   const bg = cols.length > 1 ? `linear-gradient(90deg,${cols[0]} 50%,${cols[1]} 50%)` : cols[0];
@@ -190,6 +194,7 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
   </div>`;
 
   let filtros = "", leyenda = "", filas = "", ayuda = "";
+  const TIP = {}; // bocadillos: clave de fila → texto por día
   if (modo === "proyectos") {
     const visibles = S.proyectos.filter(p => !p.archivado).filter(p => p.estado !== "Cerrado" || (p.fecha_descarga && p.fecha_descarga >= d0))
       .filter(p => { if (!S.planFront) return true; const f = fronts.find(o => o.nombre === S.planFront); return f ? p.front_id === f.id : p.front_nombre === S.planFront; })
@@ -221,10 +226,11 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
         let span = 1; while (k + span < dias.length && clave(k + span) === clave(k)) span++;
         const fs = fd[k];
         const tit = fs.map(([fa, a, b]) => `${fa}: ${fd0(a)}${a !== b ? " → " + fd0(b) : ""}`).join("\n") + ` · ${est}`;
-        pills += barra(k, span, fs.map(x => COL[x[0]]), { abr: fs.map(x => ABR[x[0]]).join("/") }, COLW, cls, `data-pid="${p.id}" title="${esc(p.nombre)}\n${esc(tit)}"`);
+        pills += barra(k, span, fs.map(x => COL[x[0]]), { abr: fs.map(x => ABR[x[0]]).join("/") }, COLW, cls, `data-pid="${p.id}"`);
       }
+      TIP["p" + p.id] = dias.map(d => { const fs = f.filter(([, a, b]) => enR(d, a, b)); return fs.length ? `${p.nombre}\n${diaTip(d)}\n` + fs.map(([fa, a, b]) => `${fa}: ${fd0(a)}${a !== b ? " → " + fd0(b) : ""}`).join("\n") + `\n${est}${p.front_nombre ? " · " + p.front_nombre : ""}` : ""; });
       const sub = [p.codigo, p.front_nombre, p.transporte_ida].filter(Boolean).map(esc).join(" · ");
-      return `<div class="gr"><div class="gn pj ${rs.length && neon ? "neon" : ""}" data-pid="${p.id}" title="${esc(p.nombre)}${rs.length ? "\n⚠ " + esc(rs.join("\n⚠ ")) : ""}">
+      return `<div class="gr" data-tip="p${p.id}"><div class="gn pj ${rs.length && neon ? "neon" : ""}" data-pid="${p.id}" title="${esc(p.nombre)}${rs.length ? "\n⚠ " + esc(rs.join("\n⚠ ")) : ""}">
         <b>${rs.length ? `<span class="warn-i">⚠</span>` : ""}${esc(p.nombre)}</b><span><i class="dot" style="background:${COL_COM[est]}"></i>${sub}</span></div>${fondo(dias, D.fest)}${pills}</div>`;
     }).join("") || `<div class="empty">No hay proyectos con estos filtros en estas fechas.</div>`;
   } else {
@@ -247,12 +253,20 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
     if (marca) ayuda = `<div class="ayuda">✎ Pulsa un día (o arrastra sobre varios días y personas) y elige qué marcar. ${superA ? "Puedes marcar a cualquier persona." : gestor ? "Puedes marcar producción al personal de taller, externos, subcontratas y vehículos, y tus vacaciones y bajas en tu fila." : "Puedes marcar tus vacaciones, licencias y bajas en tu fila."}</div>`;
     else if (!tv && taller && !yo) ayuda = `<div class="ayuda">Tu usuario aún no está vinculado a tu ficha de operario. Pide al administrador que lo vincule para poder marcar tus vacaciones y permisos.</div>`;
     // En la pantalla de taller solo Taller y montaje y Externos (sin subcontratas), todos visibles
-    filas = GRUPOS_PER.filter(([g]) => tv ? ["Taller y montaje", "Externos"].includes(g) : !S.perGrupo || S.perGrupo === g).map(([g, fn]) => {
+    // Fila "En taller": cuántos están en fábrica cada día laborable (sin marcar nada o marcados en Fábrica)
+    const enTaller = S.operarios.filter(EN_TALLER);
+    const libres = dias.map(d => esFestivo(d, D.fest) ? null : enTaller.filter(o => { const x = dia(o, d); return !x || x.cod === "FA"; }));
+    TIP.tl = libres.map((l, i) => l ? `En taller · ${diaTip(dias[i])}: ${l.length} de ${enTaller.length}\n${l.map(o => o.nombre).join(", ") || "Nadie"}` : "");
+    const filaTaller = `<div class="gr gmov" data-tip="tl"><div class="gn glab">EN TALLER</div>${fondo(dias, D.fest)}${libres.map((l, i) => `<div class="mv tl ${!l ? "we" : !l.length ? "cero" : ""}" style="grid-column:${i + 2}">${l ? l.length : "·"}</div>`).join("")}</div>`;
+    filas = filaTaller + GRUPOS_PER.filter(([g]) => tv ? ["Taller y montaje", "Externos"].includes(g) : !S.perGrupo || S.perGrupo === g).map(([g, fn]) => {
       const ops = activos.filter(fn).sort(orden);
       if (!ops.length) return "";
       const cerr = !tv && CERR[g] && !q && !pid;
       return `<div class="gg" data-g="${g}"><span>${cerr ? "▸" : "▾"} ${g} <small class="code">${ops.length}</small></span></div>` + (cerr ? "" : ops.map(o => {
         const info = dias.map(d => dia(o, d));
+        // Taller y montaje y Externos: un día laborable sin nada marcado = en fábrica (fondo verde)
+        const fab = ["Taller", "Externos"].includes(o.grupo) ? dias.map((d, i) => !info[i] && !esFestivo(d, D.fest)) : null;
+        TIP["o" + o.id] = info.map((x, i) => { if (!x) return fab && fab[i] ? `${o.nombre}\n${diaTip(dias[i])}\nEn fábrica` : ""; const [lab] = COD[x.cod] || ["?"]; const h = x.p ? (x.cod === "MO" ? x.p.hora_montaje : x.cod === "DM" ? x.p.hora_desmontaje : "") : ""; return [o.nombre, diaTip(dias[i]), lab + (x.p ? " · " + x.p.nombre : "") + (h ? " · inicio " + h : ""), x.nota && (!x.p || x.nota !== x.p.nombre) ? x.nota : "", x.src, x.quien || x.cuando ? `${x.quien || "—"} · ${cuando(x.cuando)}` : ""].filter(Boolean).join("\n"); });
         let n = 0;
         const cel = info.map((x, i) => {
           if (!x) return "";
@@ -269,10 +283,10 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
           const tit = [lab + (x.p ? " · " + x.p.nombre : "") + (hora ? " · inicio " + hora : ""), x.src, x.nota, x.quien || x.cuando ? `${x.quien || "—"} · ${cuando(x.cuando)}` : ""].filter(Boolean).join("\n");
           // Sin proyecto vinculado, el montaje/desmontaje muestra el texto del Excel en lugar de "M"/"DS"
           const conNota = !conProy && (["MO", "DM"].includes(x.cod) || viajeLargo) && x.nota;
-          return barra(i, span, [col], { abr: ab, full: esc(conProy ? x.p.nombre : conNota ? x.nota : ab), hora: conProy && ["MO", "DM"].includes(x.cod) ? (hora || "--:--") : "" }, COLW, pid && !(x.p && x.p.id === pid) ? "otro" : "", `title="${esc(tit)}"`, !!(conProy || conNota));
+          return barra(i, span, [col], { abr: ab, full: esc(conProy ? x.p.nombre : conNota ? x.nota : ab), hora: conProy && ["MO", "DM"].includes(x.cod) ? (hora || "--:--") : "" }, COLW, pid && !(x.p && x.p.id === pid) ? "otro" : "", "", !!(conProy || conNota));
         }).join("");
         const hits = marca && puedeFila(o) ? dias.map((d, i) => `<div class="hit" data-o="${o.id}" data-d="${d}" style="grid-column:${i + 2}"></div>`).join("") : "";
-        return `<div class="gr" data-row="${o.id}"><div class="gn"><b>${esc(o.nombre)}</b><span>${esc(o.subgrupo === "Montaje" ? "Montaje" : o.puesto || "")}</span></div>${fondo(dias, D.fest)}${cel}${hits}</div>`;
+        return `<div class="gr" data-row="${o.id}" data-tip="o${o.id}"><div class="gn"><b>${esc(o.nombre)}</b><span>${esc(o.subgrupo === "Montaje" ? "Montaje" : o.puesto || "")}</span></div>${fondo(dias, D.fest, fab)}${cel}${hits}</div>`;
       }).join(""));
     }).join("") || `<div class="empty">${pid ? "Nadie tiene marcado ni asignado ese proyecto en estas fechas." : "Nadie coincide con el filtro."}</div>`;
   }
@@ -287,6 +301,22 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
   const $ = id => document.getElementById(id);
   const re = (o = {}) => vPlan(ctx, modo, d0, { ...opt, ...o });
   const w = $app.querySelector(".gwrap");
+  // Bocadillo al pasar por encima de una casilla: fila (data-tip) + columna del día según la posición del ratón
+  if (!tv && w) {
+    let tip = document.getElementById("gtip"); if (!tip) { tip = document.createElement("div"); tip.id = "gtip"; document.body.appendChild(tip); }
+    const oculta = () => { tip.style.display = "none"; };
+    w.onmousemove = e => {
+      const r = e.target.closest && e.target.closest("[data-tip]"); const wr = w.getBoundingClientRect();
+      if (!r || e.clientX < wr.left + NW) return oculta();
+      const i = Math.floor((e.clientX - r.getBoundingClientRect().left - NW) / COLW), t = (TIP[r.dataset.tip] || [])[i];
+      if (!t) return oculta();
+      const [h, ...resto] = t.split("\n");
+      tip.innerHTML = `<b>${esc(h)}</b>${resto.map(l => `<div>${esc(l)}</div>`).join("")}`; tip.style.display = "block";
+      const tw = tip.offsetWidth, th = tip.offsetHeight;
+      tip.style.left = Math.min(innerWidth - tw - 8, e.clientX + 14) + "px"; tip.style.top = (e.clientY + 16 + th > innerHeight ? e.clientY - th - 10 : e.clientY + 16) + "px";
+    };
+    w.onmouseleave = oculta; w.addEventListener("scroll", oculta, { passive: true });
+  }
   // La rejilla ocupa el alto disponible y hace scroll dentro: meses, días y movimientos quedan fijos arriba
   document.body.classList.toggle("plan-min", !!S.planMin && !tv);
   const ajustaAlto = () => { const g = document.querySelector(".gwrap.fija"); if (!g) return; const tb = document.getElementById("tabs"); g.style.maxHeight = Math.max(260, innerHeight - g.getBoundingClientRect().top - (tb ? tb.offsetHeight : 0) - 10) + "px"; };
