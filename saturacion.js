@@ -14,7 +14,7 @@ const SECC = [
 export const CAP_DEF = { corte: 10, carpinteria: 4, caldereria: 3, pintura: 6, cargas: 30 };
 // Márgenes antes de la carga (días laborables). Pintura: secado 1 día; si es laca, 2.
 const M = { corte: 3, carp: 1, secado: 1, secadoLaca: 2 };
-const AUSENTE = ["VA", "BA", "LIC", "MO", "DM", "FO", "ND", "LB"];
+const AUSENTE = ["VA", "BA", "LIC", "MO", "DM", "VI", "VV", "FO", "ND", "LB"];
 const HORIZ = 15; // días laborables que se muestran (3 semanas)
 
 const tiene = (l, f) => (l || "").includes("|" + f + "|");

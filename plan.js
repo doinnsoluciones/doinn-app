@@ -14,10 +14,12 @@ const COD = {
   MO: ["Montaje", "#F2C230", "M"], DM: ["Desmontaje", "#E8833A", "DS"], PV: ["Previsión", "#F2C230", "M"], FA: ["Fábrica", "#CFE6A8", "F"],
   RE: ["Reunión / visita", "#1DCAD3", "R"], FO: ["Formación", "#3B4955", "FO"], VA: ["Vacaciones", "#8E9C9C", "V"], LIC: ["Licencia / permiso", "#AEB9B9", "L"],
   BA: ["Baja", "#E62643", "B"], ND: ["No disponible", "#5B6770", "ND"], LB: ["Libre", "#D5DCDC", "LB"],
+  // Viajes: dos violetas parecidos entre sí y distintos del resto
+  VI: ["Viaje ida", "#6D3FD1", "VI"], VV: ["Viaje vuelta", "#9B7BE6", "VV"],
 };
-const CON_PROY = ["MO", "DM", "PV", "RE"];
+const CON_PROY = ["MO", "DM", "VI", "VV", "PV", "RE"];
 // Leyenda y marcado: producción y resto (ausencias y formación)
-const COD_PROD = ["MO", "DM", "FA", "RE"], COD_OTROS = ["FO", "VA", "BA", "ND"];
+const COD_PROD = ["MO", "DM", "VI", "VV", "FA", "RE"], COD_OTROS = ["FO", "VA", "BA", "ND"];
 // Códigos retirados: la previsión se ve como montaje; licencia y libre no se muestran
 const normCod = c => c === "PV" ? "MO" : c === "LB" || c === "LIC" ? null : c;
 // Subcontratas: primero CDF, luego DIMAS, después el resto
@@ -241,7 +243,7 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
       ${superA || ctx.can("equipo") ? `<button class="chip sm" id="bsub">+ Subcontrata</button>` : ""}
     </div>`;
     const lg = cs => cs.map(k => `<span><i style="background:${COD[k][1]}"></i>${COD[k][0]}</span>`).join("");
-    leyenda = `<div class="ley1"><span class="code">Producción:</span>${lg(COD_PROD)}</div><div class="ley2"><span class="code">Ausencias y formación:</span>${lg(COD_OTROS)}</div>`;
+    leyenda = `<div class="ley1"><span class="code"><b>Producción:</b></span>${lg(COD_PROD)}</div><div class="ley2"><span class="code"><b>Ausencias y formación:</b></span>${lg(COD_OTROS)}</div>`;
     if (marca) ayuda = `<div class="ayuda">✎ Pulsa un día (o arrastra sobre varios días y personas) y elige qué marcar. ${superA ? "Puedes marcar a cualquier persona." : gestor ? "Puedes marcar producción al personal de taller, externos, subcontratas y vehículos, y tus vacaciones y bajas en tu fila." : "Puedes marcar tus vacaciones, licencias y bajas en tu fila."}</div>`;
     else if (!tv && taller && !yo) ayuda = `<div class="ayuda">Tu usuario aún no está vinculado a tu ficha de operario. Pide al administrador que lo vincule para poder marcar tus vacaciones y permisos.</div>`;
     // En la pantalla de taller solo Taller y montaje y Externos (sin subcontratas), todos visibles
@@ -260,12 +262,14 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
           const mismo = y => y && y.cod === x.cod && (y.p && y.p.id) === (x.p && x.p.id);
           if (mismo(info[i - 1])) return "";
           let span = 1; while (mismo(info[i + span])) span++;
-          const conProy = ["MO", "DM"].includes(x.cod) && x.p;
+          // Viajes: el nombre del proyecto solo si la barra es larga; si no, "VI"/"VV"
+          const viajeLargo = ["VI", "VV"].includes(x.cod) && span * COLW >= 70;
+          const conProy = (["MO", "DM"].includes(x.cod) || viajeLargo) && x.p;
           const hora = conProy ? (x.cod === "MO" ? x.p.hora_montaje : x.p.hora_desmontaje) : "";
           const tit = [lab + (x.p ? " · " + x.p.nombre : "") + (hora ? " · inicio " + hora : ""), x.src, x.nota, x.quien || x.cuando ? `${x.quien || "—"} · ${cuando(x.cuando)}` : ""].filter(Boolean).join("\n");
           // Sin proyecto vinculado, el montaje/desmontaje muestra el texto del Excel en lugar de "M"/"DS"
-          const conNota = !conProy && ["MO", "DM"].includes(x.cod) && x.nota;
-          return barra(i, span, [col], { abr: ab, full: esc(conProy ? x.p.nombre : conNota ? x.nota : ab), hora: conProy ? (hora || "--:--") : "" }, COLW, pid && !(x.p && x.p.id === pid) ? "otro" : "", `title="${esc(tit)}"`, !!(conProy || conNota));
+          const conNota = !conProy && (["MO", "DM"].includes(x.cod) || viajeLargo) && x.nota;
+          return barra(i, span, [col], { abr: ab, full: esc(conProy ? x.p.nombre : conNota ? x.nota : ab), hora: conProy && ["MO", "DM"].includes(x.cod) ? (hora || "--:--") : "" }, COLW, pid && !(x.p && x.p.id === pid) ? "otro" : "", `title="${esc(tit)}"`, !!(conProy || conNota));
         }).join("");
         const hits = marca && puedeFila(o) ? dias.map((d, i) => `<div class="hit" data-o="${o.id}" data-d="${d}" style="grid-column:${i + 2}"></div>`).join("") : "";
         return `<div class="gr" data-row="${o.id}"><div class="gn"><b>${esc(o.nombre)}</b><span>${esc(o.subgrupo === "Montaje" ? "Montaje" : o.puesto || "")}</span></div>${fondo(dias, D.fest)}${cel}${hits}</div>`;
