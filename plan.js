@@ -86,7 +86,7 @@ function fondo(dias, fest) {
 function barra(i, span, cols, txt, w, extra = "", attrs = "", izq = false) {
   const bg = cols.length > 1 ? `linear-gradient(90deg,${cols[0]} 50%,${cols[1]} 50%)` : cols[0];
   const fg = OSCURO.has(cols[0]) && (cols.length === 1 || OSCURO.has(cols[1])) ? "#131E29" : "#fff";
-  const ancho = span * w - 6, cw = cols.length > 1 ? 5.4 : 6.2;
+  const ancho = span * w - 6, cw = cols.length > 1 ? 4.8 : 5.4;
   // Con proyecto: siempre su nombre (recortado con "…" si no cabe), nunca la abreviatura
   const t = izq ? txt.full : txt.abr;
   const cabe = izq || t.length * cw + 6 <= ancho;
@@ -162,7 +162,8 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
   // La pantalla de taller recuerda sus propios grupos plegados (por defecto solo se ven Taller y montaje y Externos)
   const CERR = tv ? (S.planCerrTv = S.planCerrTv || { Fronts: true, "Oficina técnica": true, Subcontratas: true }) : S.planCerr;
   S.ocultos = S.ocultos || lsGet("doinn_plan_ocultos", []);
-  S.perGrupo = S.perGrupo || ""; S.perQ = S.perQ || "";
+  S.perGrupo = S.perGrupo || ""; S.perQ = S.perQ || ""; S.perProy = S.perProy || "";
+  if (S.planMin == null) S.planMin = lsGet("doinn_plan_min", false);
   const admin = puede("admin"), superA = puede("superadmin"), taller = puede("taller");
   const nElem = id => S.elementos.filter(e => e.proyecto_id === id).length;
   const fronts = S.operarios.filter(o => o.grupo === "Fronts" && o.activo !== false).sort((a, b) => a.nombre.localeCompare(b.nombre));
@@ -180,7 +181,8 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
   const nav = tv ? "" : `<div class="pnav">
     <div class="seg2"><a href="#/plan/proyectos/${d0}" class="${modo === "proyectos" ? "on" : ""}">Proyectos</a><a href="#/plan/personal/${d0}" class="${modo === "personal" ? "on" : ""}">Recursos</a>${verStats ? `<a href="#/plan/stats">Estadísticas</a>` : ""}</div>
     <div class="row">
-      <button class="btn sm ghost pmas" id="bmas" type="button" title="Mostrar u ocultar la leyenda">ⓘ Leyenda</button>
+      <button class="btn sm ghost" id="bmin" type="button" title="${S.planMin ? "Mostrar filtros y leyenda" : "Ocultar filtros y leyenda para ver más filas"}">${S.planMin ? `▾ Mostrar filtros${(modo === "personal" ? [S.perProy, S.perQ.trim(), S.perGrupo] : [S.planFront]).filter(Boolean).length ? " · filtro activo" : ""}` : "▴ Ocultar filtros"}</button>
+      ${S.planMin ? "" : `<button class="btn sm ghost pmas" id="bmas" type="button" title="Mostrar u ocultar la leyenda">ⓘ Leyenda</button>`}
       <a class="btn sm ghost" href="#/tv" title="Pantalla de taller: a pantalla completa y se actualiza sola">📺</a></div>
   </div>`;
 
@@ -226,9 +228,14 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
     const dia = motorDias(S, D);
     const orden = ORDEN_PER;
     const q = S.perQ.trim().toLowerCase();
-    const activos = S.operarios.filter(o => o.activo !== false).filter(o => !q || o.nombre.toLowerCase().includes(q));
+    // Filtro por proyecto: solo los recursos con algo de ese proyecto en las fechas visibles (marcado en Recursos o asignado en Equipo)
+    const pid = +S.perProy || 0;
+    const delProy = o => D.asig.some(a => a.proyecto_id === pid && a.operario_id === o.id) || dias.some(d => { const x = dia(o, d); return x && x.p && x.p.id === pid; });
+    const proysFil = S.proyectos.filter(p => !p.archivado && (p.estado !== "Cerrado" || (p.fecha_descarga && p.fecha_descarga >= d0)) && !caido(p)).sort(ordenProyectos);
+    const activos = S.operarios.filter(o => o.activo !== false).filter(o => !q || o.nombre.toLowerCase().includes(q)).filter(o => !pid || delProy(o));
     if (!tv) filtros = `<div class="pfil">
       <input id="perq" class="perq" placeholder="Buscar persona o vehículo…" value="${esc(S.perQ)}">
+      <select id="perp" class="perp"><option value="">Todos los proyectos</option>${proysFil.map(p => `<option value="${p.id}" ${p.id === pid ? "selected" : ""}>${esc(p.codigo || "")} · ${esc(p.nombre)}</option>`).join("")}</select>
       <div class="ests"><button class="chip sm ${!S.perGrupo ? "on" : ""}" data-pg="">Todos</button>${GRUPOS_PER.map(([g]) => `<button class="chip sm ${S.perGrupo === g ? "on" : ""}" data-pg="${g}">${g}</button>`).join("")}</div>
       ${superA || ctx.can("equipo") ? `<button class="chip sm" id="bsub">+ Subcontrata</button>` : ""}
     </div>`;
@@ -240,7 +247,7 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
     filas = GRUPOS_PER.filter(([g]) => tv ? ["Taller y montaje", "Externos"].includes(g) : !S.perGrupo || S.perGrupo === g).map(([g, fn]) => {
       const ops = activos.filter(fn).sort(orden);
       if (!ops.length) return "";
-      const cerr = !tv && CERR[g] && !q;
+      const cerr = !tv && CERR[g] && !q && !pid;
       return `<div class="gg" data-g="${g}"><span>${cerr ? "▸" : "▾"} ${g} <small class="code">${ops.length}</small></span></div>` + (cerr ? "" : ops.map(o => {
         const info = dias.map(d => dia(o, d));
         let n = 0;
@@ -257,19 +264,19 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
           const tit = [lab + (x.p ? " · " + x.p.nombre : "") + (hora ? " · inicio " + hora : ""), x.src, x.nota, x.quien || x.cuando ? `${x.quien || "—"} · ${cuando(x.cuando)}` : ""].filter(Boolean).join("\n");
           // Sin proyecto vinculado, el montaje/desmontaje muestra el texto del Excel en lugar de "M"/"DS"
           const conNota = !conProy && ["MO", "DM"].includes(x.cod) && x.nota;
-          return barra(i, span, [col], { abr: ab, full: esc(conProy ? x.p.nombre : conNota ? x.nota : ab), hora: conProy ? (hora || "--:--") : "" }, COLW, "", `title="${esc(tit)}"`, !!(conProy || conNota));
+          return barra(i, span, [col], { abr: ab, full: esc(conProy ? x.p.nombre : conNota ? x.nota : ab), hora: conProy ? (hora || "--:--") : "" }, COLW, pid && !(x.p && x.p.id === pid) ? "otro" : "", `title="${esc(tit)}"`, !!(conProy || conNota));
         }).join("");
         const hits = marca && puedeFila(o) ? dias.map((d, i) => `<div class="hit" data-o="${o.id}" data-d="${d}" style="grid-column:${i + 2}"></div>`).join("") : "";
         return `<div class="gr" data-row="${o.id}"><div class="gn"><b>${esc(o.nombre)}</b><span>${esc(o.subgrupo === "Montaje" ? "Montaje" : o.puesto || "")}</span></div>${fondo(dias, D.fest)}${cel}${hits}</div>`;
       }).join(""));
-    }).join("") || `<div class="empty">Nadie coincide con el filtro.</div>`;
+    }).join("") || `<div class="empty">${pid ? "Nadie tiene marcado ni asignado ese proyecto en estas fechas." : "Nadie coincide con el filtro."}</div>`;
   }
 
   const ajustes = "";
   if (!tv && ctx.cabNav) ctx.cabNav({ label: rotuloMeses(d0, d1), prev: `#/plan/${modo}/${suma(d0, -paso)}`, next: `#/plan/${modo}/${suma(d0, paso)}`, hoy: `#/plan/${modo}`, zoom: true });
   const cols = tv ? `${NW}px repeat(14,${COLW}px)` : `${NW}px repeat(${NDIAS},${COLW}px)`;
   $app.innerHTML = `${tv ? `<div class="tvhead"><b>Planificación · ${modo === "proyectos" ? "Proyectos" : "Recursos"}</b><span>${new Date().toLocaleString("es-ES", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}</span><a href="#/plan" class="btn sm ghost">Salir</a></div>` : ""}
-  ${nav}${filtros}<div class="pinfo ${S.verInfo ? "ver" : ""}">${ayuda}<div class="ley">${leyenda}${ajustes}</div></div>
+  ${nav}${S.planMin && !tv ? "" : `${filtros}<div class="pinfo ${S.verInfo ? "ver" : ""}">${ayuda}<div class="ley">${leyenda}${ajustes}</div></div>`}
   <div class="gwrap"><div class="gantt z${tv ? 1 : S.zoom} ${marca ? "marcable" : ""}" style="--cols:${cols};--nw:${NW}px">${cabecera(dias, D.fest, modo === "proyectos" ? (NW < 200 ? "PROYECTO" : "PROYECTO · Front · TRANSPORTE") : "RECURSO")}${filas}</div></div>`;
 
   const $ = id => document.getElementById(id);
@@ -281,6 +288,7 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
   if (opt.scrollTop) w.scrollTop = opt.scrollTop;
   if (scroll0 != null) w.scrollLeft = scroll0;
   else { const h = $app.querySelector(".gd.hoy"); if (w && h && !tv && w.scrollWidth - w.clientWidth > COLW * 4) w.scrollLeft = Math.min(w.scrollWidth - w.clientWidth, Math.max(0, h.offsetLeft - NW - (COLW * 3))); }
+  const bmn = $("bmin"); if (bmn) bmn.onclick = () => { S.planMin = !S.planMin; lsSet("doinn_plan_min", S.planMin); re({ scroll: w.scrollLeft, scrollTop: w.scrollTop, silencioso: true }); };
   const bm = $("bmas"); if (bm) bm.onclick = () => { S.verInfo = !S.verInfo; const pi = $app.querySelector(".pinfo"); if (pi) pi.classList.toggle("ver", S.verInfo); ajustaAlto(); };
   if (tv) {
     // Se ajusta al alto de la pantalla para que se vea a todo el personal sin hacer scroll
@@ -294,16 +302,17 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
   }
 
   if (modo === "proyectos") {
-    $("pfront").onchange = e => { S.planFront = e.target.value; re(); };
+    const pf = $("pfront"); if (pf) pf.onchange = e => { S.planFront = e.target.value; re(); };
     $app.querySelectorAll("[data-est]").forEach(b => b.onclick = () => { const e = b.dataset.est; S.planEst = S.planEst.includes(e) ? S.planEst.filter(x => x !== e) : [...S.planEst, e]; lsSet("doinn_plan_estados", S.planEst); re(); });
     $app.querySelectorAll("[data-grp]").forEach(b => b.onclick = () => { S.planEst = GRUPOS_COM.find(g => g[0] === b.dataset.grp)[1].slice(); lsSet("doinn_plan_estados", S.planEst); re(); });
-    $("btodo").onclick = () => { S.planFront = ""; S.planEst = ESTADOS_COM.slice(); S.ocultos = []; lsSet("doinn_plan_estados", S.planEst); lsSet("doinn_plan_ocultos", []); re(); };
+    if ($("btodo")) $("btodo").onclick = () => { S.planFront = ""; S.planEst = ESTADOS_COM.slice(); S.ocultos = []; lsSet("doinn_plan_estados", S.planEst); lsSet("doinn_plan_ocultos", []); re(); };
     const bo = $("bocu"); if (bo) bo.onclick = () => { S.ocultos = []; lsSet("doinn_plan_ocultos", []); re(); };
     $app.querySelectorAll("[data-pid]").forEach(el => el.onclick = () => panelProyecto(ctx, S.proyectos.find(p => p.id === +el.dataset.pid), D, () => re({ scroll: w.scrollLeft })));
   } else {
     $app.querySelectorAll(".gg").forEach(g => g.onclick = () => { CERR[g.dataset.g] = !CERR[g.dataset.g]; re({ scroll: w.scrollLeft, silencioso: true }); });
     $app.querySelectorAll("[data-pg]").forEach(b => b.onclick = () => { S.perGrupo = b.dataset.pg; re({ scroll: w.scrollLeft, silencioso: true }); });
-    let tq; $("perq").oninput = e => { clearTimeout(tq); tq = setTimeout(() => { S.perQ = e.target.value; re({ scroll: w.scrollLeft, silencioso: true }).then(() => { const i = $("perq"); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }); }, 250); };
+    const pp = $("perp"); if (pp) pp.onchange = e => { S.perProy = e.target.value; re({ scroll: w.scrollLeft, silencioso: true }); };
+    let tq; if ($("perq")) $("perq").oninput = e => { clearTimeout(tq); tq = setTimeout(() => { S.perQ = e.target.value; re({ scroll: w.scrollLeft, silencioso: true }).then(() => { const i = $("perq"); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }); }, 250); };
     if (marca) activaMarcado(ctx, D, misCodigos, () => re({ scroll: w.scrollLeft, silencioso: true }));
     const bs = $("bsub"); if (bs) bs.onclick = () => formSubcontrata(ctx, async () => { await ctx.recargar(); re({ scroll: w.scrollLeft, silencioso: true }); });
   }
