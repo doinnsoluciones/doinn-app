@@ -178,7 +178,7 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
   const largo = ANCHO >= 40 ? 18 : ANCHO >= 30 ? 12 : 6;
 
   const nav = tv ? "" : `<div class="pnav">
-    <div class="seg2"><a href="#/plan/proyectos/${d0}" class="${modo === "proyectos" ? "on" : ""}">Proyectos</a><a href="#/plan/personal/${d0}" class="${modo === "personal" ? "on" : ""}">Personal</a>${verStats ? `<a href="#/plan/stats">Estadísticas</a>` : ""}</div>
+    <div class="seg2"><a href="#/plan/proyectos/${d0}" class="${modo === "proyectos" ? "on" : ""}">Proyectos</a><a href="#/plan/personal/${d0}" class="${modo === "personal" ? "on" : ""}">Recursos</a>${verStats ? `<a href="#/plan/stats">Estadísticas</a>` : ""}</div>
     <div class="row">
       <button class="btn sm ghost pmas" id="bmas" type="button" title="Mostrar u ocultar la leyenda">ⓘ Leyenda</button>
       <a class="btn sm ghost" href="#/tv" title="Pantalla de taller: a pantalla completa y se actualiza sola">📺</a></div>
@@ -228,7 +228,7 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
     const q = S.perQ.trim().toLowerCase();
     const activos = S.operarios.filter(o => o.activo !== false).filter(o => !q || o.nombre.toLowerCase().includes(q));
     if (!tv) filtros = `<div class="pfil">
-      <input id="perq" class="perq" placeholder="Buscar persona…" value="${esc(S.perQ)}">
+      <input id="perq" class="perq" placeholder="Buscar persona o vehículo…" value="${esc(S.perQ)}">
       <div class="ests"><button class="chip sm ${!S.perGrupo ? "on" : ""}" data-pg="">Todos</button>${GRUPOS_PER.map(([g]) => `<button class="chip sm ${S.perGrupo === g ? "on" : ""}" data-pg="${g}">${g}</button>`).join("")}</div>
       ${superA || ctx.can("equipo") ? `<button class="chip sm" id="bsub">+ Subcontrata</button>` : ""}
     </div>`;
@@ -268,9 +268,9 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
   const ajustes = "";
   if (!tv && ctx.cabNav) ctx.cabNav({ label: rotuloMeses(d0, d1), prev: `#/plan/${modo}/${suma(d0, -paso)}`, next: `#/plan/${modo}/${suma(d0, paso)}`, hoy: `#/plan/${modo}`, zoom: true });
   const cols = tv ? `${NW}px repeat(14,${COLW}px)` : `${NW}px repeat(${NDIAS},${COLW}px)`;
-  $app.innerHTML = `${tv ? `<div class="tvhead"><b>Planificación · ${modo === "proyectos" ? "Proyectos" : "Personal"}</b><span>${new Date().toLocaleString("es-ES", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}</span><a href="#/plan" class="btn sm ghost">Salir</a></div>` : ""}
+  $app.innerHTML = `${tv ? `<div class="tvhead"><b>Planificación · ${modo === "proyectos" ? "Proyectos" : "Recursos"}</b><span>${new Date().toLocaleString("es-ES", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}</span><a href="#/plan" class="btn sm ghost">Salir</a></div>` : ""}
   ${nav}${filtros}<div class="pinfo ${S.verInfo ? "ver" : ""}">${ayuda}<div class="ley">${leyenda}${ajustes}</div></div>
-  <div class="gwrap"><div class="gantt z${tv ? 1 : S.zoom} ${marca ? "marcable" : ""}" style="--cols:${cols};--nw:${NW}px">${cabecera(dias, D.fest, modo === "proyectos" ? (NW < 200 ? "PROYECTO" : "PROYECTO · Front · TRANSPORTE") : "PERSONA")}${filas}</div></div>`;
+  <div class="gwrap"><div class="gantt z${tv ? 1 : S.zoom} ${marca ? "marcable" : ""}" style="--cols:${cols};--nw:${NW}px">${cabecera(dias, D.fest, modo === "proyectos" ? (NW < 200 ? "PROYECTO" : "PROYECTO · Front · TRANSPORTE") : "RECURSO")}${filas}</div></div>`;
 
   const $ = id => document.getElementById(id);
   const re = (o = {}) => vPlan(ctx, modo, d0, { ...opt, ...o });
@@ -449,7 +449,7 @@ async function vStats(ctx, anio) {
   const celdas = c => COLS.map(([k], i) => `<td class="${i === COD_PROD.length ? "sep" : ""}">${c[k] || ""}</td>`).join("");
   if (ctx.cabNav) ctx.cabNav({ label: String(y), prev: `#/plan/stats/${y - 1}`, next: `#/plan/stats/${y + 1}`, hoy: `#/plan/stats` });
   const pinta = () => {
-    $app.innerHTML = `<div class="pnav"><div class="seg2"><a href="#/plan/proyectos">Proyectos</a><a href="#/plan/personal">Personal</a><a class="on">Estadísticas</a></div>
+    $app.innerHTML = `<div class="pnav"><div class="seg2"><a href="#/plan/proyectos">Proyectos</a><a href="#/plan/personal">Recursos</a><a class="on">Estadísticas</a></div>
     <div class="row"><button class="btn sm ghost" id="bcsv">Descargar CSV</button></div></div>
   <p class="hint">Días por persona en ${y}${y === new Date().getFullYear() ? ` (incluye lo planificado después de hoy, ${hoy.split("-").reverse().join("/")})` : ""}. Cuenta asignaciones, ausencias y lo marcado en Personal.</p>
   <div class="gwrap swrap" id="swrap"><table class="stats"><thead><tr><th class="sth-g"></th><th colspan="${COD_PROD.length}" class="sth-g">Producción</th><th colspan="${COD_OTROS.length}" class="sth-g sep">Ausencias y formación</th></tr>
@@ -486,7 +486,7 @@ export function vTv(ctx) {
     let b = document.getElementById("tvrota");
     if (!b) { b = document.createElement("button"); b.id = "tvrota"; b.className = "tvrota"; document.body.appendChild(b); b.onclick = () => { lsSet("doinn_tv_rota", !rota()); k = 0; pinta(); }; }
     const vista = rota() ? SEC[k % SEC.length] : "personal";
-    b.innerHTML = `${SEC.map(v => `<i class="${v === vista ? "on" : ""}"></i>`).join("")} ${rota() ? "Rotación activa" : "Solo Personal"}`;
+    b.innerHTML = `${SEC.map(v => `<i class="${v === vista ? "on" : ""}"></i>`).join("")} ${rota() ? "Rotación activa" : "Solo Recursos"}`;
   };
   pinta();
   const id = setInterval(async () => {
@@ -619,9 +619,9 @@ export async function vEquipo(ctx, p, cont) {
     if (fase === "Descarga") return [p.fecha_descarga, p.fecha_descarga_fin || p.fecha_descarga];
     return [hoy, p.fecha_carga ? suma(p.fecha_carga, -1) : hoy];
   };
-  const rango = o => o.grupo === "Taller" ? (o.subgrupo === "Montaje" ? 0 : 1) : o.grupo === "Externos" ? 2 : o.grupo === "Subcontratas" ? 3 : 4;
+  const rango = o => o.grupo === "Vehículos" ? -1 : o.grupo === "Taller" ? (o.subgrupo === "Montaje" ? 0 : 1) : o.grupo === "Externos" ? 2 : o.grupo === "Subcontratas" ? 3 : 4;
   const taller = S.operarios.filter(o => o.activo !== false).sort((a, b) => rango(a) - rango(b) || a.nombre.localeCompare(b.nombre));
-  // Choques: otras asignaciones, ausencias (vacaciones, baja, curso…) y días pintados a mano en Personal
+  // Choques: otras asignaciones, ausencias (vacaciones, baja, curso…) y días pintados a mano en Recursos
   const J = new Map(D.jor.map(j => [j.operario_id + "|" + j.fecha, j]));
   const pN = id => (S.proyectos.find(q => q.id === id) || {}).nombre || "otro proyecto";
   const fdc = d => pd(d).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit" });
@@ -634,19 +634,19 @@ export async function vEquipo(ctx, p, cont) {
       const au = D.aus.find(x => x.operario_id === a.operario_id && enR(d, x.desde, x.hasta));
       if (au) add((au.tipo || "Ausencia").toLowerCase(), d);
       const j = J.get(a.operario_id + "|" + d);
-      if (j && j.proyecto_id !== p.id && normCod(j.codigo)) add(`${(COD[normCod(j.codigo)] || [j.codigo])[0].toLowerCase()}${j.proyecto_id ? " en " + pN(j.proyecto_id) : ""} (pintado en Personal)`, d);
+      if (j && j.proyecto_id !== p.id && normCod(j.codigo)) add(`${(COD[normCod(j.codigo)] || [j.codigo])[0].toLowerCase()}${j.proyecto_id ? " en " + pN(j.proyecto_id) : ""} (pintado en Recursos)`, d);
     }
     return [...M].map(([k, ds]) => `${k} ${ds.length > 1 ? fdc(ds[0]) + "–" + fdc(ds[ds.length - 1]) : fdc(ds[0])}`);
   };
   const f0 = fechasDe("Montaje");
   cont.innerHTML = `${!confirmado(p) ? `<div class="card avisos">Proyecto <b>${esc(estadoCom(p))}</b>: lo que asignes aquí aparece como <b>previsión</b> en Planificación hasta que se confirme.</div>` : ""}
-  <div class="card"><h2>Personal asignado <small class="code">${mias.length}</small></h2>
+  <div class="card"><h2>Recursos asignados <small class="code">${mias.length}</small></h2>
     ${mias.map(a => { const c = choque(a); return `<div class="crow"><div><b>${esc(opN(a.operario_id))}</b> <span class="pill" style="background:${COL[a.fase]}22;color:var(--ink)">${esc(a.fase)}</span>
       <div class="code">${a.fecha_inicio ? fd(a.fecha_inicio) : "—"}${a.fecha_fin && a.fecha_fin !== a.fecha_inicio ? " → " + fd(a.fecha_fin) : ""}${a.creado_por ? ` · por ${esc(a.creado_por)}` : ""}${c.length ? `<div class="choq">⚠ ${esc(c.join(" · "))}</div>` : ""}</div></div>
       ${edita ? `<button class="link" data-qdel="${a.id}">Quitar</button>` : ""}</div>`; }).join("") || `<div class="code">Nadie asignado todavía.</div>`}
   </div>
-  ${edita ? `<form id="fa" class="card frm"><h2>+ Asignar personal</h2>
-    <div class="two"><label>Persona<select id="q_op">${taller.map(o => `<option value="${o.id}">${esc(o.nombre)}${o.subgrupo === "Montaje" ? " (montaje)" : o.grupo === "Externos" ? " (externo)" : o.grupo === "Subcontratas" ? ` (subcontrata${o.puesto ? " · " + esc(o.puesto) : ""})` : ""}</option>`).join("")}</select></label>
+  ${edita ? `<form id="fa" class="card frm"><h2>+ Asignar persona o vehículo</h2>
+    <div class="two"><label>Persona o vehículo<select id="q_op">${taller.map(o => `<option value="${o.id}">${esc(o.nombre)}${o.grupo === "Vehículos" ? " (vehículo)" : o.subgrupo === "Montaje" ? " (montaje)" : o.grupo === "Externos" ? " (externo)" : o.grupo === "Subcontratas" ? ` (subcontrata${o.puesto ? " · " + esc(o.puesto) : ""})` : ""}</option>`).join("")}</select></label>
     <label>Fase<select id="q_f">${FASES.map(f => `<option>${f}</option>`).join("")}</select></label></div>
     <div class="two"><label>Desde<input type="date" id="q_d" value="${f0[0] || ""}"></label><label>Hasta<input type="date" id="q_h" value="${f0[1] || ""}"></label></div>
     <div id="q_av" class="code"></div>
@@ -659,7 +659,7 @@ export async function vEquipo(ctx, p, cont) {
     $("fa").onsubmit = async ev => {
       ev.preventDefault();
       const row = { proyecto_id: p.id, operario_id: +$("q_op").value, fase: $("q_f").value, fecha_inicio: $("q_d").value || null, fecha_fin: $("q_h").value || $("q_d").value || null, creado_por: (S.perfil && (S.perfil.nombre || S.perfil.email)) || S.user.email };
-      if (mias.some(a => a.operario_id === row.operario_id && a.fase === row.fase)) return toast("Esa persona ya está asignada a esa fase.");
+      if (mias.some(a => a.operario_id === row.operario_id && a.fase === row.fase)) return toast("Ya está asignado a esa fase.");
       const ch = choque({ id: 0, ...row });
       if (ch.length && !confirm(`${opN(row.operario_id)} en esas fechas tiene:\n· ${ch.join("\n· ")}\n\n¿Asignar igualmente?`)) return;
       const { error } = await sb.from("asignaciones").insert(row);

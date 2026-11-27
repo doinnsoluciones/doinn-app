@@ -144,14 +144,14 @@ export async function vMelamina(ctx) {
   $app.innerHTML = `
     <div class="pj-top"><h1 class="h1">Calculadora de paneles<span class="cur">_</span></h1></div>
     <p class="hint">Mete el tablero y las piezas: el corte se dibuja al momento con el desperdicio. Lo que metas se guarda en este dispositivo.</p>
-    <div class="mgrid">
+    <div class="mgrid" style="grid-template-columns:1fr"><!-- Carga de piezas desde proyecto: oculta hasta definirla -->
     <div class="card frm"><h2>1 · Tablero</h2>
       <div class="three"><label>Largo (mm)<input id="m_L" type="number" value="${st.L}"></label><label>Ancho (mm)<input id="m_A" type="number" value="${st.A}"></label><label>Ancho de sierra (mm)<input id="m_k" type="number" step="0.1" value="${st.kerf}"></label></div>
       <div class="mtgs">${tg("m_rc", st.conRecorte, "Recorte perimetral")}<label class="mrmm" id="m_rbox" ${st.conRecorte ? "" : "hidden"}><input id="m_r" type="number" min="0" value="${st.recorte}"> mm por lado</label></div>
       <div class="mtgs">${tg("m_v", st.veta, "Respeta veta")}<span class="code" id="m_vtx">${st.veta ? "Las piezas no se giran: el largo va en el sentido de la veta (largo del tablero)." : "Las piezas se pueden girar para aprovechar mejor."}</span></div>
       <label class="msm">Margen de compra (%)<input id="m_d" type="number" min="0" value="${st.desp}"></label>
     </div>
-    <div class="card frm"><h2>Cargar piezas de un proyecto <small class="code">opcional</small></h2>
+    <div class="card frm" style="display:none"><h2>Cargar piezas de un proyecto <small class="code">opcional</small></h2>
       <label>Proyecto<select id="m_p"><option value="">Elige un proyecto con despiece…</option>${proys.map(p => `<option value="${p.id}">${esc(p.codigo)} · ${esc(p.nombre)}</option>`).join("")}</select></label>
       <div class="two"><label>Cómo convertir cada elemento<select id="m_modo"><option value="caja5">Caja sin trasera (5 piezas)</option><option value="caja6">Caja cerrada (6 piezas)</option><option value="panel">Panel (alto × ancho)</option></select></label>
       <label class="tg" style="margin-top:24px"><input type="checkbox" id="m_solo" checked><span></span>Solo elementos de melamina</label></div>

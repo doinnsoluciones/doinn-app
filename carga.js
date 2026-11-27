@@ -34,11 +34,11 @@ export async function vCarga(ctx, p, cont) {
   cont.innerHTML = `
   <div class="kpis">
     <div class="card k"><span>Elementos cargados</span><b>${elsC}/${d.els.length}</b></div>
-    <div class="card k"><span>Listado del PM</span><b>${famC}/${d.cargas.length}</b></div>
+    <div class="card k"><span>Listado del Front</span><b>${famC}/${d.cargas.length}</b></div>
     <div class="card k"><span>Carga</span><b style="font-size:18px">${p.fecha_carga ? fd(p.fecha_carga) : "—"}${p.hora_carga ? " · " + esc(p.hora_carga) : ""}</b></div>
   </div>
   <div class="card">
-    <div class="pj-top"><h2>Listado de carga del PM</h2><span class="pill ${p.listado_cerrado ? "ok" : "warn"}">${p.listado_cerrado ? "Cerrado" : "Abierto"}</span></div>
+    <div class="pj-top"><h2>Listado de carga del Front</h2><span class="pill ${p.listado_cerrado ? "ok" : "warn"}">${p.listado_cerrado ? "Cerrado" : "Abierto"}</span></div>
     <p class="hint">Materiales extra, subcontratados y herramientas que van en el camión.${limite && !p.listado_cerrado ? ` Fecha límite para cerrarlo: <b>${fd(limite)}</b> (48 h antes de la carga).` : ""}${p.listado_cerrado && p.fecha_cierre_listado ? ` Cerrado el ${new Date(p.fecha_cierre_listado).toLocaleDateString("es-ES")}.` : ""}</p>
     ${FAM.map(f => { const its = d.cargas.filter(c => c.familia === f); return `
       <div class="fam"><div class="code">${f} · ${its.filter(c => c.cargado).length}/${its.length}</div>
