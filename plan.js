@@ -13,11 +13,11 @@ const TIPOS_AUS = ["Vacaciones", "Baja", "Curso", "Otros"];
 const COD = {
   MO: ["Montaje", "#F2C230", "M"], DM: ["Desmontaje", "#E8833A", "DS"], PV: ["Previsión", "#F2C230", "M"], FA: ["Fábrica", "#CFE6A8", "F"],
   RE: ["Reunión / visita", "#1DCAD3", "R"], FO: ["Formación", "#3B4955", "FO"], VA: ["Vacaciones", "#8E9C9C", "V"], LIC: ["Licencia / permiso", "#AEB9B9", "L"],
-  BA: ["Baja", "#E62643", "B"], LB: ["Libre", "#D5DCDC", "LB"],
+  BA: ["Baja", "#E62643", "B"], ND: ["No disponible", "#5B6770", "ND"], LB: ["Libre", "#D5DCDC", "LB"],
 };
 const CON_PROY = ["MO", "DM", "PV", "RE"];
 // Leyenda y marcado: producción y resto (ausencias y formación)
-const COD_PROD = ["MO", "DM", "FA", "RE"], COD_OTROS = ["FO", "VA", "BA"];
+const COD_PROD = ["MO", "DM", "FA", "RE"], COD_OTROS = ["FO", "VA", "BA", "ND"];
 // Códigos retirados: la previsión se ve como montaje; licencia y libre no se muestran
 const normCod = c => c === "PV" ? "MO" : c === "LB" || c === "LIC" ? null : c;
 // Subcontratas: primero CDF, luego DIMAS, después el resto
@@ -170,7 +170,7 @@ export async function vPlan(ctx, modo, ini, opt = {}) {
   // Permisos de marcado en Personal
   // Permisos de marcado: superadmin todo · Front/encargado/TL producción en taller, externos y subcontratas · cada uno sus vacaciones y bajas
   const yo = S.perfil && S.perfil.operario_id, gestor = ctx.can("marcarProd"), propio = ctx.can("escaner");
-  const PROD_G = ["Taller", "Externos", "Subcontratas"], COD_P = [...COD_PROD, "FO"];
+  const PROD_G = ["Taller", "Externos", "Subcontratas"], COD_P = [...COD_PROD, "FO", "ND"];
   const codigosFila = o => superA ? [...COD_PROD, ...COD_OTROS] : [...(gestor && PROD_G.includes(o.grupo) ? COD_P : []), ...(propio && yo && o.id === yo ? COD_AUSENCIA : [])];
   const puedeFila = o => codigosFila(o).length > 0;
   const misCodigos = ids => { const ls = ids.map(id => codigosFila(S.operarios.find(o => o.id === id) || {})); return [...COD_PROD, ...COD_OTROS].filter(c => ls.every(l => l.includes(c))); };
