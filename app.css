@@ -1103,3 +1103,4 @@ body.tv .gantt.fit .gg{padding-top:2px;padding-bottom:2px}
 .sat-av{font-size:12px;color:#9A6F0E;margin:8px 0 0}
 .sat-como{margin-top:6px}
 @media (max-width:640px){.sat2-r{grid-template-columns:1fr;gap:6px}.sat2-cab>div:first-child{display:none}.sat2-cal span{height:26px;font-size:10px}}
+.pj-meta>.nl::before{content:none}

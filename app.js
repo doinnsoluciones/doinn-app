@@ -243,7 +243,10 @@ function alineaMeta() {
     const w = Math.min(Math.max(...els.map(e => e.getBoundingClientRect().width)), c === "m-fr" ? 160 : 999);
     els.forEach(e => e.style.width = Math.ceil(w) + "px");
   }
+  // Si la línea se parte (móvil), el dato que empieza renglón no lleva «·» delante
+  $app.querySelectorAll(".pj-meta").forEach(m => { let top = null; [...m.children].forEach(e => { e.classList.remove("nl"); const t = e.offsetTop; if (top !== null && t > top + 2) e.classList.add("nl"); top = t; }); });
 }
+let _alineaT; addEventListener("resize", () => { clearTimeout(_alineaT); _alineaT = setTimeout(() => document.querySelector(".pj-meta") && alineaMeta(), 150); });
 function card(p) {
   const st = stats(p.id), [sl, sc] = salud(p, st), d = dias(p.fecha_carga);
   const cuando = d === null ? "" : d === 0 ? "carga hoy" : d > 0 ? `faltan ${d} días` : `hace ${-d} días`;
